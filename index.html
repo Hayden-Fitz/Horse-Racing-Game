@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hotdog Downs — 3D Party Racing</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="polish.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section id="viewport" aria-label="3D horse racing stadium">
+        <div class="brand">
+          <small>WELCOME TO</small><strong>HOTDOG<br />DOWNS</strong>
+        </div>
+        <div class="topbar">
+          <div><small>WALLET</small><strong id="money">$100</strong></div>
+          <div><small>ROUND</small><strong id="round">1 / 3</strong></div>
+          <div><small>RACE</small><strong id="race-number">1 / 6</strong></div>
+          <div><small>ITEMS</small><strong id="inventory">0</strong></div>
+        </div>
+        <div id="countdown" class="countdown"></div>
+        <div id="announcement" class="announcement">Click the stadium to look around</div>
+        <div id="crosshair" class="crosshair">+</div>
+        <div id="mode-badge" class="mode-badge">SEATED</div>
+        <div id="power-meter" class="power-meter" hidden>
+          <span>THROW POWER</span>
+          <div><i></i></div>
+          <strong>55%</strong>
+        </div>
+        <div class="camera-help">
+          <kbd>Mouse</kbd> Look <kbd>F</kbd> Ready item <kbd>Q</kbd> Change item
+          <kbd>P</kbd> Phone <kbd>Esc</kbd> Menu
+        </div>
+        <div id="race-progress" class="race-progress"><div></div></div>
+      </section>
+      <button id="phone-toggle" class="phone-toggle" aria-expanded="true">📱 PHONE</button>
+      <aside id="phone" class="phone">
+        <div class="speaker"></div>
+        <div class="phone-status"><span>9:41</span><strong>HOTDOG OS</strong><span>●●●</span></div>
+        <nav class="apps">
+          <button class="active" data-app="bet">RaceBet</button>
+          <button data-app="shop">TrackMart</button>
+          <button data-app="odds">OddsWatch</button>
+          <button data-app="bank">Bank</button>
+          <button data-app="leaders">Leaderboard</button>
+          <button data-app="cards">PonyCards</button>
+        </nav>
+        <section class="app-panel active" data-panel="bet">
+          <div class="section-title">
+            <span>LIVE BOOK</span><em id="phase-label">BETTING OPEN</em>
+          </div>
+          <div id="horse-list" class="horse-list"></div>
+          <div class="stake-row">
+            <button class="stake-step" data-step="-5">−</button
+            ><label
+              >STAKE $<input id="bet-amount" type="number" min="5" step="5" value="10" /></label
+            ><button class="stake-step" data-step="5">+</button>
+          </div>
+          <button id="place-bet" class="primary">PLACE BET</button>
+          <div class="ticket-title">YOUR TICKETS</div>
+          <div id="tickets" class="tickets">No bets placed.</div>
+        </section>
+        <section class="app-panel" data-panel="shop">
+          <div class="section-title"><span>THROWABLES</span><em>TRACKSIDE DELIVERY</em></div>
+          <div id="deliveries" class="deliveries">No active deliveries.</div>
+          <div id="shop-items" class="shop-items"></div>
+          <p class="tip">
+            During a race, hold the mouse button to charge and release to throw. Aim ahead of a
+            moving horse and use the trajectory guide.
+          </p>
+        </section>
+        <section class="app-panel" data-panel="bank">
+          <div class="balance">
+            <small>AVAILABLE BALANCE</small><strong id="bank-money">$100</strong>
+          </div>
+          <div id="ledger" class="ledger"></div>
+        </section>
+        <section class="app-panel" data-panel="odds">
+          <div class="section-title"><span>LIVE TELEMETRY</span><em>3 LAPS</em></div>
+          <div id="odds-watch" class="odds-watch"></div>
+        </section>
+        <section class="app-panel" data-panel="leaders">
+          <div class="section-title"><span>MATCH STANDINGS</span><em>LOCAL</em></div>
+          <div id="leaderboard-list" class="leaderboard-list"></div>
+        </section>
+        <section class="app-panel" data-panel="cards">
+          <div class="section-title"><span>PONYCARDS</span><em>VERY IMPORTANT</em></div>
+          <div id="pony-card" class="pony-card">
+            <small>COMMON</small><strong>ACCOUNTANT COLT</strong><span>+2 SPREADSHEETS</span>
+          </div>
+          <button id="draw-card" class="primary">DRAW USELESS CARD</button>
+        </section>
+        <div class="home-bar"></div>
+      </aside>
+      <div id="results" class="results" hidden>
+        <div>
+          <small>RACE COMPLETE</small>
+          <h2 id="result-title"></h2>
+          <p id="result-copy"></p>
+          <button id="result-continue">CONTINUE</button>
+        </div>
+      </div>
+      <div id="game-menu" class="game-menu">
+        <div class="menu-card">
+          <small>WELCOME TO</small>
+          <h1>HOTDOG DOWNS</h1>
+          <p>Bet smart. Throw accurately. Leave richer than your friends.</p>
+          <button id="menu-play">TAKE YOUR SEAT</button>
+          <button id="menu-resume" hidden>RESUME RACE</button>
+          <div class="menu-controls">
+            <kbd>Mouse</kbd> Look <kbd>P</kbd> Phone <kbd>F</kbd> Throw <kbd>Q</kbd> Change item
+            <kbd>Esc</kbd> Menu
+          </div>
+        </div>
+      </div>
+      <div id="round-break" class="round-break" hidden>
+        <small>ROUND INTERMISSION</small>
+        <strong id="break-timer">2:00</strong>
+        <span>Visit the concourse shops for instant discounted items.</span>
+      </div>
+      <div id="day-transition" class="day-transition" hidden>
+        <small>HOTDOG DOWNS</small>
+        <strong id="day-title">DAY 2</strong>
+      </div>
+      <div id="vendor-shop" class="vendor-shop" hidden>
+        <div>
+          <small>CONCOURSE VALUE STAND</small>
+          <h2>INSTANT PICKUP</h2>
+          <p>25% cheaper than TrackMart. No delivery wait.</p>
+          <div id="vendor-items" class="shop-items"></div>
+          <button id="vendor-close">CLOSE [E]</button>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="src/boot.js"></script>
+  </body>
+</html>
