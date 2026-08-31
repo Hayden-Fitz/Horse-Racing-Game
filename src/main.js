@@ -53,6 +53,7 @@ HD.Game = (() => {
     freezeStaticStadium(scene);
     camera.position.copy(HD.CONFIG.seat);
     HD.Race.resetHorses();
+    HD.AI.init();
     HD.Controls.init();
     HD.Network.init();
     HD.UI.addLedger("Round 1 bankroll", 100);
@@ -82,6 +83,7 @@ HD.Game = (() => {
         if (S.timer <= 0) HD.Race.begin();
       }
       HD.Race.update(dt);
+      HD.AI.update(dt);
       HD.Race.updateIntermission(dt);
       HD.Race.updateProjectiles(dt);
       HD.UI.updateDeliveries(dt);

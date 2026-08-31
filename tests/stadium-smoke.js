@@ -51,6 +51,14 @@ async function run() {
   );
   assert.equal(HD.world.shopPositions.length, 4, "The upper concourse shops did not build");
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
+  assert.ok(
+    HD.CONFIG.stairs.startZ < 50.5,
+    "The left/right stair entrances must overlap the lower walking ring",
+  );
+  assert.ok(
+    HD.world.scene.children.some((object) => object.isInstancedMesh && object.count === 120),
+    "The instanced infield grass detail is missing",
+  );
 
   console.log("Stadium geometry and rotating eight-horse field checks passed.");
 }

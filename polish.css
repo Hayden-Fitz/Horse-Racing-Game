@@ -204,7 +204,7 @@
 
 .hotbar-items {
   display: grid;
-  grid-template-columns: repeat(8, 62px);
+  grid-template-columns: repeat(10, 54px);
   gap: 4px;
   padding: 5px;
   border: 1px solid #f2dd9a66;
@@ -217,7 +217,7 @@
   position: relative;
   display: grid;
   min-width: 0;
-  height: 62px;
+  height: 58px;
   place-items: center;
   padding: 3px;
   border: 1px solid #ffffff1c;
@@ -316,9 +316,11 @@
 }
 
 .menu-shell {
+  position: relative;
+  z-index: 2;
   display: grid;
-  width: min(1120px, 96vw);
-  grid-template-columns: minmax(0, 760px) 290px;
+  width: min(1160px, 96vw);
+  grid-template-columns: minmax(0, 790px) 310px;
   align-items: center;
   gap: 24px;
   transform: translateX(-18px);
@@ -647,10 +649,11 @@
 }
 
 .lobby-title {
-  padding: 10px 12px;
-  border: 1px solid #ffffff1b;
-  border-radius: 10px;
-  background: linear-gradient(100deg, #294b38, #13261c);
+  padding: 12px 14px;
+  border: 1px solid #f0ca5e70;
+  border-left: 5px solid var(--yellow);
+  border-radius: 4px 12px 12px 4px;
+  background: linear-gradient(100deg, #31543e, #13261c 70%);
   text-align: left;
 }
 
@@ -685,9 +688,11 @@
   display: grid;
   gap: 6px;
   padding: 10px;
-  border: 1px solid #ffffff18;
+  border: 1px solid #d9c06a38;
   border-radius: 10px;
-  background: #0b1a12;
+  background:
+    linear-gradient(145deg, #12271b, #09140e),
+    repeating-linear-gradient(90deg, transparent 0 14px, #ffffff08 14px 15px);
   text-align: left;
 }
 
@@ -794,7 +799,7 @@
   opacity: 0.35;
 }
 
-.ranking-row:first-child {
+.ranking-row.leader {
   border-color: #f2cd5d88;
   background: linear-gradient(90deg, #5d4820, #1c3528);
   box-shadow: 0 7px 20px #0006;
@@ -834,6 +839,7 @@
 
 .day-transition .animated-rankings {
   width: min(520px, 84vw);
+  box-sizing: content-box;
   padding: 18px;
   border: 1px solid #e7c65c66;
   border-radius: 18px;
@@ -844,6 +850,7 @@
 .day-transition .ranking-row {
   right: 18px;
   left: 18px;
+  box-sizing: border-box;
   background: linear-gradient(90deg, #172b21, #0d1813);
 }
 
@@ -956,7 +963,7 @@
 
 @media (max-width: 900px) {
   .hotbar-items {
-    grid-template-columns: repeat(8, 48px);
+    grid-template-columns: repeat(10, 48px);
   }
 
   .hotbar-slot {
@@ -970,7 +977,7 @@
 
 @media (max-width: 600px) {
   .hotbar-items {
-    grid-template-columns: repeat(4, 48px);
+    grid-template-columns: repeat(5, 48px);
   }
 
   .lobby-connect-grid,
@@ -1078,6 +1085,34 @@
   background-size: 42px 42px, 34px 34px, auto;
   backdrop-filter: none;
   transition: opacity 180ms ease;
+  overflow: hidden;
+}
+
+.game-menu::before {
+  position: absolute;
+  width: min(1100px, 90vw);
+  height: min(650px, 72vh);
+  border: 2px solid #e3b94b1c;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 70px #e3b94b0a,
+    0 0 0 72px #e3b94b18,
+    0 0 0 145px #08160f42,
+    0 0 0 147px #e3b94b12;
+  content: "";
+  transform: rotate(-5deg);
+  pointer-events: none;
+}
+
+.game-menu::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 12px;
+  background: repeating-linear-gradient(90deg, #f2e6c5 0 18px, #17251d 18px 36px);
+  content: "";
+  opacity: 0.75;
 }
 
 .day-transition > strong,
@@ -1392,6 +1427,11 @@
   background: linear-gradient(145deg, #1d3c2d, #102219);
   box-shadow: 0 30px 90px #000c;
   text-align: center;
+  scrollbar-width: none;
+}
+.menu-card::-webkit-scrollbar,
+.lobby-browser::-webkit-scrollbar {
+  display: none;
 }
 .menu-card small {
   color: var(--yellow);

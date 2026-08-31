@@ -7,6 +7,7 @@ const gameScripts = [
   "models.js",
   "stadium.js",
   "race.js",
+  "ai.js",
   "ui.js",
   "settings.js",
   "firebase.js",

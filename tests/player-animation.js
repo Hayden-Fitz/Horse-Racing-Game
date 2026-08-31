@@ -20,6 +20,21 @@ async function run() {
   });
 
   HD.Models.setPlayerStanding(player, true);
+  player.traverse((object) => object.layers.set(2));
+  assert.equal(
+    player.userData.shins[0].parent,
+    player.userData.legs[0],
+    "The knee must be parented to the hip for a natural gait",
+  );
+  assert.equal(
+    player.userData.shoes[0].parent,
+    player.userData.shins[0],
+    "The foot must be parented to the knee for a natural gait",
+  );
+  assert.ok(
+    Math.abs(player.userData.arms[0].position.x) >= 0.8,
+    "The arms should sit outside the torso while remaining attached at the shoulders",
+  );
   player.userData.moving = true;
   HD.Models.animateCharacter(player, 1.4, true);
   assert.notEqual(player.userData.legs[0].rotation.x, 0, "Walking legs did not animate");
@@ -39,6 +54,11 @@ async function run() {
   HD.Models.playPlayerThrow(player, "hotdog");
   HD.Models.animateCharacter(player, HD.state.elapsed + 0.1, true);
   assert.equal(player.userData.equippedProp, "item:hotdog");
+  assert.equal(
+    player.userData.props.get("item:hotdog").layers.mask,
+    player.layers.mask,
+    "A local held prop should inherit the hidden local-player render layer",
+  );
   assert.ok(
     player.userData.props.get("item:hotdog").scale.x > 0.8,
     "Third-person held items should be easy to see",

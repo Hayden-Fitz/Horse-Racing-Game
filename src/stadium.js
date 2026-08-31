@@ -37,6 +37,7 @@ HD.Stadium = (() => {
     track.position.y = 0.03;
     track.receiveShadow = true;
     scene.add(track);
+    createDetailedInfieldGrass(scene);
     for (let laneLine = 0; laneLine <= HD.CONFIG.raceHorseCount; laneLine++) {
       addTrackLine(
         scene,
@@ -337,10 +338,10 @@ HD.Stadium = (() => {
   }
 
   function createOvalCanopy(root) {
-    const outerX = 120;
-    const outerZ = 83;
-    const innerX = 104;
-    const innerZ = 71;
+    const outerX = 124;
+    const outerZ = 86;
+    const innerX = 96;
+    const innerZ = 64;
     const outerHeight = 21.5;
     const innerHeight = 25;
     const segments = 128;
@@ -430,6 +431,62 @@ HD.Stadium = (() => {
       cylinder(0.45, 0.7, 6, 0x765034, scene, [p.x, 2.5, p.z]);
       sphere(3.8, 0x2f7d3e, scene, [p.x, 7, p.z]);
     }
+  }
+
+  function createDetailedInfieldGrass(scene) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#4f9147";
+    context.fillRect(0, 0, 256, 256);
+
+    for (let stripe = 0; stripe < 16; stripe++) {
+      context.fillStyle = stripe % 2 ? "#579c4e" : "#478942";
+      context.fillRect(stripe * 16, 0, 16, 256);
+    }
+    for (let speck = 0; speck < 560; speck++) {
+      const x = (speck * 73) % 256;
+      const y = (speck * 151) % 256;
+      context.fillStyle = speck % 3 ? "#6bab58" : "#39783a";
+      context.fillRect(x, y, 1, 3);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(3.5, 1.8);
+    const field = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 72),
+      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.92 }),
+    );
+    field.rotation.x = -Math.PI / 2;
+    field.scale.set(48.8, 21.8, 1);
+    field.position.y = 0.08;
+    field.receiveShadow = true;
+    scene.add(field);
+
+    const tufts = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(0.09, 0.34, 4),
+      HD.util.material(0x73ad55),
+      120,
+    );
+    const dummy = new THREE.Object3D();
+    for (let index = 0; index < 120; index++) {
+      const angle = index * 2.399963;
+      const radius = 0.2 + ((index * 37) % 79) / 100;
+      const x = Math.cos(angle) * 44 * radius;
+      const z = Math.sin(angle) * 18 * radius;
+      dummy.position.set(x, 0.25, z);
+      dummy.rotation.y = angle;
+      dummy.scale.setScalar(0.7 + (index % 5) * 0.08);
+      dummy.updateMatrix();
+      tufts.setMatrixAt(index, dummy.matrix);
+    }
+    tufts.instanceMatrix.needsUpdate = true;
+    tufts.castShadow = false;
+    scene.add(tufts);
   }
 
   function createRaceBoard(scene) {
@@ -862,9 +919,56 @@ HD.Stadium = (() => {
 
     HD.world.shopPositions = [];
     HD.world.betCounterPositions = [];
+    HD.world.sabotageCounterPositions = [];
     HD.world.barriers = [];
     const shopAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4];
     shopAngles.forEach((angle, index) => createUpperShop(scene, angle, index));
+    createSabotageCounter(scene, Math.PI);
+    createUpperConcourseProps(scene);
+  }
+
+  function createUpperConcourseProps(scene) {
+    const colors = [0x496b3f, 0xa95e3f, 0x3c6578];
+    for (let index = 0; index < 12; index++) {
+      const angle = (index / 12) * Math.PI * 2 + 0.18;
+      const position = oval(110, 74.5, angle);
+      const prop = new THREE.Group();
+      prop.position.set(position.x, 13.5, position.z);
+      scene.add(prop);
+      cylinder(1.05, 1.2, 1.05, 0x76563c, prop, [0, 0.52, 0], 12);
+      sphere(1.35, colors[index % colors.length], prop, [0, 1.65, 0]);
+      HD.world.barriers.push({ x: position.x, z: position.z, radius: 1.45 });
+    }
+  }
+
+  function createSabotageCounter(scene, angle) {
+    const position = oval(115, 79, angle).add(new THREE.Vector3(0, 0, -11));
+    const counter = new THREE.Group();
+    counter.position.set(position.x, 13.5, position.z);
+    counter.rotation.y = -angle + Math.PI / 2;
+    scene.add(counter);
+
+    box([6.4, 2.3, 2.6], 0x242728, counter, [0, 1.15, 0]);
+    box([7, 0.3, 3], 0xa87d38, counter, [0, 2.45, 0]);
+    box([5.8, 1.1, 0.18], 0x151819, counter, [0, 3.55, 0]);
+    const sign = createTextSign("PADDOCK FIXER", 0xe9bd51);
+    sign.position.set(0, 3.55, -0.18);
+    sign.scale.set(5.4, 0.95, 1);
+    counter.add(sign);
+
+    const worker = HD.Models.playerCharacter(0x202326, {
+      hat: "fedora",
+      skin: 0xb97852,
+    });
+    HD.Models.setPlayerStanding(worker, true);
+    worker.position.set(0, 2.55, 0.35);
+    worker.scale.setScalar(0.58);
+    counter.add(worker);
+
+    HD.world.sabotageCounterPositions.push(
+      new THREE.Vector3(position.x, 18.3, position.z),
+    );
+    HD.world.barriers.push({ x: position.x, z: position.z, radius: 3.7 });
   }
 
   function createStaircase(scene, angle) {
@@ -898,7 +1002,7 @@ HD.Stadium = (() => {
     for (let step = 0; step < stepCount; step++) {
       const progress = (step + 1) / stepCount;
       const distance = (step + 0.5) * radialStep;
-      const top = stairHeightForProgress(progress);
+      const top = stairHeightForProgress(progress) - progress * 0.06;
       const foundation = 1.25;
       const height = top - foundation;
       const centerY = foundation + height / 2;
@@ -927,7 +1031,7 @@ HD.Stadium = (() => {
       [stairs.width, 0.4, 2],
       0xcab78f,
       root,
-      [0, stairs.topHeight - 0.2, pathLength + 0.35],
+      [0, stairs.topHeight - 0.24, pathLength + 0.35],
     );
     addStairRails(root, pathLength);
   }
@@ -1248,6 +1352,19 @@ HD.Stadium = (() => {
     HD.world.trajectory.frustumCulled = false;
     scene.add(HD.world.trajectory);
     HD.world.trajectory.visible = false;
+    HD.world.trajectoryGlow = new THREE.Points(
+      HD.world.trajectory.geometry,
+      new THREE.PointsMaterial({
+        color: 0xfff1a0,
+        size: 0.16,
+        transparent: true,
+        opacity: 0.7,
+        sizeAttenuation: true,
+      }),
+    );
+    HD.world.trajectoryGlow.frustumCulled = false;
+    HD.world.trajectoryGlow.visible = false;
+    scene.add(HD.world.trajectoryGlow);
   }
 
   // ---------------------------------------------------------------------------

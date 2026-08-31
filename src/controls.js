@@ -67,8 +67,9 @@ HD.Controls = (() => {
   function keydown(event) {
     if (setMovementKey(event.code, true)) return;
     if (event.repeat) return;
-    if (/^Digit[1-8]$/.test(event.code)) {
-      return selectHotbarSlot(Number(event.code.slice(-1)) - 1);
+    if (/^Digit[0-9]$/.test(event.code)) {
+      const digit = Number(event.code.slice(-1));
+      return selectHotbarSlot(digit === 0 ? 9 : digit - 1);
     }
     if (HD.Settings.matches(event, "menu")) {
       const rankings = document.querySelector("#rankings-overlay");
@@ -110,6 +111,7 @@ HD.Controls = (() => {
     return true;
   }
   function setMode(mode) {
+    if (mode !== "phone") S.atSabotageCounter = false;
     if (mode === "throw" && S.inventory[S.selectedItem] < 1) {
       const replacement = nextOwnedItem(S.selectedItem);
       if (replacement) selectItem(replacement, { announce: false });
@@ -125,8 +127,9 @@ HD.Controls = (() => {
     phoneRequested = phoning;
     if (phoning) HD.world.phoneModel.visible = true;
     trajectory.visible = throwing;
+    if (HD.world.trajectoryGlow) HD.world.trajectoryGlow.visible = throwing;
     S.charging = false;
-    S.throwPower = 0.55;
+    S.throwPower = 0;
     chargeSource = null;
     chargeTime = 0;
     HD.UI.power(S.throwPower, throwing);
@@ -152,6 +155,12 @@ HD.Controls = (() => {
     }
   }
   function releaseThrow() {
+    if (!S.charging) return;
+    if (chargeTime < 0.12) {
+      cancelCharge();
+      HD.UI.announce("Hold the throw control, watch the power meter, then release.");
+      return;
+    }
     if (S.phase !== "racing") return HD.UI.announce("Hold that thought — the race hasn't started.");
     if (S.inventory[S.selectedItem] < 1) return setMode("look");
     const thrownType = S.selectedItem;
@@ -173,7 +182,7 @@ HD.Controls = (() => {
     S.charging = false;
     chargeSource = null;
     chargeTime = 0;
-    S.throwPower = 0.55;
+    S.throwPower = 0;
     autoSwapAfterThrow(thrownType);
   }
   function beginCharge(event) {
@@ -190,7 +199,7 @@ HD.Controls = (() => {
     S.charging = true;
     chargeSource = source;
     chargeTime = 0;
-    S.throwPower = 0.4;
+    S.throwPower = 0;
   }
   function endCharge(event) {
     if (event.button !== 0 || !S.charging || chargeSource !== "pointer") return;
@@ -201,7 +210,7 @@ HD.Controls = (() => {
     S.charging = false;
     chargeSource = null;
     chargeTime = 0;
-    S.throwPower = 0.55;
+    S.throwPower = 0;
   }
   function update(dt) {
     if (S.standing) {
@@ -216,8 +225,7 @@ HD.Controls = (() => {
     }
     if (S.charging) {
       chargeTime += dt;
-      const chargeWave = (Math.sin(chargeTime * 4.8 - Math.PI / 2) + 1) / 2;
-      S.throwPower = 0.4 + chargeWave * 0.95;
+      S.throwPower = Math.min(1, chargeTime / 1.35);
     }
     if (S.mode === "throw") {
       updateTrajectory();
@@ -259,8 +267,17 @@ HD.Controls = (() => {
     if (!hand?.visible) return;
 
     if (S.charging) {
-      hand.position.set(0.7, -0.45, -1.12);
-      hand.rotation.set(-1.08, -0.2, -0.48);
+      const windup = THREE.MathUtils.clamp((S.throwPower - 0.4) / 0.95, 0, 1);
+      hand.position.set(
+        0.7,
+        THREE.MathUtils.lerp(-0.5, -0.34, windup),
+        THREE.MathUtils.lerp(-1.12, -0.92, windup),
+      );
+      hand.rotation.set(
+        THREE.MathUtils.lerp(-0.82, -1.28, windup),
+        -0.2,
+        THREE.MathUtils.lerp(-0.38, -0.58, windup),
+      );
       return;
     }
 
@@ -492,8 +509,19 @@ HD.Controls = (() => {
     if (!S.standing) return HD.UI.announce("Press Space to stand up first.");
     const shops = HD.world.shopPositions || [];
     const counters = HD.world.betCounterPositions || [];
+    const fixers = HD.world.sabotageCounterPositions || [];
     const shopDistance = nearestDistance(shops);
     const counterDistance = nearestDistance(counters);
+    const fixerDistance = nearestDistance(fixers);
+
+    if (fixerDistance < 7 && fixerDistance < Math.min(shopDistance, counterDistance)) {
+      setMode("phone");
+      S.atSabotageCounter = true;
+      document.querySelector('[data-app="sabotage"]')?.click();
+      HD.UI.render();
+      HD.UI.announce("The paddock fixer offers two cash jobs at 33% off.");
+      return;
+    }
 
     if (counterDistance < 7 && counterDistance < shopDistance) {
       S.counterOpen = true;

@@ -9,7 +9,7 @@ HD.Settings = (() => {
     right: "KeyD",
     stand: "Space",
     interact: "KeyE",
-    phone: "KeyP",
+    phone: "ShiftLeft",
     throw: "KeyF",
     item: "KeyQ",
     rankings: "KeyR",
@@ -74,10 +74,12 @@ HD.Settings = (() => {
     };
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      const savedBindings = { ...DEFAULT_BINDINGS, ...(saved.bindings || {}) };
+      if (savedBindings.phone === "KeyP") savedBindings.phone = "ShiftLeft";
       return {
         ...defaults,
         ...saved,
-        bindings: { ...DEFAULT_BINDINGS, ...(saved.bindings || {}) },
+        bindings: savedBindings,
         avatar: { ...defaults.avatar, ...(saved.avatar || {}) },
         cosmeticUnlocks: Array.isArray(saved.cosmeticUnlocks)
           ? saved.cosmeticUnlocks
@@ -366,6 +368,13 @@ HD.Settings = (() => {
   }
 
   function matches(event, action) {
+    if (
+      action === "phone" &&
+      binding(action) === "ShiftLeft" &&
+      (event.code === "ShiftLeft" || event.code === "ShiftRight")
+    ) {
+      return true;
+    }
     return event.code === binding(action);
   }
 

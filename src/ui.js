@@ -99,7 +99,9 @@ HD.UI = (() => {
       .map((horse, poolIndex) => {
         const active = runningById.get(horse.id);
         const odds = active?.odds || horse.odds;
-        const chance = Math.max(3, Math.round(100 / (odds + 1)));
+        const chance = active?.liveChance
+          ? Math.round(active.liveChance * 100)
+          : Math.max(3, Math.round(100 / (odds + 1)));
         const rating = Math.round(horse.ability * 100);
         const color = horse.color.toString(16).padStart(6, "0");
         return `
@@ -131,6 +133,14 @@ HD.UI = (() => {
   function rankingEntries() {
     const online = HD.Network?.rankingPlayers?.() || [];
     if (online.length) return online.sort((a, b) => b.money - a.money);
+
+    const computerPlayers = HD.AI?.rankingPlayers?.() || [];
+    if (computerPlayers.length) {
+      return [
+        { id: "you", name: "YOU", money: S.money },
+        ...computerPlayers,
+      ].sort((a, b) => b.money - a.money);
+    }
 
     return [
       { id: "you", name: "YOU", money: S.money },
@@ -167,6 +177,9 @@ HD.UI = (() => {
       row.querySelector("em").textContent = index + 1;
       row.querySelector("span").textContent = entry.name;
       row.querySelector("strong").textContent = `$${entry.money}`;
+      row.classList.toggle("leader", index === 0);
+      row.dataset.rank = String(index + 1);
+      row.style.zIndex = String(rankings.length - index);
       requestAnimationFrame(() => {
         row.style.transform = `translate3d(0, ${index * 48}px, 0)`;
       });
@@ -187,7 +200,7 @@ HD.UI = (() => {
         if (!count) classes.push("empty");
         return `
           <button class="${classes.join(" ")}" data-hotbar-item="${id}">
-            <kbd>${index + 1}</kbd>
+            <kbd>${index === 9 ? 0 : index + 1}</kbd>
             <span>${item.icon}</span>
             <strong>${count}</strong>
             <small>${shortName}</small>
@@ -244,12 +257,18 @@ HD.UI = (() => {
         `;
       })
       .join("");
-    el.sabotageOptions.innerHTML = Object.entries(C.sabotageOptions)
+    const sabotageEntries = Object.entries(C.sabotageOptions).filter(([id]) => {
+      return !S.atSabotageCounter || ["looseShoe", "hotStart"].includes(id);
+    });
+    el.sabotageOptions.innerHTML = sabotageEntries
       .map(([id, option]) => {
-        const disabled = !canHire || S.money < option.price ? "disabled" : "";
+        const price = S.atSabotageCounter
+          ? Math.ceil(option.price * (1 - C.vendorDiscount))
+          : option.price;
+        const disabled = !canHire || S.money < price ? "disabled" : "";
         return `
           <button data-sabotage-option="${id}" ${disabled}>
-            <strong>${option.name} · $${option.price}</strong>
+            <strong>${option.name} · $${price}</strong>
             <small>${option.description}</small>
           </button>
         `;
@@ -280,6 +299,8 @@ HD.UI = (() => {
 
   function horseStatus(data) {
     if (data.ragdoll > 0) return "TUMBLING";
+    if (data.panic > 0) return "PANICKED";
+    if (data.weave > 0) return "WEAVING";
     if (data.slow > 0) return "SLOWED";
     if (data.boost > 0) return "BOOSTED";
     if (data.resistance > 0) return "RESISTANT";
@@ -323,6 +344,8 @@ HD.UI = (() => {
     if (item.ragdollDuration) effects.push(`STUN · ${item.ragdollDuration}s`);
     if (item.boostDuration) effects.push(`BOOST 45% · ${item.boostDuration}s`);
     if (item.resistanceDuration) effects.push(`RESIST · ${item.resistanceDuration}s`);
+    if (item.weaveDuration) effects.push(`WEAVE · ${item.weaveDuration}s`);
+    if (item.panicDuration) effects.push(`PANIC · ${item.panicDuration}s`);
     return effects.length ? `${effects.join(" / ")} — ` : "UTILITY — ";
   }
   function renderDeliveries() {
@@ -393,10 +416,7 @@ HD.UI = (() => {
     );
   }
   function isBettingOpen() {
-    return (
-      S.phase === "betting" ||
-      (S.phase === "racing" && S.raceTime < C.liveBettingDuration)
-    );
+    return HD.Race.liveBettingOpen();
   }
 
   function normalizedStake(input) {
@@ -658,6 +678,7 @@ HD.UI = (() => {
     render,
     renderCards,
     renderOddsWatch,
+    renderLeaderboard,
     phone,
     announce,
     showRaceWinner,

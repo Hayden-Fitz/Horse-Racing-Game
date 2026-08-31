@@ -39,7 +39,7 @@ sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(read("src/config.js"), sandbox);
 
-assert.equal(Object.keys(sandbox.HD.CONFIG.items).length, 8, "The hotbar requires exactly eight items");
+assert.equal(Object.keys(sandbox.HD.CONFIG.items).length, 10, "The hotbar requires ten items");
 assert.equal(sandbox.HD.CONFIG.raceLaps, 3, "Races should run for three laps");
 assert.equal(sandbox.HD.CONFIG.horses.length, 24, "The rotating horse pool requires 24 horses");
 assert.equal(sandbox.HD.CONFIG.raceHorseCount, 8, "Each race should contain eight horses");
@@ -61,10 +61,20 @@ assert.equal(
 );
 assert.ok(ids.includes("lobby-public"), "The public lobby button is missing");
 assert.ok(ids.includes("lobby-private"), "The private lobby button is missing");
+assert.ok(ids.includes("winner-coins"), "The Winner Coins balance is missing");
+assert.ok(ids.includes("avatar-unlock"), "The cosmetic unlock control is missing");
+assert.ok(
+  sandbox.HD.CONFIG.items.bananaPeel.weaveDuration > 0,
+  "The banana peel needs its lane-weaving effect",
+);
+assert.ok(
+  sandbox.HD.CONFIG.items.airHorn.panicDuration > 0,
+  "The air horn needs its unique panic effect",
+);
 assert.ok(html.includes('value="640"'), "The 640p resolution option is missing");
 assert.ok(html.includes('value="2160"'), "The 2160p resolution option is missing");
 
-console.log("UI element, eight-item inventory, and resolution checks passed.");
+console.log("UI element, ten-item inventory, and resolution checks passed.");
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");

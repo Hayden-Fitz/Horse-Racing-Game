@@ -6,11 +6,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node tests/run-all.js",
     "check": "node --check server.js && node --check src/firebase.js && node --check src/network.js",
     "test:firebase": "node tests/firebase-smoke.js",
     "test:ui": "node tests/ui-contract.js",
     "test:player": "node tests/player-animation.js",
-    "test:stadium": "node tests/stadium-smoke.js"
+    "test:stadium": "node tests/stadium-smoke.js",
+    "test:race": "node tests/race-simulation.js",
+    "test:ai": "node tests/ai-behavior.js"
   },
   "engines": {
     "node": ">=20"

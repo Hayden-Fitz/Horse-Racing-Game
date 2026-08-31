@@ -106,8 +106,11 @@ HD.Race = (() => {
     S.phase = "racing";
     S.raceTime = 0;
     const sabotageReport = resolveSabotage();
-    S.raceAnnouncement =
-      sabotageReport || `They're off! Live betting remains open for ${C.liveBettingDuration} seconds.`;
+    const bettingNotice =
+      "Live betting remains open until the leader completes lap one.";
+    S.raceAnnouncement = sabotageReport
+      ? `${sabotageReport} ${bettingNotice}`
+      : `They're off! ${bettingNotice}`;
     HD.UI.countdown("GO!");
     HD.UI.announce(S.raceAnnouncement);
     setTimeout(() => HD.UI.countdown(""), 700);
@@ -118,12 +121,15 @@ HD.Race = (() => {
     if (S.sabotagePlans.length) return HD.UI.announce("You already hired a fixer this race.");
     const option = C.sabotageOptions[optionId];
     if (!option) return;
-    if (S.money < option.price) return HD.UI.announce(`The fixer needs $${option.price}.`);
+    const price = S.atSabotageCounter
+      ? Math.ceil(option.price * (1 - C.vendorDiscount))
+      : option.price;
+    if (S.money < price) return HD.UI.announce(`The fixer needs $${price}.`);
 
-    S.money -= option.price;
+    S.money -= price;
     S.sabotagePlans.push({ horse: horseIndex, optionId });
     HD.Network?.sendSabotage(horseIndex, optionId);
-    HD.UI.addLedger(`Secret fixer: #${horseIndex + 1}`, -option.price);
+    HD.UI.addLedger(`Secret fixer: #${horseIndex + 1}`, -price);
     HD.UI.announce("The fixer accepted the job. The outcome remains sealed until race start.");
     HD.UI.render();
   }
@@ -141,6 +147,10 @@ HD.Race = (() => {
       if (option.startDelay) {
         horse.userData.data.startDelay = option.startDelay;
         return `#${plan.horse + 1} will leave ${option.startDelay}s late`;
+      }
+      if (option.boostDuration) {
+        horse.userData.data.boost = option.boostDuration;
+        return `#${plan.horse + 1} received a ${option.boostDuration}s opening boost`;
       }
       horse.userData.data.sabotagePenalty = Math.min(
         0.65,
@@ -168,12 +178,8 @@ HD.Race = (() => {
       return;
     }
     if (S.phase !== "racing") return;
-    const bookWasOpen = S.raceTime < C.liveBettingDuration;
+    const bookWasOpen = liveBettingOpen();
     S.raceTime += dt;
-    if (bookWasOpen && S.raceTime >= C.liveBettingDuration) {
-      HD.UI.announce("The live betting book is closed!");
-      HD.UI.render();
-    }
     const leaderProgress = Math.max(...S.horses.map((horse) => horse.userData.data.progress));
 
     S.horses.forEach((horse, i) => {
@@ -183,6 +189,8 @@ HD.Race = (() => {
       d.ragdoll = Math.max(0, (d.ragdoll || 0) - dt);
       d.boost = Math.max(0, (d.boost || 0) - dt);
       d.resistance = Math.max(0, (d.resistance || 0) - dt);
+      d.weave = Math.max(0, (d.weave || 0) - dt);
+      d.panic = Math.max(0, (d.panic || 0) - dt);
       if (S.raceTime < d.startDelay) {
         d.speed = 0;
         d.momentum = 0;
@@ -203,6 +211,9 @@ HD.Race = (() => {
       const naturalStride =
         Math.sin(S.raceTime * (0.65 + i * 0.035) + i * 1.9) * 0.0012 +
         Math.sin(S.raceTime * 1.7 + i * 0.7) * 0.0007;
+      const panicPace = d.panic > 0
+        ? 0.72 + Math.sin(S.raceTime * 7 + i) * 0.12
+        : 1;
       const targetSpeed =
         d.baseSpeed *
           gateAcceleration *
@@ -211,6 +222,7 @@ HD.Race = (() => {
           lateFieldSeparation *
           finishingKick *
           drafting *
+          panicPace *
           (1 - d.sabotagePenalty) +
         naturalStride;
 
@@ -225,6 +237,15 @@ HD.Race = (() => {
       if (S.raceTime > 2.5) {
         const laneChangeRate = d.passing ? 0.9 : 0.32;
         d.lane += (d.targetLane - d.lane) * Math.min(1, dt * laneChangeRate);
+      }
+      if (d.weave > 0 && Math.sin(S.raceTime * 5 + i) > 0.94) {
+        const direction = Math.sin(S.raceTime * 2.3 + i) > 0 ? 1 : -1;
+        d.targetLane = THREE.MathUtils.clamp(
+          Math.round(d.lane) + direction,
+          0,
+          C.raceHorseCount - 1,
+        );
+        d.passing = true;
       }
 
       const statusMultiplier = d.ragdoll > 0 ? 0.02 : d.slow > 0 ? 0.35 : d.boost > 0 ? 1.45 : 1;
@@ -244,7 +265,12 @@ HD.Race = (() => {
         if (d.place === 1) HD.UI.announce(`${d.name} crosses the line first!`);
       }
     });
-    if (S.raceTime - S.lastOdds > 0.6) {
+    const bookIsOpen = liveBettingOpen();
+    if (bookWasOpen && !bookIsOpen) {
+      HD.UI.announce("Lap one is complete. The live betting book is closed!");
+      HD.UI.render();
+    }
+    if (bookIsOpen && S.raceTime - S.lastOdds > 0.6) {
       S.lastOdds = S.raceTime;
       updateOdds();
       HD.UI.renderCards();
@@ -267,13 +293,22 @@ HD.Race = (() => {
       if (!leader) {
         data.blockedTime = 0;
         data.clearTime += dt;
-        if (
-          data.passing &&
-          data.clearTime > 1.4 &&
-          laneIsClear(data.preferredLane, horse, runners)
-        ) {
-          data.targetLane = data.preferredLane;
+        data.laneDecisionTime -= dt;
+        if (Math.abs(data.lane - data.targetLane) < 0.08) {
           data.passing = false;
+        }
+        const currentLane = Math.round(data.lane);
+        const innerLane = Math.max(data.preferredLane, currentLane - 1);
+        if (
+          data.laneDecisionTime <= 0 &&
+          laneIsClear(innerLane, horse, runners)
+        ) {
+          const tacticalLane = Math.floor(Math.random() * 3);
+          data.targetLane = laneIsClear(tacticalLane, horse, runners)
+            ? tacticalLane
+            : innerLane;
+          data.passing = true;
+          data.laneDecisionTime = 0.55 + Math.random() * 0.8;
         }
         return;
       }
@@ -327,7 +362,7 @@ HD.Race = (() => {
   function choosePassingLane(horse, runners) {
     const data = horse.userData.data;
     const roundedLane = Math.round(data.lane);
-    const directions = data.index % 2 ? [-1, 1] : [1, -1];
+    const directions = [-1, 1];
 
     for (const direction of directions) {
       const candidateLane = roundedLane + direction;
@@ -348,7 +383,7 @@ HD.Race = (() => {
       if (other === horse) return true;
       const otherData = other.userData.data;
       const laneClear = Math.abs(otherData.lane - candidateLane) >= MIN_LANE_GAP;
-      const progressClear = Math.abs(otherData.progress - data.progress) >= 0.055;
+      const progressClear = Math.abs(otherData.progress - data.progress) >= 0.014;
       return laneClear || progressClear;
     });
   }
@@ -368,16 +403,36 @@ HD.Race = (() => {
     });
   }
   function updateOdds() {
-    [...S.horses]
-      .sort((a, b) => b.userData.data.progress - a.userData.data.progress)
-      .forEach((horse, rank) => {
-        const d = horse.userData.data;
-        if (!d.finished)
-          d.odds = Math.max(
-            1,
-            Math.round(1.5 + rank * 2.3 + (1 - Math.min(1, d.progress / C.raceLaps)) * rank),
-          );
-      });
+    const leaderProgress = Math.max(
+      ...S.horses.map((horse) => horse.userData.data.progress),
+    );
+    const weights = S.horses.map((horse) => {
+      const data = horse.userData.data;
+      const racePosition = Math.exp((data.progress - leaderProgress) * 18);
+      const form = Math.pow(data.ability, 6);
+      const status = data.ragdoll > 0 ? 0.25 : data.slow > 0 ? 0.62 : 1;
+      return Math.max(0.001, racePosition * form * status);
+    });
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+
+    S.horses.forEach((horse, index) => {
+      const data = horse.userData.data;
+      const chance = weights[index] / totalWeight;
+      data.liveChance = chance;
+      data.odds = THREE.MathUtils.clamp(
+        Math.round((1 - chance) / Math.max(0.01, chance)),
+        1,
+        30,
+      );
+    });
+  }
+
+  function liveBettingOpen() {
+    if (S.phase === "betting") return true;
+    if (S.phase !== "racing" || !S.horses.length) return false;
+    return Math.max(
+      ...S.horses.map((horse) => horse.userData.data.progress),
+    ) < 1;
   }
 
   // ---------------------------------------------------------------------------
@@ -392,6 +447,7 @@ HD.Race = (() => {
     );
     const winner = S.finishOrder[0];
     const winnerData = S.horses[winner].userData.data;
+    HD.AI?.settleRace?.(winner);
     const winningTickets = S.bets.filter((bet) => bet.horse === winner);
     const returnedStake = winningTickets.reduce((total, bet) => total + bet.amount, 0);
     const profit = winningTickets.reduce((total, bet) => total + bet.amount * bet.odds, 0);
@@ -403,8 +459,7 @@ HD.Race = (() => {
     HD.Controls.setMode("look");
     HD.UI.showRaceWinner(`#${winner + 1} ${winnerData.name} WINS!`);
     HD.UI.render();
-    if (HD.Network?.isConnected()) setTimeout(next, 350);
-    else next();
+    setTimeout(next, 4300);
   }
   function next() {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
@@ -432,6 +487,7 @@ HD.Race = (() => {
     });
     clearProjectiles();
     resetHorses();
+    HD.AI?.prepareRace?.();
     HD.UI.countdown(String(C.preparationDuration));
     HD.UI.progress(0);
     HD.UI.render();
@@ -509,6 +565,7 @@ HD.Race = (() => {
     });
     clearProjectiles();
     resetHorses();
+    HD.AI?.resetMatch?.();
     HD.UI.hideResult();
     HD.UI.showRoundBreak(false);
     HD.Controls.sitDown();
@@ -583,7 +640,8 @@ HD.Race = (() => {
         });
       }
 
-      if (!p.impacted && distance < 5.2 * 5.2) {
+      const trapCanHit = !p.config.trap || p.grounded;
+      if (!p.impacted && trapCanHit && distance < 5.2 * 5.2) {
         p.impacted = true;
         applyItemEffect(closest, p);
         p.velocity.multiplyScalar(0.38);
@@ -594,7 +652,16 @@ HD.Race = (() => {
         if (!p.visualOnly && !p.landed && !p.impacted) {
           HD.UI.announce(`Miss! The ${p.config.name.toLowerCase()} lands in the dirt.`);
         }
-        if (!p.landed) createGroundEffect(p);
+        if (!p.landed) {
+          createGroundEffect(p);
+          if (p.config.trap) {
+            p.velocity.set(0, 0, 0);
+            p.position.y = 0.72;
+            p.mesh.position.y = 0.72;
+            p.mesh.rotation.set(0, Math.atan2(p.position.z, p.position.x), 0);
+            p.grounded = true;
+          }
+        }
         p.landed = true;
 
         if (Math.abs(p.velocity.y) > 1.2) {
@@ -644,12 +711,37 @@ HD.Race = (() => {
     const data = horse.userData.data;
     const item = projectile.config;
 
+    if (item.forceLaneChange) {
+      const currentLane = Math.round(data.lane);
+      const outward = currentLane < C.raceHorseCount - 1 ? currentLane + 1 : currentLane - 1;
+      data.targetLane = THREE.MathUtils.clamp(outward, 0, C.raceHorseCount - 1);
+      data.passing = true;
+      data.weave = Math.max(data.weave, 2.5);
+      data.momentum *= 0.72;
+      HD.UI.announce(`${data.name} dodges the hurdle and changes lanes!`);
+    }
+
     if (item.boostDuration) {
       data.boost = item.boostDuration;
       data.resistance = item.resistanceDuration;
       data.momentum = Math.max(data.momentum, data.baseSpeed * 1.12);
       HD.UI.announce(`${data.name} gets a turbo boost and resistance!`);
       return;
+    }
+
+    if (item.weaveDuration) {
+      data.weave = item.weaveDuration;
+      data.targetLane = Math.min(
+        C.raceHorseCount - 1,
+        Math.round(data.lane) + 1,
+      );
+      data.passing = true;
+    }
+    if (item.panicDuration) {
+      data.panic = item.panicDuration;
+      data.targetLane = Math.max(0, Math.round(data.lane) - 1);
+      data.passing = true;
+      data.momentum *= 0.68;
     }
 
     const resistance = data.resistance > 0 ? 0.25 : 1;
@@ -664,9 +756,13 @@ HD.Race = (() => {
 
     const outcome = resistance < 1
       ? " partially resists it!"
-      : item.ragdollDuration
-        ? " tumbles from the hit!"
-        : " is slowed down!";
+      : item.panicDuration
+        ? " panics and swerves toward the rail!"
+        : item.weaveDuration
+          ? " loses its line and starts weaving!"
+          : item.ragdollDuration
+            ? " tumbles from the hit!"
+            : " is slowed down!";
     HD.UI.announce(`${item.name} connects — ${data.name}${outcome}`);
   }
   function clearProjectiles() {
@@ -701,6 +797,8 @@ HD.Race = (() => {
           ragdoll: data.ragdoll,
           boost: data.boost,
           resistance: data.resistance,
+          weave: data.weave,
+          panic: data.panic,
           sabotagePenalty: data.sabotagePenalty,
           startDelay: data.startDelay,
           odds: data.odds,
@@ -781,6 +879,8 @@ HD.Race = (() => {
         "ragdoll",
         "boost",
         "resistance",
+        "weave",
+        "panic",
         "sabotagePenalty",
         "startDelay",
         "odds",
@@ -885,5 +985,6 @@ HD.Race = (() => {
     trackPoint,
     purchaseSabotage,
     addNetworkSabotage,
+    liveBettingOpen,
   };
 })();
