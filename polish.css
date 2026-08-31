@@ -59,6 +59,35 @@
   display: none;
 }
 
+.race-notice {
+  position: absolute;
+  z-index: 12;
+  top: 42%;
+  left: 50%;
+  width: min(620px, 78vw);
+  translate: -50% -50%;
+  padding: 10px 16px;
+  border: 1px solid #f0cd6388;
+  border-radius: 9px;
+  background: linear-gradient(90deg, #122219ed, #283d2ded, #122219ed);
+  box-shadow: 0 10px 30px #0009;
+  color: #fff4c3;
+  font-size: clamp(11px, 1.3vw, 15px);
+  font-weight: 850;
+  letter-spacing: 0.045em;
+  line-height: 1.4;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 180ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.race-notice.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .phone-open .phone {
   top: 46%;
   right: auto;
@@ -72,6 +101,10 @@
   box-shadow: 0 35px 100px #000d, inset 0 0 0 2px #87958c;
   opacity: 1;
   transform: translateY(0) scale(1);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  overflow: hidden;
+  padding: 12px 13px 9px;
   transition:
     opacity 240ms ease,
     transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -79,7 +112,72 @@
 
 .phone-open .app-panel.active {
   min-height: 0;
+  max-height: none;
   overflow-y: auto;
+  padding: 8px 3px 14px;
+  scrollbar-width: thin;
+}
+
+.phone .speaker,
+.phone .phone-status {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+}
+
+.phone-signals {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.phone-signals i {
+  display: block;
+  width: 17px;
+  height: 8px;
+  border: 1px solid #dce7df;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #dce7df 0 78%, transparent 78%);
+}
+
+.phone .phone-status {
+  padding: 2px 5px 8px;
+  border-bottom: 1px solid #ffffff19;
+  background: #173025;
+}
+
+.phone:not(.app-open) .apps {
+  display: grid;
+}
+
+.phone.app-open .apps {
+  display: none;
+}
+
+.phone:not(.app-open) .app-panel {
+  display: none;
+}
+
+.phone-home {
+  display: grid;
+  width: 100%;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+
+.phone-home span {
+  display: block;
+  width: 105px;
+  height: 5px;
+  border-radius: 5px;
+  background: #d7e1da;
+  box-shadow: 0 1px #ffffff66;
+}
+
+.phone:not(.app-open) .phone-home {
+  opacity: 0.55;
 }
 
 .odds-watch {
@@ -1497,6 +1595,16 @@
 .apps button[data-app="leaders"]::before { content: "🏆"; }
 .apps button[data-app="sabotage"]::before { content: "🕵️"; }
 .apps button[data-app="transfer"]::before { content: "💸"; }
+.apps button[data-app="flappy"]::before { content: "🐴"; }
+
+.apps button[data-app="bet"] { background: linear-gradient(145deg, #e46b3e, #9c321f); }
+.apps button[data-app="shop"] { background: linear-gradient(145deg, #58a970, #23613c); }
+.apps button[data-app="odds"] { background: linear-gradient(145deg, #5e8dd7, #304c91); }
+.apps button[data-app="bank"] { background: linear-gradient(145deg, #d6ad45, #85651b); }
+.apps button[data-app="leaders"] { background: linear-gradient(145deg, #8d67c5, #52347e); }
+.apps button[data-app="sabotage"] { background: linear-gradient(145deg, #555b62, #20252a); }
+.apps button[data-app="transfer"] { background: linear-gradient(145deg, #52bfaa, #1d7167); }
+.apps button[data-app="flappy"] { background: linear-gradient(145deg, #75c9e8, #31799d); }
 
 .apps button.active {
   outline: 2px solid #ffe17c;
@@ -1518,6 +1626,51 @@
   gap: 9px;
   margin: 10px 0;
 }
+
+.flappy-stage {
+  position: relative;
+  height: 330px;
+  overflow: hidden;
+  border: 2px solid #d5eff7;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 25% 18%, #ffffff 0 5%, transparent 6%),
+    linear-gradient(#69c5e8 0 70%, #76b759 70% 82%, #6f4c2e 82%);
+}
+
+.flappy-stage > span {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 50%;
+  translate: -50%;
+  color: white;
+  font-size: 34px;
+  font-weight: 900;
+  text-shadow: 0 3px #24546b;
+}
+
+#flappy-horse {
+  position: absolute;
+  z-index: 2;
+  bottom: 28%;
+  left: 24%;
+  font-size: 42px;
+  transition: bottom 180ms ease, rotate 160ms ease;
+}
+
+.flappy-stage i {
+  position: absolute;
+  right: 20%;
+  width: 44px;
+  height: 35%;
+  border: 4px solid #2c7939;
+  background: #55b55b;
+  box-shadow: inset 4px 0 #8bd378;
+}
+
+.flappy-stage i:first-of-type { top: -5%; }
+.flappy-stage i:last-of-type { bottom: -5%; }
 
 .odds-watch,
 .leaderboard-list {

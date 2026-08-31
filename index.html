@@ -25,6 +25,7 @@
         <div id="performance-status" class="performance-status">PERFORMANCE MODE</div>
         <button id="menu-button" class="menu-button" aria-label="Open game menu">☰ MENU</button>
         <div id="countdown" class="countdown"></div>
+        <div id="race-notice" class="race-notice" role="status"></div>
         <div id="race-winner-banner" class="race-winner-banner"></div>
         <div id="announcement" class="announcement">Click the stadium to look around</div>
         <div id="crosshair" class="crosshair">+</div>
@@ -54,17 +55,22 @@
       <button id="phone-toggle" class="phone-toggle" aria-expanded="true">📱 PHONE</button>
       <aside id="phone" class="phone">
         <div class="speaker"></div>
-        <div class="phone-status"><span>9:41</span><strong>HOTDOG OS</strong><span>●●●</span></div>
-        <nav class="apps">
-          <button class="active" data-app="bet">RaceBet</button>
+        <div class="phone-status">
+          <span id="phone-time">9:41</span>
+          <strong>HOTDOG OS</strong>
+          <span class="phone-signals">5G <i></i></span>
+        </div>
+        <nav class="apps" aria-label="Phone home screen">
+          <button data-app="bet">RaceBet</button>
           <button data-app="shop">TrackMart</button>
           <button data-app="odds">OddsWatch</button>
           <button data-app="bank">Bank</button>
           <button data-app="leaders">Leaderboard</button>
           <button data-app="sabotage">Fixer</button>
           <button data-app="transfer">TrackPay</button>
+          <button data-app="flappy">Flappy Horse</button>
         </nav>
-        <section class="app-panel active" data-panel="bet">
+        <section class="app-panel" data-panel="bet">
           <div class="section-title">
             <span>LIVE BOOK</span><em id="phase-label">BETTING OPEN</em>
           </div>
@@ -133,7 +139,19 @@
           <button id="send-transfer" class="primary">SEND TRANSFER</button>
           <div id="transfer-status" class="deliveries">Choose a player and something to send.</div>
         </section>
-        <div class="home-bar"></div>
+        <section class="app-panel flappy-app" data-panel="flappy">
+          <div class="section-title"><span>FLAPPY HORSE</span><em>ABSOLUTELY USELESS</em></div>
+          <div id="flappy-stage" class="flappy-stage">
+            <span id="flappy-score">0</span>
+            <div id="flappy-horse">🐴</div>
+            <i></i><i></i>
+          </div>
+          <button id="flappy-jump" class="primary">FLAP</button>
+          <p class="tip">Tap FLAP to bounce. This app has no effect on the race.</p>
+        </section>
+        <button id="phone-home" class="phone-home" type="button" aria-label="Return to phone home screen">
+          <span></span>
+        </button>
       </aside>
       <div id="results" class="results" hidden>
         <div>

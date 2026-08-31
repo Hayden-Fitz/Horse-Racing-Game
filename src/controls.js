@@ -395,8 +395,8 @@ HD.Controls = (() => {
       S.playerPosition.x = walkPrevious.x;
       S.playerPosition.z = walkPrevious.z;
     }
-    S.playerPosition.x = THREE.MathUtils.clamp(S.playerPosition.x, -119, 119);
-    S.playerPosition.z = THREE.MathUtils.clamp(S.playerPosition.z, -82, 82);
+    S.playerPosition.x = THREE.MathUtils.clamp(S.playerPosition.x, -128, 128);
+    S.playerPosition.z = THREE.MathUtils.clamp(S.playerPosition.z, -89, 89);
     S.playerPosition.y = walkingEyeHeight(S.playerPosition.x, S.playerPosition.z);
     camera.position.copy(S.playerPosition);
   }
@@ -459,15 +459,16 @@ HD.Controls = (() => {
 
   function onCommentatorRoof(x, z) {
     const booth = HD.world.commentatorBox;
-    if (!booth) return false;
-    const dx = x - booth.x;
-    const dz = z - booth.z;
-    const cosine = Math.cos(booth.angle);
-    const sine = Math.sin(booth.angle);
-    const localX = dx * cosine - dz * sine;
-    const localZ = dx * sine + dz * cosine;
-    return Math.abs(localX) <= booth.halfWidth &&
-      Math.abs(localZ) <= booth.halfDepth;
+    if (!booth?.polygon) return false;
+    let inside = false;
+    for (let index = 0, previous = booth.polygon.length - 1; index < booth.polygon.length; previous = index++) {
+      const [x1, z1] = booth.polygon[index];
+      const [x2, z2] = booth.polygon[previous];
+      const crosses = (z1 > z) !== (z2 > z) &&
+        x < ((x2 - x1) * (z - z1)) / (z2 - z1) + x1;
+      if (crosses) inside = !inside;
+    }
+    return inside;
   }
 
   function grandstandRowAt(x, z) {

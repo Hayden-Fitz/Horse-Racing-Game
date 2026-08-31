@@ -198,8 +198,8 @@ HD.CONFIG = {
   grandstandBaseHeight: 2.75,
 
   stairs: {
-    startX: 80.5,
-    startZ: 49.25,
+    startX: 78.5,
+    startZ: 48,
     endX: 103.25,
     endZ: 69.75,
     width: 7.2,

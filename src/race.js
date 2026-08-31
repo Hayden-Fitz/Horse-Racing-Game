@@ -137,7 +137,7 @@ HD.Race = (() => {
       : `They're off! ${bettingNotice}`;
     HD.UI.countdown("GO!");
     HD.UI.announce(S.raceAnnouncement);
-    if (sabotageReport) HD.UI.showRaceWinner(sabotageReport.replace("PADDOCK ALERT: ", ""));
+    if (sabotageReport) HD.UI.showRaceNotice(sabotageReport.replace("PADDOCK ALERT: ", ""));
     setTimeout(() => HD.UI.countdown(""), 700);
     HD.UI.render();
   }

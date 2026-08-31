@@ -10,6 +10,7 @@ HD.UI = (() => {
     race: $("#race-number"),
     inventory: $("#inventory"),
     countdown: $("#countdown"),
+    raceNotice: $("#race-notice"),
     raceWinner: $("#race-winner-banner"),
     announcement: $("#announcement"),
     progress: $("#race-progress div"),
@@ -54,6 +55,12 @@ HD.UI = (() => {
     transferItem: $("#transfer-item"),
     sendTransfer: $("#send-transfer"),
     transferStatus: $("#transfer-status"),
+    phoneHome: $("#phone-home"),
+    phoneTime: $("#phone-time"),
+    flappyStage: $("#flappy-stage"),
+    flappyHorse: $("#flappy-horse"),
+    flappyScore: $("#flappy-score"),
+    flappyJump: $("#flappy-jump"),
     deliveries: $("#deliveries"),
     menu: $("#game-menu"),
     menuPlay: $("#menu-play"),
@@ -545,6 +552,34 @@ HD.UI = (() => {
     el.phone.classList.toggle("closed", !show);
     el.toggle.setAttribute("aria-expanded", String(show));
     document.body.classList.toggle("phone-open", show);
+    if (show) {
+      const now = new Date();
+      el.phoneTime.textContent = now.toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      showPhoneHome();
+    }
+  }
+
+  function showPhoneHome() {
+    el.phone.classList.remove("app-open");
+    document.querySelectorAll("[data-app]").forEach((button) => {
+      button.classList.remove("active");
+    });
+    document.querySelectorAll("[data-panel]").forEach((panel) => {
+      panel.classList.remove("active");
+    });
+  }
+
+  function openPhoneApp(button) {
+    el.phone.classList.add("app-open");
+    document.querySelectorAll("[data-app]").forEach((candidate) => {
+      candidate.classList.toggle("active", candidate === button);
+    });
+    document.querySelectorAll("[data-panel]").forEach((panel) => {
+      panel.classList.toggle("active", panel.dataset.panel === button.dataset.app);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -565,6 +600,14 @@ HD.UI = (() => {
     el.raceWinner.timer = setTimeout(() => {
       el.raceWinner.classList.remove("visible");
     }, 4200);
+  }
+  function showRaceNotice(text, duration = 3600) {
+    el.raceNotice.textContent = text;
+    el.raceNotice.classList.add("visible");
+    clearTimeout(el.raceNotice.timer);
+    el.raceNotice.timer = setTimeout(() => {
+      el.raceNotice.classList.remove("visible");
+    }, duration);
   }
   function addLedger(label, amount) {
     S.ledger.unshift({ label, amount });
@@ -718,17 +761,19 @@ HD.UI = (() => {
         (b.onclick = () =>
           (el.amount.value = Math.max(5, Number(el.amount.value || 5) + Number(b.dataset.step)))),
     );
-  document.querySelectorAll("[data-app]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        document
-          .querySelectorAll("[data-app]")
-          .forEach((x) => x.classList.toggle("active", x === b));
-        document
-          .querySelectorAll("[data-panel]")
-          .forEach((p) => p.classList.toggle("active", p.dataset.panel === b.dataset.app));
-      }),
-  );
+  document.querySelectorAll("[data-app]").forEach((button) => {
+    button.onclick = () => openPhoneApp(button);
+  });
+  el.phoneHome.onclick = showPhoneHome;
+  let flappyHeight = 28;
+  let flappyScore = 0;
+  el.flappyJump.onclick = () => {
+    flappyHeight = flappyHeight >= 66 ? 24 : flappyHeight + 14;
+    flappyScore++;
+    el.flappyHorse.style.bottom = `${flappyHeight}%`;
+    el.flappyHorse.style.rotate = flappyScore % 2 ? "-12deg" : "8deg";
+    el.flappyScore.textContent = String(flappyScore);
+  };
   return {
     render,
     renderCards,
@@ -737,6 +782,7 @@ HD.UI = (() => {
     phone,
     announce,
     showRaceWinner,
+    showRaceNotice,
     addLedger,
     showResult,
     hideResult,

@@ -156,7 +156,7 @@ HD.AI = (() => {
     direction.normalize();
     const step = Math.min(distance, dt * (7.2 + (index % 3) * 0.35));
     avatar.position.addScaledVector(direction, step);
-    avatar.rotation.y = Math.atan2(direction.x, direction.z);
+    avatar.rotation.y = Math.atan2(-direction.x, -direction.z);
     avatar.userData.moving = true;
     avatar.userData.standing = true;
     avatar.userData.activity = "watch";
