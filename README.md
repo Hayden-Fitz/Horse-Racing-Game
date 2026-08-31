@@ -1,45 +1,93 @@
-# Hotdog Downs — 3D playable prototype
+# Hotdog Downs
 
-Run the project through VS Code Live Server, then open the local address it provides. This project uses
-browser ES modules, which should be served over HTTP instead of opened through a `file://` URL. The 3D
-engine is included locally, so playing does not require an internet connection.
+Hotdog Downs is a first-person 3D horse-racing party game. Players sit in an oval stadium, bet on a
+three-lap race, walk to concourse shops, and throw physics-driven items at the field. The browser build
+includes public lobbies, invite links, synchronized player movement, synchronized throws, and a
+host-authoritative race simulation.
 
-- Bet before and during races in RaceBet.
-- Buy $8 hotdogs in TrackMart; click the dirt track during a race to throw.
-- Click the stadium to capture the mouse, then move it to turn your head from your seat.
-- Press **P** to pull out or put away the phone. Press **F** to ready or put away a hotdog.
-- While holding an item, hold the left mouse button to build power and release to throw. The power meter
-  and dotted trajectory update as the throw charges.
-- Press **Q** to cycle between your purchased hotdog, soda, and foam horseshoe.
-- Press **Escape** to pause and open the game menu.
-- Six races form three rounds, with $150 and $250 bonuses in rounds two and three.
-- Winning tickets pay the locked odds plus the returned stake.
+## Run the game
 
-The code is separated into systems under `src/`: configuration/state, models, stadium, race simulation, UI, first-person controls, and startup. The stadium wraps around the oval and the player's section contains seven detailed animated player stand-ins.
+The easiest option on Windows is to double-click `START_MULTIPLAYER.cmd`. It opens a small local web
+server at `http://localhost:8080`; Firebase provides multiplayer, so this window is not the lobby
+server and friends do not connect to your computer.
 
-Online multiplayer and authoritative networking remain a separate engineering milestone; the visible neighboring players are currently local stand-ins, not network clients.
+You can also use VS Code Live Server, GitHub Pages, or any other static web host. To start the included
+local web server manually, install Node.js 20 or newer and run:
 
-## Performance and seating
+```powershell
+npm install
+npm start
+```
 
-The oval grandstand uses instanced seats and background spectators so hundreds of visible crowd members
-render in a handful of draw calls. Detailed character models are reserved for the seven players in the
-local seating section. The player sits on the third tier, with the two lower rows positioned below the
-track sightline. The scene also includes a lightweight gradient sky dome and instanced mountain horizon.
+Use the in-game menu to create a public lobby, join a listed lobby, or enter a six-character invite
+code. The **COPY INVITE LINK** button creates a URL that joins the same lobby automatically. Up to
+eight players can connect from different computers and networks.
 
-## Race format and physics
+## Put it on the internet
 
-Every horse race now lasts three laps. Horses run at a higher base speed, turn continuously along the oval
-tangent, and report their current lap through RaceBet and OddsWatch. Thrown items use gravity, bounce,
-roll, lose momentum, and remain on the track for up to 18 seconds instead of disappearing on contact.
+GitHub Pages can host the complete browser game now because all clients connect directly to Firebase.
+Enable Pages for the repository branch containing `index.html`; invite links will automatically use
+that public Pages address. No Node server or PowerShell window is required for the hosted version.
 
-The phone includes RaceBet, TrackMart, OddsWatch, Bank, Leaderboard, and PonyCards applications.
+The Firebase project is configured in `src/firebase.js`. Multiplayer data stays under
+`hotdogDowns/lobbies`, and temporary presence/event data is cleaned up by each lobby host. Run the
+following live database check after changing Firebase settings:
 
-## Throwable items
+```powershell
+npm run test:firebase
+```
 
-- **Ballpark Hotdog:** cheap and balanced.
-- **Mega Soda:** faster projectile with a stronger slowdown.
-- **Foam Horseshoe:** slower arc, highest price, and longest slowdown.
-- **Turbo Carrot:** boosts a horse and grants temporary resistance to sabotage.
+The checked-in `firebase.rules.json`, `firebase.json`, and `.firebaserc` are ready for Firebase CLI
+deployment. The supplied prototype rules allow unauthenticated lobby access so invite links work
+without accounts. Before a public or Steam release, add Firebase Authentication and stricter rules;
+otherwise anyone who knows the database address can modify lobby data.
 
-Hotdogs now tumble horses, soda slows them, and horseshoes apply both effects. The larger collision volume
-makes clean-looking throws connect more consistently.
+The included `Dockerfile` is an alternative for container hosts:
+
+```powershell
+docker build -t hotdog-downs .
+docker run --rm -p 8080:8080 hotdog-downs
+```
+
+## Controls
+
+- Mouse: look around; seated players can turn completely around.
+- Space: stand up or return to the assigned seat.
+- WASD: walk along seating rows, the wider trackside ring, stairs, and upper concourse.
+- E: interact with physical shops and fee-free betting counters.
+- P: raise or lower the phone.
+- F: equip or put away the selected throwable.
+- Q: cycle owned items.
+- 1–8: select one of the eight hotbar items directly.
+- R: open the animated current-rankings chart.
+- Hold/release left mouse: charge and throw with the visible trajectory guide.
+- Escape: open the menu. In an online lobby, the authoritative race continues for everyone.
+
+The top-right **MENU** button opens settings for adaptive or fixed 640p–2160p rendering, model detail,
+field of view, mouse sensitivity, HUD opacity, fullscreen, reduced motion, interface scale, high
+contrast, optional HUD readouts, and remappable controls. During play, the pause menu is reduced to
+Resume, Settings, and Quit.
+
+## Multiplayer model
+
+The lobby creator starts as host. The host simulates the countdown, horse traffic, effects, race order,
+and intermissions, then writes compact Firebase snapshots five times per second. Other clients receive
+realtime database events and interpolate between snapshots. Player movement, throws, sabotage, ready
+states, walking animation, held phones/items, throw poses, bankroll rankings, and the 3-2-3 seat layout
+are synchronized too.
+
+Players send regular heartbeats. The host removes expired players and events, and the lowest occupied
+seat takes over if the host leaves. Lobbies are temporary, hold up to eight players, and disappear when
+the last player leaves normally. A commercial release should add accounts, authoritative Cloud
+Functions or a dedicated game server, moderation, region matchmaking, and Steam authentication.
+
+## Performance
+
+Grandstand chairs and the background crowd use instanced meshes. Only three nearby local stand-ins use
+full character models, and online players replace those stand-ins after joining. Stair treads are also
+instanced. Shadows use a lighter 512-pixel map, and render resolution adapts inside the selected
+quality preset based on measured frame rate. Fixed internal-height options range from 640p to 2160p
+for maximum scoreboard clarity; these deliberately trade GPU performance for sharpness.
+
+The code is split by system under `src/`: configuration, models, stadium construction, race simulation,
+UI, networking, controls, and the main loop. Three.js is included locally under `vendor/`.

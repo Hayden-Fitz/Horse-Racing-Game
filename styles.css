@@ -4,6 +4,7 @@
   --orange: #ff6534;
   --yellow: #ffd447;
   --green: #43a45b;
+  --display-font: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -56,6 +57,7 @@ button {
   color: var(--yellow);
 }
 .brand strong {
+  font-family: var(--display-font);
   font-size: clamp(25px, 4vw, 48px);
   line-height: 0.78;
   letter-spacing: -0.06em;
@@ -73,6 +75,15 @@ button {
   border-radius: 13px;
   background: #10251cdd;
   backdrop-filter: blur(8px);
+}
+
+.topbar strong,
+.announcement,
+.countdown,
+.mode-badge,
+.race-winner-banner {
+  font-family: var(--display-font);
+  letter-spacing: 0.035em;
 }
 .topbar div {
   min-width: 78px;
@@ -123,6 +134,28 @@ button {
   color: #fff;
   text-shadow: 9px 10px #a33120;
   pointer-events: none;
+}
+
+.race-winner-banner {
+  position: absolute;
+  z-index: 40;
+  top: 38%;
+  right: 5vw;
+  left: 5vw;
+  color: white;
+  font-size: clamp(48px, 9vw, 125px);
+  line-height: 0.92;
+  text-align: center;
+  text-shadow: 7px 8px #a33120, 0 18px 45px #000;
+  opacity: 0;
+  transform: translateY(20px) scale(0.92);
+  transition: opacity 180ms ease, transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.race-winner-banner.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 .crosshair {
   position: absolute;

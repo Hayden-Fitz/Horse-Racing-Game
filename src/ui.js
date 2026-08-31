@@ -10,6 +10,7 @@ HD.UI = (() => {
     race: $("#race-number"),
     inventory: $("#inventory"),
     countdown: $("#countdown"),
+    raceWinner: $("#race-winner-banner"),
     announcement: $("#announcement"),
     progress: $("#race-progress div"),
     phase: $("#phase-label"),
@@ -31,20 +32,36 @@ HD.UI = (() => {
     powerText: $("#power-meter strong"),
     oddsWatch: $("#odds-watch"),
     leaderboard: $("#leaderboard-list"),
-    ponyCard: $("#pony-card"),
-    drawCard: $("#draw-card"),
     roundBreak: $("#round-break"),
     breakTimer: $("#break-timer"),
     dayTransition: $("#day-transition"),
     dayTitle: $("#day-title"),
+    daySubtitle: $("#day-subtitle"),
+    dayRankings: $("#day-rankings"),
     vendorShop: $("#vendor-shop"),
     vendorItems: $("#vendor-items"),
     vendorClose: $("#vendor-close"),
+    betCounter: $("#bet-counter"),
+    counterHorses: $("#counter-horses"),
+    counterAmount: $("#counter-bet-amount"),
+    counterPlaceBet: $("#counter-place-bet"),
+    counterClose: $("#counter-close"),
+    sabotageTargets: $("#sabotage-targets"),
+    sabotageOptions: $("#sabotage-options"),
+    sabotageStatus: $("#sabotage-status"),
     deliveries: $("#deliveries"),
     menu: $("#game-menu"),
     menuPlay: $("#menu-play"),
     menuResume: $("#menu-resume"),
+    hotbarItems: $("#hotbar-items"),
+    bestBet: $("#best-bet"),
+    rankingsButton: $("#current-rankings"),
+    rankingsOverlay: $("#rankings-overlay"),
+    rankingsTitle: $("#rankings-title"),
+    rankingsChart: $("#rankings-chart"),
+    rankingsClose: $("#rankings-close"),
   };
+  let deliveryRenderTimer = 0;
 
   // ---------------------------------------------------------------------------
   // Primary HUD and phone applications
@@ -58,8 +75,8 @@ HD.UI = (() => {
       (total, count) => total + count,
       0,
     );
-    const open = S.phase === "betting" || (S.phase === "racing" && S.raceTime < 30);
-    el.bet.disabled = !open || S.money < 5;
+    const open = isBettingOpen();
+    el.bet.disabled = !open || S.money < 6;
     el.phase.textContent = open ? "BETTING OPEN" : "BOOK CLOSED";
     el.phase.classList.toggle("closed", !open);
     el.tickets.innerHTML = S.bets.length ? S.bets.map(ticketMarkup).join("") : "No bets placed.";
@@ -69,46 +86,196 @@ HD.UI = (() => {
     renderDeliveries();
     renderOddsWatch();
     renderLeaderboard();
+    renderHotbar();
+    renderSabotage();
   }
 
   function renderOddsWatch() {
-    el.oddsWatch.innerHTML = S.horses
-      .map((horse, index) => {
-        const data = horse.userData.data;
-        const completed = Math.max(0, data.progress);
-        const lap = Math.min(C.raceLaps, Math.floor(completed) + 1);
-        const status = horseStatus(data);
-        const color = data.color.toString(16).padStart(6, "0");
+    const runningById = new Map(
+      S.horses.map((horse) => [horse.userData.data.id, horse.userData.data]),
+    );
+    const styles = ["FRONT RUNNER", "CLOSER", "BALANCED", "STALKER"];
+    el.oddsWatch.innerHTML = C.horses
+      .map((horse, poolIndex) => {
+        const active = runningById.get(horse.id);
+        const odds = active?.odds || horse.odds;
+        const chance = Math.max(3, Math.round(100 / (odds + 1)));
+        const rating = Math.round(horse.ability * 100);
+        const color = horse.color.toString(16).padStart(6, "0");
         return `
-          <div>
-            <i style="background:#${color}"></i>
-            <span>#${index + 1} ${data.name}</span>
-            <small>Lap ${lap}/${C.raceLaps}</small>
-            <strong>${status}</strong>
-          </div>
+          <article class="odds-profile ${active ? "active" : "reserve"}">
+            <header>
+              <i style="background:#${color}"></i>
+              <span><strong>${horse.name}</strong><small>${styles[poolIndex % 4]}</small></span>
+              <em>${odds}:1</em>
+            </header>
+            <div>
+              <span>WIN CHANCE <b>${chance}%</b></span>
+              <span>RATING <b>${rating}</b></span>
+              <span>FORM <b>${rating >= 102 ? "A" : rating >= 98 ? "B" : "C"}</b></span>
+              <span>FIELD <b>${active ? horseStatus(active) : "RESERVE"}</b></span>
+            </div>
+          </article>
         `;
       })
       .join("");
   }
 
   function renderLeaderboard() {
-    const rivals = [
-      ["YOU", S.money],
-      ["Maya", 80 + S.race * 28],
-      ["Dex", 135 + S.race * 12],
-      ["Rin", 105 + S.race * 19],
-    ].sort((a, b) => b[1] - a[1]);
-    el.leaderboard.innerHTML = rivals
-      .map(
-        ([name, money], index) => `
-          <div>
-            <em>${index + 1}</em>
-            <span>${name}</span>
-            <strong>$${money}</strong>
-          </div>
-        `,
-      )
+    const rankings = rankingEntries();
+    renderAnimatedRankings(el.leaderboard, rankings);
+    if (!el.rankingsOverlay.hidden) renderAnimatedRankings(el.rankingsChart, rankings);
+    if (!el.dayTransition.hidden) renderAnimatedRankings(el.dayRankings, rankings);
+  }
+
+  function rankingEntries() {
+    const online = HD.Network?.rankingPlayers?.() || [];
+    if (online.length) return online.sort((a, b) => b.money - a.money);
+
+    return [
+      { id: "you", name: "YOU", money: S.money },
+      { id: "maya", name: "Maya", money: 80 + S.race * 28 },
+      { id: "dex", name: "Dex", money: 135 + S.race * 12 },
+      { id: "rin", name: "Rin", money: 105 + S.race * 19 },
+      { id: "sol", name: "Sol", money: 92 + S.race * 21 },
+      { id: "nia", name: "Nia", money: 145 + S.race * 8 },
+      { id: "bo", name: "Bo", money: 70 + S.race * 24 },
+      { id: "kit", name: "Kit", money: 118 + S.race * 14 },
+    ].sort((a, b) => b.money - a.money);
+  }
+
+  function renderAnimatedRankings(container, rankings) {
+    if (!container) return;
+
+    const present = new Set(rankings.map((entry) => entry.id));
+    container.querySelectorAll("[data-ranking-id]").forEach((row) => {
+      if (!present.has(row.dataset.rankingId)) row.remove();
+    });
+
+    rankings.forEach((entry, index) => {
+      let row = [...container.children].find((child) => {
+        return child.dataset.rankingId === entry.id;
+      });
+      if (!row) {
+        row = document.createElement("div");
+        row.dataset.rankingId = entry.id;
+        row.className = "ranking-row";
+        row.innerHTML = "<em></em><span></span><strong></strong>";
+        container.append(row);
+      }
+
+      row.querySelector("em").textContent = index + 1;
+      row.querySelector("span").textContent = entry.name;
+      row.querySelector("strong").textContent = `$${entry.money}`;
+      requestAnimationFrame(() => {
+        row.style.transform = `translate3d(0, ${index * 48}px, 0)`;
+      });
+    });
+    container.style.height = `${rankings.length * 48}px`;
+  }
+
+  function renderHotbar() {
+    el.hotbarItems.innerHTML = Object.entries(C.items)
+      .map(([id, item], index) => {
+        const count = S.inventory[id] || 0;
+        const shortName = item.name.replace(
+          /^(Ballpark|Mega|Foam|Turbo|Popcorn|Throw|Folding|Giant) /,
+          "",
+        );
+        const classes = ["hotbar-slot"];
+        if (S.selectedItem === id) classes.push("selected");
+        if (!count) classes.push("empty");
+        return `
+          <button class="${classes.join(" ")}" data-hotbar-item="${id}">
+            <kbd>${index + 1}</kbd>
+            <span>${item.icon}</span>
+            <strong>${count}</strong>
+            <small>${shortName}</small>
+          </button>
+        `;
+      })
       .join("");
+
+    el.hotbarItems.querySelectorAll("[data-hotbar-item]").forEach((button) => {
+      button.onclick = () => {
+        const id = button.dataset.hotbarItem;
+        if (S.inventory[id] > 0) HD.Controls.selectItem(id);
+        else announce(`${C.items[id].name} is out of stock.`);
+      };
+    });
+    renderBestBet();
+  }
+
+  function renderBestBet() {
+    const totals = new Map();
+    S.bets.forEach((bet) => {
+      totals.set(bet.horse, (totals.get(bet.horse) || 0) + bet.amount);
+    });
+    const top = [...totals.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!top) {
+      el.bestBet.innerHTML = `
+        <small>TOP TICKET</small>
+        <strong>NO BET</strong>
+        <span>Place a wager to track it here</span>
+      `;
+      return;
+    }
+
+    const [horseIndex, amount] = top;
+    el.bestBet.innerHTML = `
+      <small>MOST BACKED</small>
+      <strong>#${horseIndex + 1} ${S.horses[horseIndex].userData.data.name}</strong>
+      <span>$${amount} total stake</span>
+    `;
+  }
+
+  function renderSabotage() {
+    if (!S.horses.length) return;
+    const canHire = S.phase === "betting" && S.sabotagePlans.length === 0;
+    el.sabotageTargets.innerHTML = S.horses
+      .map((horse, index) => {
+        const data = horse.userData.data;
+        const selected = S.selected === index ? "selected" : "";
+        return `
+          <button class="horse-choice ${selected}" data-sabotage-horse="${index}">
+            <strong>#${index + 1} · ${data.odds}:1</strong>
+            <span>${data.name}</span>
+          </button>
+        `;
+      })
+      .join("");
+    el.sabotageOptions.innerHTML = Object.entries(C.sabotageOptions)
+      .map(([id, option]) => {
+        const disabled = !canHire || S.money < option.price ? "disabled" : "";
+        return `
+          <button data-sabotage-option="${id}" ${disabled}>
+            <strong>${option.name} · $${option.price}</strong>
+            <small>${option.description}</small>
+          </button>
+        `;
+      })
+      .join("");
+
+    const plan = S.sabotagePlans[0];
+    if (!plan) el.sabotageStatus.textContent = "No fixer hired for this race.";
+    else if (!plan.resolved) {
+      el.sabotageStatus.textContent =
+        `Fixer hired for #${plan.horse + 1}. Outcome sealed until race start.`;
+    } else {
+      el.sabotageStatus.textContent = plan.failed
+        ? `Attempt against #${plan.horse + 1}: FAILED.`
+        : `Attempt against #${plan.horse + 1}: SUCCESSFUL.`;
+    }
+    el.sabotageTargets.querySelectorAll("[data-sabotage-horse]").forEach((button) => {
+      button.onclick = () => {
+        S.selected = Number(button.dataset.sabotageHorse);
+        renderSabotage();
+        renderCards();
+      };
+    });
+    el.sabotageOptions.querySelectorAll("[data-sabotage-option]").forEach((button) => {
+      button.onclick = () => HD.Race.purchaseSabotage(S.selected, button.dataset.sabotageOption);
+    });
   }
 
   function horseStatus(data) {
@@ -119,19 +286,9 @@ HD.UI = (() => {
     return "RUNNING";
   }
 
-  function drawCard() {
-    const cards = [
-      ["LEGENDARY", "THE TAX STALLION", "+99 AUDITS"],
-      ["RARE", "MAYONNAISE MARE", "+4 SANDWICHES"],
-      ["COMMON", "ACCOUNTANT COLT", "+2 SPREADSHEETS"],
-      ["QUESTIONABLE", "HORSE.PNG", "NO ABILITIES"],
-    ];
-    const [rarity, name, ability] = cards[Math.floor(Math.random() * cards.length)];
-    el.ponyCard.innerHTML = `<small>${rarity}</small><strong>${name}</strong><span>${ability}</span>`;
-  }
-
   function renderShop() {
     el.shop.innerHTML = Object.entries(C.items)
+      .filter(([, item]) => !item.vendorOnly)
       .map(([id, item]) => {
         const selected = S.selectedItem === id ? "selected" : "";
         const disabled = S.money < item.price ? "disabled" : "";
@@ -139,7 +296,10 @@ HD.UI = (() => {
           <article class="shop-item ${selected}">
             <button class="item-select" data-select-item="${id}">
               <span class="item-icon">${item.icon}</span>
-              <span><strong>${item.name}</strong><small>${item.description}</small></span>
+              <span>
+                <strong>${item.name}</strong>
+                <small><b class="item-effect">${itemEffectSummary(item)}</b>${item.description}</small>
+              </span>
               <em>x${S.inventory[id]}</em>
             </button>
             <button class="item-buy" data-buy-item="${id}" ${disabled}>
@@ -157,6 +317,14 @@ HD.UI = (() => {
       button.onclick = () => buy(button.dataset.buyItem);
     });
   }
+  function itemEffectSummary(item) {
+    const effects = [];
+    if (item.slowDuration) effects.push(`SLOW 65% · ${item.slowDuration}s`);
+    if (item.ragdollDuration) effects.push(`STUN · ${item.ragdollDuration}s`);
+    if (item.boostDuration) effects.push(`BOOST 45% · ${item.boostDuration}s`);
+    if (item.resistanceDuration) effects.push(`RESIST · ${item.resistanceDuration}s`);
+    return effects.length ? `${effects.join(" / ")} — ` : "UTILITY — ";
+  }
   function renderDeliveries() {
     const markup = S.deliveries.length
       ? S.deliveries
@@ -170,10 +338,11 @@ HD.UI = (() => {
   }
 
   function ticketMarkup(bet) {
-    const horseName = C.horses[bet.horse].name;
+    const horseName = S.horses[bet.horse]?.userData.data.name || "Unknown horse";
+    const source = bet.source === "counter" ? "COUNTER" : "ONLINE";
     return `
       <div class="ticket">
-        <span>#${bet.horse + 1} ${horseName}</span>
+        <span>#${bet.horse + 1} ${horseName} · ${source}</span>
         <strong>$${bet.amount} @ ${bet.odds}:1</strong>
       </div>
     `;
@@ -223,17 +392,41 @@ HD.UI = (() => {
         }),
     );
   }
-  function placeBet() {
-    const amount = Math.max(5, Math.floor(Number(el.amount.value || 5) / 5) * 5),
-      open = S.phase === "betting" || (S.phase === "racing" && S.raceTime < 30);
-    if (!open) return announce("The betting book is closed.");
-    if (amount > S.money) return announce("Not enough money for that ticket.");
+  function isBettingOpen() {
+    return (
+      S.phase === "betting" ||
+      (S.phase === "racing" && S.raceTime < C.liveBettingDuration)
+    );
+  }
+
+  function normalizedStake(input) {
+    return Math.max(5, Math.floor(Number(input.value || 5) / 5) * 5);
+  }
+
+  function placeOnlineBet() {
+    const amount = normalizedStake(el.amount);
+    const fee = Math.max(1, Math.ceil(amount * C.onlineBetFeeRate));
+    submitBet(amount, fee, "online");
+  }
+
+  function placeCounterBet() {
+    const amount = normalizedStake(el.counterAmount);
+    submitBet(amount, 0, "counter");
+  }
+
+  function submitBet(amount, fee, source) {
+    if (!isBettingOpen()) return announce("The betting book is closed.");
+    if (amount + fee > S.money) return announce("Not enough money for that ticket and fee.");
     const d = S.horses[S.selected].userData.data;
-    S.money -= amount;
-    S.bets.push({ horse: S.selected, amount, odds: d.odds });
+    if (d.finished) return announce("That horse has already finished.");
+    S.money -= amount + fee;
+    S.bets.push({ horse: S.selected, amount, odds: d.odds, fee, source });
     addLedger(`Bet: #${S.selected + 1}`, -amount);
-    announce(`$${amount} on ${d.name} at ${d.odds}:1.`);
+    if (fee) addLedger("RaceBet service fee", -fee);
+    const feeMessage = fee ? ` plus a $${fee} online fee` : " with no counter fee";
+    announce(`$${amount} on ${d.name} at ${d.odds}:1${feeMessage}.`);
     render();
+    if (S.counterOpen) renderBetCounter();
   }
   function buy(id) {
     const item = C.items[id];
@@ -246,24 +439,33 @@ HD.UI = (() => {
   }
 
   function updateDeliveries(dt) {
+    deliveryRenderTimer -= dt;
     S.deliveries.forEach((delivery) => {
       delivery.remaining -= dt;
       if (delivery.remaining <= 0 && !delivery.complete) {
         delivery.complete = true;
         S.inventory[delivery.id]++;
-        S.selectedItem = delivery.id;
+        HD.Controls.selectItem(delivery.id);
         announce(`${C.items[delivery.id].name} delivered to your seat!`);
         render();
       }
     });
     S.deliveries = S.deliveries.filter((delivery) => !delivery.complete);
-    renderDeliveries();
+    if (deliveryRenderTimer <= 0) {
+      deliveryRenderTimer = 0.25;
+      renderDeliveries();
+    }
   }
 
   function menu(show, pauseMenu = false) {
     el.menu.classList.toggle("closed", !show);
+    el.menu.classList.toggle("pause-menu", show && pauseMenu);
     el.menuPlay.hidden = pauseMenu;
     el.menuResume.hidden = !pauseMenu;
+    if (show) {
+      document.querySelector("#settings-panel").hidden = true;
+      document.querySelector(".menu-card").classList.remove("settings-active");
+    }
   }
   function phone(show) {
     el.phone.classList.toggle("closed", !show);
@@ -280,6 +482,15 @@ HD.UI = (() => {
     el.announcement.classList.add("pop");
     clearTimeout(el.announcement.timer);
     el.announcement.timer = setTimeout(() => el.announcement.classList.remove("pop"), 350);
+  }
+  function showRaceWinner(text) {
+    el.raceWinner.textContent = text;
+    el.raceWinner.classList.remove("visible");
+    requestAnimationFrame(() => el.raceWinner.classList.add("visible"));
+    clearTimeout(el.raceWinner.timer);
+    el.raceWinner.timer = setTimeout(() => {
+      el.raceWinner.classList.remove("visible");
+    }, 4200);
   }
   function addLedger(label, amount) {
     S.ledger.unshift({ label, amount });
@@ -307,6 +518,8 @@ HD.UI = (() => {
   }
   function showRoundBreak(show) {
     el.roundBreak.hidden = !show;
+    el.rankingsButton.hidden = !show;
+    if (!show) showRankings(false);
   }
   function updateBreakTimer(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -315,6 +528,10 @@ HD.UI = (() => {
   }
   function showDay(day, onComplete) {
     el.dayTitle.textContent = `DAY ${day}`;
+    el.daySubtitle.textContent = day === 1
+      ? "PLAYERS AT THE TRACK"
+      : "CURRENT BANKROLL STANDINGS";
+    renderAnimatedRankings(el.dayRankings, rankingEntries());
     el.dayTransition.hidden = false;
     requestAnimationFrame(() => el.dayTransition.classList.add("visible"));
     setTimeout(() => {
@@ -323,13 +540,53 @@ HD.UI = (() => {
         el.dayTransition.hidden = true;
         onComplete();
       }, 500);
-    }, 2200);
+    }, day === 1 ? 4200 : 3800);
+  }
+
+  function showRankings(show, title = "CURRENT RANKINGS") {
+    el.rankingsOverlay.hidden = !show;
+    if (!show) return;
+
+    el.rankingsTitle.textContent = title;
+    renderAnimatedRankings(el.rankingsChart, rankingEntries());
+    document.exitPointerLock?.();
   }
   function vendor(show) {
     S.vendorOpen = show;
     el.vendorShop.hidden = !show;
     document.body.classList.toggle("vendor-open", show);
     if (show) renderVendor();
+  }
+  function betCounter(show) {
+    S.counterOpen = show;
+    el.betCounter.hidden = !show;
+    document.body.classList.toggle("vendor-open", show);
+    if (show) renderBetCounter();
+  }
+
+  function renderBetCounter() {
+    const open = isBettingOpen();
+    el.counterHorses.innerHTML = S.horses
+      .map((horse, index) => {
+        const data = horse.userData.data;
+        const selected = S.selected === index ? "selected" : "";
+        return `
+          <button class="horse-choice ${selected}" data-counter-horse="${index}">
+            <strong>#${index + 1} · ${data.odds}:1</strong>
+            <span>${data.name}</span>
+            <small>Official fee-free window</small>
+          </button>
+        `;
+      })
+      .join("");
+    el.counterPlaceBet.disabled = !open || S.money < 5;
+    el.counterHorses.querySelectorAll("[data-counter-horse]").forEach((button) => {
+      button.onclick = () => {
+        S.selected = Number(button.dataset.counterHorse);
+        renderBetCounter();
+        renderCards();
+      };
+    });
   }
   function renderVendor() {
     el.vendorItems.innerHTML = Object.entries(C.items)
@@ -339,7 +596,10 @@ HD.UI = (() => {
         return `
           <article class="shop-item">
             <span class="item-icon">${item.icon}</span>
-            <span><strong>${item.name}</strong><small>Instant pickup · x${S.inventory[id]}</small></span>
+            <span>
+              <strong>${item.name}</strong>
+              <small>${itemEffectSummary(item)}Instant pickup · x${S.inventory[id]}</small>
+            </span>
             <button class="item-buy" data-vendor-buy="${id}" ${disabled}>BUY $${price}</button>
           </article>
         `;
@@ -355,19 +615,27 @@ HD.UI = (() => {
     if (S.money < price) return announce("Not enough money.");
     S.money -= price;
     S.inventory[id]++;
-    S.selectedItem = id;
+    HD.Controls.selectItem(id);
     addLedger(`Concourse pickup: ${item.name}`, -price);
     announce(`${item.name} picked up instantly.`);
     render();
     renderVendor();
   }
-  el.bet.onclick = placeBet;
+  el.bet.onclick = placeOnlineBet;
   el.toggle.onclick = () => HD.Controls.setMode(S.mode === "phone" ? "look" : "phone");
   el.menuPlay.onclick = () => HD.Controls.closeMenu();
   el.menuResume.onclick = () => HD.Controls.closeMenu();
   el.resultContinue.onclick = () => (S.phase === "matchOver" ? HD.Race.restart() : HD.Race.next());
-  el.drawCard.onclick = drawCard;
   el.vendorClose.onclick = () => HD.Controls.closeVendor();
+  el.counterPlaceBet.onclick = placeCounterBet;
+  el.counterClose.onclick = () => HD.Controls.closeBetCounter();
+  el.rankingsButton.onclick = () => {
+    showRankings(true, `DAY ${S.round} CURRENT RANKINGS`);
+  };
+  el.rankingsClose.onclick = () => {
+    showRankings(false);
+    HD.world.renderer.domElement.requestPointerLock?.();
+  };
   document
     .querySelectorAll(".stake-step")
     .forEach(
@@ -392,6 +660,7 @@ HD.UI = (() => {
     renderOddsWatch,
     phone,
     announce,
+    showRaceWinner,
     addLedger,
     showResult,
     hideResult,
@@ -401,9 +670,17 @@ HD.UI = (() => {
     showRoundBreak,
     updateBreakTimer,
     showDay,
+    showRankings,
     vendor,
+    betCounter,
     menu,
-    countdown: (value) => (el.countdown.textContent = value),
-    progress: (value) => (el.progress.style.width = `${value * 100}%`),
+    countdown: (value) => {
+      const text = String(value);
+      if (el.countdown.textContent !== text) el.countdown.textContent = text;
+    },
+    progress: (value) => {
+      const width = `${Math.round(value * 1000) / 10}%`;
+      if (el.progress.style.width !== width) el.progress.style.width = width;
+    },
   };
 })();

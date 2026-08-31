@@ -1,6 +1,23 @@
 "use strict";
 HD.Stadium = (() => {
   const { mesh, box, sphere, cylinder } = HD.util;
+  const STAIR_ANGLES = [
+    0,
+    Math.PI / 2,
+    Math.PI,
+    (Math.PI * 3) / 2,
+  ];
+  const GRANDSTAND_COLUMNS = 128;
+  const DETAILED_SEATS = [
+    { row: 1, column: 30, local: true, activity: "watch" },
+    { row: 1, column: 29, activity: "phone" },
+    { row: 1, column: 28, activity: "watch" },
+    { row: 3, column: 30, activity: "throw" },
+    { row: 3, column: 29, activity: "watch" },
+    { row: 5, column: 30, activity: "phone" },
+    { row: 5, column: 29, activity: "watch" },
+    { row: 5, column: 28, activity: "throw" },
+  ];
 
   // ---------------------------------------------------------------------------
   // Track and stadium shell
@@ -16,12 +33,17 @@ HD.Stadium = (() => {
     trackShape.holes.push(hole);
     const trackGeo = new THREE.ShapeGeometry(trackShape, 128);
     trackGeo.rotateX(-Math.PI / 2);
-    trackGeo.rotateZ(Math.PI / 2);
     const track = new THREE.Mesh(trackGeo, HD.util.material(0xa96543));
     track.position.y = 0.03;
     track.receiveShadow = true;
     scene.add(track);
-    for (let i = 0; i < 7; i++) addTrackLine(scene, 51.2 + i * 3.05, 24.2 + i * 3.05);
+    for (let laneLine = 0; laneLine <= HD.CONFIG.raceHorseCount; laneLine++) {
+      addTrackLine(
+        scene,
+        49 + laneLine * 2.85,
+        22 + laneLine * 2.62,
+      );
+    }
     addFinishLine(scene);
     addOvalRails(scene, 48.5, 21.5);
     addOvalRails(scene, 73.5, 44.5);
@@ -56,37 +78,58 @@ HD.Stadium = (() => {
   function addOvalRails(scene, rx, rz) {
     const root = new THREE.Group();
     scene.add(root);
-    const points = [];
+    const lowerRail = [];
+    const upperRail = [];
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2;
-      points.push(oval(rx, rz, a).setY(1.1));
+      lowerRail.push(oval(rx, rz, a).setY(2.15));
+      upperRail.push(oval(rx, rz, a).setY(3.55));
       if (i % 4 === 0) {
         const p = oval(rx, rz, a);
-        cylinder(0.09, 0.12, 1.15, 0xf5e8c8, root, [p.x, 0.55, p.z], 7);
+        cylinder(0.1, 0.13, 3.75, 0xf5e8c8, root, [p.x, 1.875, p.z], 7);
       }
     }
-    root.add(
-      new THREE.Line(
+    [lowerRail, upperRail].forEach((points) => {
+      root.add(new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(points),
         new THREE.LineBasicMaterial({ color: 0xf5e8c8 }),
-      ),
-    );
+      ));
+    });
   }
   function addFinishLine(scene) {
-    for (let z = -21; z < 22; z += 3)
-      box([1.25, 0.14, 3], ((z + 21) / 3) % 2 ? 0x202020 : 0xffffff, scene, [71.1, 0.27, z]);
+    for (let x = 49; x < 73; x += 2) {
+      const color = ((x - 49) / 2) % 2 ? 0x202020 : 0xffffff;
+      box([2, 0.14, 1.25], color, scene, [x + 1, 0.27, 0]);
+    }
+
     const arch = new THREE.Group();
     scene.add(arch);
-    cylinder(0.3, 0.4, 8, 0xf4df9f, arch, [71, 4, -22]);
-    cylinder(0.3, 0.4, 8, 0xf4df9f, arch, [71, 4, 22]);
-    box([1, 2.1, 45], 0xd94f31, arch, [71, 8, 0]);
+    cylinder(0.3, 0.4, 8, 0xf4df9f, arch, [48.5, 4, 0]);
+    cylinder(0.3, 0.4, 8, 0xf4df9f, arch, [73.5, 4, 0]);
+    box([25.6, 1.5, 1], 0xd94f31, arch, [61, 8, 0]);
+
+    addDistanceMarkers(scene);
+  }
+
+  function addDistanceMarkers(scene) {
+    const markerAngles = [Math.PI / 2, Math.PI, Math.PI * 1.5];
+
+    markerAngles.forEach((angle, index) => {
+      const position = oval(74.5, 45.5, angle);
+      cylinder(0.12, 0.16, 3.6, 0xf4df9f, scene, [position.x, 1.8, position.z], 8);
+
+      const marker = box([1.8, 1.25, 0.16], 0xffffff, scene, [position.x, 3.8, position.z]);
+      marker.rotation.y = -angle + Math.PI / 2;
+      marker.material.emissive.setHex(index % 2 ? 0x12261d : 0x2b160c);
+      marker.material.emissiveIntensity = 0.08;
+    });
   }
   function createOvalGrandstands(scene) {
     const root = new THREE.Group();
     scene.add(root);
     HD.world.crowd = [];
     const rows = 7;
-    const columns = 128;
+    const columns = GRANDSTAND_COLUMNS;
     const count = rows * columns;
     const dummy = new THREE.Object3D();
     const colors = [0xd94f31, 0x447fc1, 0xf0bd3b, 0x7e59a4, 0x3d8951, 0xd97d35];
@@ -125,28 +168,50 @@ HD.Stadium = (() => {
 
       for (let column = 0; column < columns; column++) {
         const angle = (column / columns) * Math.PI * 2;
-        const rx = 80 + row * 3.25;
-        const rz = 50 + row * 2.75;
+        const rx = 82.1 + row * 3.25;
+        const rz = 51.85 + row * 2.75;
         const position = oval(rx, rz, angle);
         const yaw = -angle + Math.PI / 2;
-        const height = 1.1 + row * 1.35;
+        const tierTop = HD.CONFIG.grandstandBaseHeight + row * 1.5;
 
-        setInstance(dummy, seatBases, instance, position.x, height, position.z, yaw);
+        setInstance(dummy, seatBases, instance, position.x, tierTop + 0.11, position.z, yaw);
         setInstance(
           dummy,
           seatBacks,
           instance,
           position.x + Math.cos(angle) * 0.6,
-          height + 0.55,
+          tierTop + 0.72,
           position.z + Math.sin(angle) * 0.6,
           yaw,
         );
-        setInstance(dummy, crowdBodies, instance, position.x, height + 1.05, position.z, yaw);
-        setInstance(dummy, crowdHeads, instance, position.x, height + 1.95, position.z, yaw);
+        setInstance(
+          dummy,
+          crowdBodies,
+          instance,
+          position.x,
+          tierTop + 1.25,
+          position.z,
+          yaw,
+        );
+        setInstance(
+          dummy,
+          crowdHeads,
+          instance,
+          position.x,
+          tierTop + 2.18,
+          position.z,
+          yaw,
+        );
         crowdBodies.setColorAt(instance, new THREE.Color(colors[(column + row) % colors.length]));
 
-        const inPlayerSection = Math.abs(angle - Math.PI / 2) < 0.13;
-        if (inPlayerSection) {
+        const detailedPlayerSeat = DETAILED_SEATS.some(
+          (seat) => seat.row === row && seat.column === column,
+        );
+        const inStairAisle = STAIR_ANGLES.some(
+          (stairAngle) =>
+            angleDistance(angle, stairAngle) < stairHalfAngle(rx, rz, stairAngle),
+        );
+        if (detailedPlayerSeat || inStairAisle) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
           });
@@ -173,40 +238,192 @@ HD.Stadium = (() => {
     batch.setMatrixAt(index, dummy.matrix);
   }
 
+  function angleDistance(first, second) {
+    const difference = Math.abs(first - second) % (Math.PI * 2);
+    return Math.min(difference, Math.PI * 2 - difference);
+  }
+
   function addTierRing(root, row) {
+    const innerX = 80.5 + row * 3.25;
+    const innerZ = 50.5 + row * 2.75;
+    const outerX = innerX + 3.25;
+    const outerZ = innerZ + 2.75;
+    const tierTop = HD.CONFIG.grandstandBaseHeight + row * 1.5;
+    const color = row % 2 ? 0x526c5b : 0x435e50;
+
+    createTierSegments(root, outerX, outerZ, innerX, innerZ, tierTop, color, row);
+  }
+
+  function createTierSegments(root, outerX, outerZ, innerX, innerZ, height, color, row) {
+    const sortedAngles = [...STAIR_ANGLES].sort((first, second) => first - second);
+    const middleX = (outerX + innerX) / 2;
+    const middleZ = (outerZ + innerZ) / 2;
+
+    for (let index = 0; index < sortedAngles.length; index++) {
+      const current = sortedAngles[index];
+      const next = sortedAngles[(index + 1) % sortedAngles.length];
+      const start = current + stairHalfAngle(middleX, middleZ, current);
+      const nextAngle = index === sortedAngles.length - 1 ? next + Math.PI * 2 : next;
+      const end = nextAngle - stairHalfAngle(middleX, middleZ, next);
+      createSolidOvalSegment(root, outerX, outerZ, innerX, innerZ, height, color, start, end);
+      addTierFasciaSegment(root, outerX, outerZ, height, row, start, end);
+    }
+  }
+
+  function stairHalfAngle(rx, rz, angle) {
+    const tangentX = rx * Math.sin(angle);
+    const tangentZ = rz * Math.cos(angle);
+    const distancePerRadian = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
+    const aisleHalfWidth = HD.CONFIG.stairs.width / 2 + 0.28;
+    return aisleHalfWidth / distancePerRadian;
+  }
+
+  function createSolidOvalSegment(
+    root,
+    outerX,
+    outerZ,
+    innerX,
+    innerZ,
+    height,
+    color,
+    start,
+    end,
+  ) {
     const shape = new THREE.Shape();
-    const outerX = 82 + row * 3.25;
-    const outerZ = 52 + row * 2.75;
-    shape.absellipse(0, 0, outerX, outerZ, 0, Math.PI * 2, false);
-    const hole = new THREE.Path();
-    hole.absellipse(0, 0, outerX - 3, outerZ - 2.5, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-    const geometry = new THREE.ShapeGeometry(shape, 96);
+    const segments = 18;
+
+    for (let index = 0; index <= segments; index++) {
+      const angle = THREE.MathUtils.lerp(start, end, index / segments);
+      const x = Math.cos(angle) * outerX;
+      const z = Math.sin(angle) * outerZ;
+      if (index === 0) shape.moveTo(x, z);
+      else shape.lineTo(x, z);
+    }
+
+    for (let index = segments; index >= 0; index--) {
+      const angle = THREE.MathUtils.lerp(start, end, index / segments);
+      shape.lineTo(Math.cos(angle) * innerX, Math.sin(angle) * innerZ);
+    }
+    shape.closePath();
+
+    const foundationBottom = -0.55;
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: height - foundationBottom,
+      bevelEnabled: false,
+      steps: 1,
+    });
     geometry.rotateX(-Math.PI / 2);
-    geometry.rotateZ(Math.PI / 2);
-    const tier = new THREE.Mesh(geometry, HD.util.material(row % 2 ? 0x456954 : 0x365744));
-    tier.position.y = 0.55 + row * 1.35;
-    tier.receiveShadow = true;
-    root.add(tier);
+
+    const section = new THREE.Mesh(geometry, HD.util.material(color));
+    section.position.y = foundationBottom;
+    section.castShadow = false;
+    section.receiveShadow = true;
+    root.add(section);
+  }
+
+  function addTierFasciaSegment(root, rx, rz, height, row, start, end) {
+    const points = [];
+
+    for (let index = 0; index <= 18; index++) {
+      const angle = THREE.MathUtils.lerp(start, end, index / 18);
+      points.push(oval(rx - 0.08, rz - 0.08, angle).setY(height + 0.04));
+    }
+
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color: row % 2 ? 0xd2c29d : 0xb9aa89 }),
+    );
+    root.add(line);
   }
 
   function createOvalCanopy(root) {
-    const shape = new THREE.Shape();
-    shape.absellipse(0, 0, 110, 77, 0, Math.PI * 2, false);
-    const hole = new THREE.Path();
-    hole.absellipse(0, 0, 98, 65, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-    const geometry = new THREE.ShapeGeometry(shape, 96);
-    geometry.rotateX(-Math.PI / 2);
-    geometry.rotateZ(Math.PI / 2);
-    const canopy = new THREE.Mesh(geometry, HD.util.material(0xf0cf61));
-    canopy.position.y = 14.5;
+    const outerX = 120;
+    const outerZ = 83;
+    const innerX = 104;
+    const innerZ = 71;
+    const outerHeight = 21.5;
+    const innerHeight = 25;
+    const segments = 128;
+    const positions = [];
+    const indices = [];
+
+    for (let index = 0; index <= segments; index++) {
+      const angle = (index / segments) * Math.PI * 2;
+      positions.push(
+        Math.cos(angle) * outerX,
+        outerHeight,
+        Math.sin(angle) * outerZ,
+        Math.cos(angle) * innerX,
+        innerHeight,
+        Math.sin(angle) * innerZ,
+      );
+
+      if (index < segments) {
+        const outer = index * 2;
+        indices.push(outer, outer + 2, outer + 1, outer + 2, outer + 3, outer + 1);
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+
+    const material = HD.util.material(0xf0cf61, {
+      metalness: 0.12,
+      roughness: 0.58,
+      side: THREE.DoubleSide,
+    });
+    const canopy = new THREE.Mesh(geometry, material);
     canopy.receiveShadow = true;
     root.add(canopy);
+
+    createRoofGlassWall(root, outerX, outerZ, 13.5, outerHeight);
+    createCanopyLighting(root);
+  }
+
+  function createRoofGlassWall(root, radiusX, radiusZ, baseY, roofHeight) {
+    createCurvedGlassRail(
+      root,
+      radiusX - 0.25,
+      radiusZ - 0.25,
+      baseY,
+      roofHeight - baseY,
+      96,
+    );
+  }
+
+  function createCanopyLighting(root) {
+    const lightCount = 32;
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffe7a0,
+      emissive: 0xffc84d,
+      emissiveIntensity: 1.8,
+      roughness: 0.35,
+    });
+    const lights = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      material,
+      lightCount,
+    );
+    const dummy = new THREE.Object3D();
+
+    for (let index = 0; index < lightCount; index++) {
+      const angle = (index / lightCount) * Math.PI * 2;
+      const position = oval(109, 74.5, angle);
+      dummy.position.set(position.x, 22.8, position.z);
+      dummy.rotation.set(0, -angle, 0);
+      dummy.scale.set(3.4, 0.12, 0.5);
+      dummy.updateMatrix();
+      lights.setMatrixAt(index, dummy.matrix);
+    }
+
+    lights.instanceMatrix.needsUpdate = true;
+    lights.castShadow = false;
+    root.add(lights);
   }
   function createInfield(scene) {
-    box([21, 4, 6], 0xf4d259, scene, [0, 2, 0]);
-    box([18, 2.4, 6.2], 0x17382a, scene, [0, 5.2, 0]);
+    createRaceBoard(scene);
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2,
         p = oval(30, 10, angle);
@@ -220,32 +437,174 @@ HD.Stadium = (() => {
         for (let z = -4; z <= 4; z += 2) sphere(0.35, 0xfff4be, lamps, [y, 0, z]);
     }
   }
+
+  function createRaceBoard(scene) {
+    const root = new THREE.Group();
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 512;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+
+    scene.add(root);
+    box([22.5, 11.5, 0.9], 0x15271f, root, [0, 10.2, 0]);
+    box([23.5, 0.65, 1.35], 0xf0bd3b, root, [0, 16.1, 0]);
+    box([23.5, 0.65, 1.35], 0xf0bd3b, root, [0, 4.3, 0]);
+    cylinder(0.45, 0.62, 4.8, 0xd5c49b, root, [-9.5, 1.85, 0], 10);
+    cylinder(0.45, 0.62, 4.8, 0xd5c49b, root, [9.5, 1.85, 0], 10);
+
+    const material = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(21.2, 10.2), material);
+    front.position.set(0, 10.2, 0.48);
+    root.add(front);
+
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(21.2, 10.2), material.clone());
+    back.position.set(0, 10.2, -0.48);
+    back.rotation.y = Math.PI;
+    root.add(back);
+
+    for (const x of [-10.2, -6.8, 6.8, 10.2]) {
+      sphere(0.28, 0xffefb0, root, [x, 16.85, 0.15]);
+    }
+
+    HD.world.raceBoard = {
+      canvas,
+      context: canvas.getContext("2d"),
+      texture,
+      lastUpdate: -1,
+    };
+    drawRaceBoard();
+  }
+
+  function drawRaceBoard() {
+    const board = HD.world.raceBoard;
+    if (!board) return;
+
+    const { canvas, context } = board;
+    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, "#10271e");
+    gradient.addColorStop(1, "#07130f");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#f0bd3b";
+    context.fillRect(0, 0, canvas.width, 72);
+    context.fillStyle = "#10271e";
+    context.font = "900 34px sans-serif";
+    context.textAlign = "left";
+    context.fillText("HOTDOG DOWNS - LIVE RUNNING ORDER", 34, 48);
+
+    if (!HD.state.horses.length) {
+      context.fillStyle = "#e8e1ca";
+      context.font = "700 44px sans-serif";
+      context.fillText("FIELD LOADING...", 34, 145);
+      board.texture.needsUpdate = true;
+      return;
+    }
+
+    const order = [...HD.state.horses].sort(compareRacePosition);
+    const leaderProgress = order[0].userData.data.progress;
+    order.forEach((horse, index) => {
+      const data = horse.userData.data;
+      const y = 105 + index * 49;
+      const color = `#${data.color.toString(16).padStart(6, "0")}`;
+      const lap = Math.min(HD.CONFIG.raceLaps, Math.floor(Math.max(0, data.progress)) + 1);
+      const lengthsBehind = Math.max(0, Math.round((leaderProgress - data.progress) * 65));
+      const interval = index === 0 ? "LEADER" : `+${lengthsBehind} LENGTHS`;
+
+      context.fillStyle = index % 2 ? "#173328" : "#1d3d30";
+      context.fillRect(22, y - 30, 980, 42);
+      context.fillStyle = color;
+      context.fillRect(22, y - 30, 12, 42);
+      context.fillStyle = "#ffffff";
+      context.font = "900 26px sans-serif";
+      context.fillText(`${index + 1}`, 52, y);
+      context.font = "800 22px sans-serif";
+      context.fillText(`#${data.index + 1}  ${data.name}`, 105, y);
+      context.fillStyle = "#bdd1c2";
+      context.font = "700 19px sans-serif";
+      context.fillText(`LAP ${lap}/${HD.CONFIG.raceLaps}`, 610, y);
+      context.textAlign = "right";
+      context.fillStyle = index === 0 ? "#f0bd3b" : "#e8e1ca";
+      context.fillText(interval, 972, y);
+      context.textAlign = "left";
+    });
+
+    board.texture.needsUpdate = true;
+  }
+
+  function compareRacePosition(first, second) {
+    const firstData = first.userData.data;
+    const secondData = second.userData.data;
+    if (firstData.finished && secondData.finished) return firstData.place - secondData.place;
+    if (firstData.finished) return -1;
+    if (secondData.finished) return 1;
+    return secondData.progress - firstData.progress;
+  }
   function createNearbyPlayers(scene) {
     HD.world.players = [];
-    const seats = [
-      [-3.4, 5.8, 49.2, "phone"],
-      [0, 5.8, 49.2, "watch"],
-      [3.4, 5.8, 49.2, "throw"],
-      [-2.4, 10, 55, "watch"],
-      [2.4, 10, 55, "phone"],
-      [-4.2, 14.2, 61, "throw"],
-      [4.2, 14.2, 61, "phone"],
-    ];
+    const detail = HD.Settings.modelDetail();
+    const playerLimit = detail === "low" ? 0 : detail === "standard" ? 2 : 3;
+    const nearbySeats = DETAILED_SEATS
+      .filter((seat) => !seat.local)
+      .slice(0, playerLimit);
 
-    createPlayerSection(scene);
-
-    seats.forEach((entry, i) => {
-      const avatar = HD.Models.character(HD.CONFIG.playerColors[i + 1], {
-        hat: HD.CONFIG.playerColors[(i + 3) % 8],
+    nearbySeats.forEach((seat, index) => {
+      const placement = grandstandSeat(seat.row, seat.column);
+      const colorIndex = (index + 1) % HD.CONFIG.playerColors.length;
+      const playerColor = HD.CONFIG.playerColors[colorIndex];
+      const avatar = HD.Models.playerCharacter(playerColor, {
+        variant: index,
+        activity: seat.activity,
       });
-      avatar.position.set(entry[0], entry[1], entry[2]);
-      avatar.rotation.y = 0;
-      avatar.userData.activity = entry[3];
-      avatar.userData.name = `Player ${i + 2}`;
+      avatar.position.copy(placement.avatar);
+      avatar.rotation.y = placement.yaw;
+      avatar.userData.activity = seat.activity;
+      avatar.userData.name = `Player ${index + 2}`;
+      avatar.traverse((object) => {
+        if (!object.isMesh) return;
+        object.castShadow = false;
+        object.receiveShadow = true;
+      });
       scene.add(avatar);
       HD.world.players.push(avatar);
-      createChair(scene, entry[0], entry[1] + 0.1, entry[2] + 0.45, HD.CONFIG.playerColors[i + 1]);
+      createChair(scene, placement, playerColor);
     });
+
+    DETAILED_SEATS.slice(playerLimit + 1).forEach((seat, index) => {
+      const placement = grandstandSeat(seat.row, seat.column);
+      const colorIndex = (index + playerLimit + 1) % HD.CONFIG.playerColors.length;
+      const color = HD.CONFIG.playerColors[colorIndex];
+      createSimplePlayer(scene, placement, color, colorIndex);
+      createChair(scene, placement, color);
+    });
+
+    createLocalPlayer(scene);
+  }
+
+  function createSimplePlayer(scene, placement, color, variant) {
+    const root = new THREE.Group();
+    root.position.copy(placement.avatar);
+    root.rotation.y = placement.yaw;
+    root.userData.staticPlaceholder = true;
+    root.userData.name = `Player ${variant + 1}`;
+    scene.add(root);
+
+    const torso = cylinder(0.3, 0.46, 1.2, color, root, [0, 1.25, 0], 6);
+    const skinColors = [0xf1c7a5, 0xc88962, 0x8d593d, 0xe0aa82, 0x6e432f];
+    sphere(0.36, skinColors[variant % skinColors.length], root, [0, 2.15, 0]);
+    for (const side of [-1, 1]) {
+      const arm = cylinder(0.1, 0.13, 0.95, color, root, [side * 0.48, 1.2, -0.25], 6);
+      arm.rotation.x = 0.7;
+      arm.rotation.z = side * -0.12;
+    }
+    root.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = false;
+      object.receiveShadow = true;
+    });
+    root.userData.torso = torso;
+    HD.world.players.push(root);
   }
 
   // ---------------------------------------------------------------------------
@@ -253,23 +612,119 @@ HD.Stadium = (() => {
   // ---------------------------------------------------------------------------
 
 
-  function createPlayerSection(scene) {
-    const deckColor = 0xc8b389;
-    box([14, 0.55, 5], deckColor, scene, [0, 5.05, 49.5]);
-    box([14, 0.55, 5], deckColor, scene, [0, 9.25, 55.3]);
-    box([14, 0.55, 5], deckColor, scene, [0, 13.45, 61.3]);
+  function createLocalPlayer(scene) {
+    const seat = DETAILED_SEATS.find((candidate) => candidate.local);
+    const placement = grandstandSeat(seat.row, seat.column);
+    applyLocalSeatPlacement(placement);
 
-    for (const x of [-7, 7]) {
-      box([0.25, 10.5, 0.25], 0xe9ddbd, scene, [x, 9.8, 54]);
-    }
+    const player = HD.Models.playerCharacter(HD.CONFIG.playerColors[0], {
+      variant: 7,
+      activity: "watch",
+      ...HD.Settings.avatarOptions(),
+    });
+    player.position.copy(HD.CONFIG.playerSeatRoot);
+    player.rotation.y = placement.yaw;
+    player.userData.name = "Player 1";
+    player.userData.isLocalPlayer = true;
+    player.userData.networkId = "local-player";
+    HD.Models.setPlayerStanding(player, false);
+    player.traverse((object) => object.layers.set(2));
+    scene.add(player);
+
+    createChair(scene, placement, HD.CONFIG.playerColors[0]);
+    HD.world.localPlayer = player;
+    HD.world.playerEntities = [player, ...HD.world.players];
   }
 
-  function createChair(scene, x, y, z, color) {
-    box([2.1, 0.28, 1.8], color, scene, [x, y, z]);
-    const back = box([2.1, 2, 0.25], color, scene, [x, y + 0.95, z + 0.8]);
+  function assignLocalSeat(seatIndex) {
+    const placement = playerSeatPlacement(seatIndex);
+    applyLocalSeatPlacement(placement);
+
+    if (HD.world.localPlayer) {
+      HD.world.localPlayer.position.copy(placement.avatar);
+      HD.world.localPlayer.rotation.y = placement.yaw;
+      HD.world.localPlayer.userData.seatIndex = seatIndex;
+      HD.Models.setPlayerColor(
+        HD.world.localPlayer,
+        HD.CONFIG.playerColors[seatIndex % HD.CONFIG.playerColors.length],
+      );
+      const preview = document.querySelector("#lobby-avatar");
+      if (preview) {
+        const color = HD.CONFIG.playerColors[seatIndex % HD.CONFIG.playerColors.length]
+          .toString(16)
+          .padStart(6, "0");
+        preview.style.setProperty("--avatar-color", `#${color}`);
+      }
+    }
+    if (HD.world.camera) HD.world.camera.position.copy(HD.CONFIG.seat);
+    return placement;
+  }
+
+  function refreshLocalPlayer() {
+    const previous = HD.world.localPlayer;
+    if (!previous || !HD.world.scene) return;
+    const seatIndex = previous.userData.seatIndex || 0;
+    const replacement = HD.Models.playerCharacter(
+      HD.CONFIG.playerColors[seatIndex % HD.CONFIG.playerColors.length],
+      {
+        variant: seatIndex,
+        activity: previous.userData.activity || "watch",
+        ...HD.Settings.avatarOptions(),
+      },
+    );
+    replacement.position.copy(previous.position);
+    replacement.rotation.copy(previous.rotation);
+    replacement.userData.name = previous.userData.name;
+    replacement.userData.isLocalPlayer = true;
+    replacement.userData.networkId = previous.userData.networkId;
+    replacement.userData.seatIndex = seatIndex;
+    HD.Models.setPlayerStanding(replacement, HD.state.standing);
+    replacement.traverse((object) => object.layers.set(2));
+    HD.world.scene.remove(previous);
+    HD.world.scene.add(replacement);
+    HD.world.localPlayer = replacement;
+    HD.world.playerEntities = [replacement, ...(HD.world.players || [])];
+  }
+
+  function playerSeatPlacement(seatIndex) {
+    const seat = DETAILED_SEATS[seatIndex % DETAILED_SEATS.length];
+    return grandstandSeat(seat.row, seat.column);
+  }
+
+  function applyLocalSeatPlacement(placement) {
+    HD.CONFIG.playerSeatRoot.copy(placement.avatar);
+    HD.CONFIG.playerSeatYaw = placement.yaw;
+    HD.CONFIG.seat
+      .copy(placement.avatar)
+      .setY(placement.avatar.y + HD.CONFIG.characterEyeOffset);
+    HD.state.playerPosition.copy(HD.CONFIG.seat);
+    HD.state.yaw = placement.yaw;
+  }
+
+  function grandstandSeat(row, column) {
+    const angle = (column / GRANDSTAND_COLUMNS) * Math.PI * 2;
+    const position = oval(82.1 + row * 3.25, 51.85 + row * 2.75, angle);
+    const tierTop = HD.CONFIG.grandstandBaseHeight + row * 1.5;
+    return {
+      angle,
+      yaw: -angle + Math.PI / 2,
+      tierTop,
+      position,
+      avatar: new THREE.Vector3(position.x, tierTop + 1.25, position.z),
+    };
+  }
+
+  function createChair(scene, placement, color) {
+    const root = new THREE.Group();
+    root.position.set(placement.position.x, placement.tierTop, placement.position.z);
+    root.rotation.y = placement.yaw;
+    scene.add(root);
+
+    box([1.35, 0.22, 1.25], color, root, [0, 0.11, 0]);
+    const back = box([1.35, 1.25, 0.18], color, root, [0, 0.72, 0.6]);
     back.rotation.x = -0.08;
-    cylinder(0.08, 0.1, 1.2, 0x39463e, scene, [x - 0.75, y - 0.65, z], 7);
-    cylinder(0.08, 0.1, 1.2, 0x39463e, scene, [x + 0.75, y - 0.65, z], 7);
+    cylinder(0.06, 0.08, 0.85, 0x39463e, root, [-0.48, -0.32, 0], 7);
+    cylinder(0.06, 0.08, 0.85, 0x39463e, root, [0.48, -0.32, 0], 7);
   }
 
   function createBackground(scene) {
@@ -296,7 +751,8 @@ HD.Stadium = (() => {
     sky.rotation.z = Math.PI;
     scene.add(sky);
 
-    const mountainCount = 36;
+    const modelDetail = HD.Settings.modelDetail();
+    const mountainCount = modelDetail === "low" ? 18 : modelDetail === "standard" ? 28 : 36;
     const mountains = new THREE.InstancedMesh(
       new THREE.ConeGeometry(18, 42, 6),
       new THREE.MeshLambertMaterial({ color: 0x58745d, flatShading: true }),
@@ -320,7 +776,8 @@ HD.Stadium = (() => {
   }
 
   function createTreeLine(scene) {
-    const treeCount = 180;
+    const modelDetail = HD.Settings.modelDetail();
+    const treeCount = modelDetail === "low" ? 72 : modelDetail === "standard" ? 120 : 180;
     const trunks = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.45, 0.7, 5, 6),
       new THREE.MeshLambertMaterial({ color: 0x67472d }),
@@ -363,7 +820,8 @@ HD.Stadium = (() => {
   }
 
   function createClouds(scene) {
-    const cloudCount = 28;
+    const modelDetail = HD.Settings.modelDetail();
+    const cloudCount = modelDetail === "low" ? 10 : modelDetail === "standard" ? 18 : 28;
     const clouds = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(5, 1),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72 }),
@@ -386,71 +844,377 @@ HD.Stadium = (() => {
   }
 
   function createConcourseDetails(scene) {
-    const vendorColors = [0xf25f5c, 0x247ba0, 0xffc857, 0x70c1b3];
+    for (let index = 0; index < 8; index++) {
+      const angle = ((index + 0.5) / 8) * Math.PI * 2;
+      const position = oval(109.5, 74.5, angle);
+      const bench = new THREE.Group();
+      bench.position.set(position.x, 13.5, position.z);
+      bench.rotation.y = -angle + Math.PI / 2;
+      scene.add(bench);
 
-    for (let i = 0; i < 16; i++) {
-      const angle = (i / 16) * Math.PI * 2;
-      const position = oval(82, 51, angle);
-      const kiosk = new THREE.Group();
-      kiosk.position.copy(position);
-      kiosk.rotation.y = -angle + Math.PI / 2;
-      scene.add(kiosk);
-
-      box([5.5, 2.5, 2.6], vendorColors[i % vendorColors.length], kiosk, [0, 1.25, 0]);
-      box([6, 0.35, 3.2], 0xffe29a, kiosk, [0, 2.8, 0]);
-      box([4.6, 1.1, 0.12], 0x17382a, kiosk, [0, 3.65, 0]);
-
-      cylinder(0.35, 0.55, 1.3, vendorColors[(i + 2) % vendorColors.length], kiosk, [0, 3.1, -1.3]);
-      sphere(0.4, 0xefb88f, kiosk, [0, 4.05, -1.3]);
-    }
-
-    for (let i = 0; i < 24; i++) {
-      const angle = (i / 24) * Math.PI * 2;
-      const position = oval(78, 48, angle);
-      cylinder(0.45, 0.55, 1.8, 0x294c3a, scene, [position.x, 0.9, position.z], 10);
-
-      const flagPole = cylinder(0.05, 0.07, 6, 0xe9ddbd, scene, [position.x, 4.5, position.z], 7);
-      const flag = box([2.2, 1.1, 0.08], HD.CONFIG.playerColors[i % 8], flagPole, [1.1, 2.2, 0]);
-      flag.rotation.y = angle;
+      box([4.8, 0.24, 1.1], 0x8a613c, bench, [0, 0.72, 0]);
+      box([4.8, 1.25, 0.2], 0x735033, bench, [0, 1.35, 0.5]);
+      box([0.28, 0.8, 0.8], 0x30473a, bench, [-1.9, 0.35, 0]);
+      box([0.28, 0.8, 0.8], 0x30473a, bench, [1.9, 0.35, 0]);
     }
   }
 
   function createPlayerRoutes(scene) {
-    createRaisedRing(scene, 78.5, 48.5, 74, 44, 1.15, 0xd8c499);
-    createRaisedRing(scene, 116, 82, 101, 67, 13.8, 0xb7a47f);
+    createRaisedRing(scene, 80.5, 50.5, 74, 44, 1.65, 0xd8c499);
+    createRaisedRing(scene, 120, 83, 103.25, 69.75, 13.5, 0xb7a47f);
+    createConcourseGlassRails(scene);
 
-    for (let step = 0; step < 15; step++) {
-      const progress = step / 14;
-      const z = 44 + progress * 25;
-      const y = 1.2 + progress * 13.1;
-      box([5.5, 0.5, 2], step % 2 ? 0xc4b18c : 0xd3c09a, scene, [0, y, z]);
+    STAIR_ANGLES.forEach((angle) => createStaircase(scene, angle));
+
+    HD.world.shopPositions = [];
+    HD.world.betCounterPositions = [];
+    HD.world.barriers = [];
+    const shopAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4];
+    shopAngles.forEach((angle, index) => createUpperShop(scene, angle, index));
+  }
+
+  function createStaircase(scene, angle) {
+    const stairs = HD.CONFIG.stairs;
+    const root = new THREE.Group();
+    const start = oval(stairs.startX, stairs.startZ, angle);
+    const end = oval(stairs.endX, stairs.endZ, angle);
+    const path = end.clone().sub(start);
+    const pathLength = path.length();
+    const stepCount = 24;
+    const radialStep = pathLength / stepCount;
+    const stepDepth = radialStep + 0.12;
+    root.position.copy(start);
+    root.rotation.y = Math.atan2(path.x, path.z);
+    scene.add(root);
+
+    const lightSteps = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      HD.util.material(0xd3c09a),
+      Math.ceil(stepCount / 2),
+    );
+    const darkSteps = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      HD.util.material(0xc4b18c),
+      Math.floor(stepCount / 2),
+    );
+    const dummy = new THREE.Object3D();
+    let lightIndex = 0;
+    let darkIndex = 0;
+
+    for (let step = 0; step < stepCount; step++) {
+      const progress = (step + 1) / stepCount;
+      const distance = (step + 0.5) * radialStep;
+      const top = stairHeightForProgress(progress);
+      const foundation = 1.25;
+      const height = top - foundation;
+      const centerY = foundation + height / 2;
+      const batch = step % 2 ? darkSteps : lightSteps;
+      const index = step % 2 ? darkIndex++ : lightIndex++;
+      dummy.position.set(0, centerY, distance);
+      dummy.scale.set(stairs.width, height, stepDepth);
+      dummy.updateMatrix();
+      batch.setMatrixAt(index, dummy.matrix);
     }
 
-    const shop = new THREE.Group();
-    shop.position.set(0, 14.1, 73);
-    shop.rotation.y = Math.PI;
-    scene.add(shop);
-    box([12, 5.2, 4], 0xe85d3b, shop, [0, 2.6, 0]);
-    box([12.8, 0.5, 5], 0xffdd72, shop, [0, 5.4, 0]);
-    box([8.5, 1.4, 0.18], 0x17382a, shop, [0, 6.6, -2.05]);
-    box([10, 1.1, 1.2], 0xf3e4bd, shop, [0, 1.3, -2.3]);
+    [lightSteps, darkSteps].forEach((batch) => {
+      batch.castShadow = false;
+      batch.receiveShadow = true;
+      batch.instanceMatrix.needsUpdate = true;
+      root.add(batch);
+    });
 
-    HD.world.shopPositions = [new THREE.Vector3(0, 18.2, 73)];
+    box(
+      [stairs.width, 0.4, 1.8],
+      0xcab78f,
+      root,
+      [0, stairs.bottomHeight - 0.2, 0.15],
+    );
+    box(
+      [stairs.width, 0.4, 2],
+      0xcab78f,
+      root,
+      [0, stairs.topHeight - 0.2, pathLength + 0.35],
+    );
+    addStairRails(root, pathLength);
+  }
+
+  function addStairRails(root, span) {
+    const rise = HD.CONFIG.stairs.topHeight - HD.CONFIG.stairs.bottomHeight;
+    const railLength = Math.sqrt(span * span + rise * rise);
+    const railY = (
+      HD.CONFIG.stairs.bottomHeight + HD.CONFIG.stairs.topHeight
+    ) / 2 + 1;
+    const railZ = span / 2;
+
+    const railOffset = HD.CONFIG.stairs.width / 2;
+    for (const side of [-1, 1]) {
+      const rail = box(
+        [0.14, 0.14, railLength],
+        0xe8ddc5,
+        root,
+        [side * railOffset, railY, railZ],
+      );
+      rail.rotation.x = -Math.atan2(rise, span);
+
+      for (const progress of [0.2, 0.5, 0.8]) {
+        const distance = span * progress;
+        const surface = stairHeightForProgress(progress);
+        cylinder(
+          0.07,
+          0.08,
+          1.8,
+          0xe8ddc5,
+          root,
+          [side * railOffset, surface + 0.9, distance],
+          7,
+        );
+      }
+    }
+  }
+
+  function stairHeightForProgress(progress) {
+    return THREE.MathUtils.lerp(
+      HD.CONFIG.stairs.bottomHeight,
+      HD.CONFIG.stairs.topHeight,
+      progress,
+    );
+  }
+
+  function createUpperShop(scene, angle, index) {
+    const position = oval(115, 79, angle);
+    const colors = [0xe85d3b, 0x3f8cc9, 0xe7a83e, 0x52a66b];
+    const shop = new THREE.Group();
+    shop.position.set(position.x, 13.5, position.z);
+    shop.rotation.y = -angle + Math.PI / 2;
+    scene.add(shop);
+
+    const shopNames = ["TRACK SNACKS", "FAN GEAR", "THROW DEPOT", "QUICK BITES"];
+    box([12, 0.35, 5.2], 0x76593b, shop, [0, 0.18, 0]);
+    box([12, 5.1, 0.35], colors[index], shop, [0, 2.55, 2.45]);
+    box([0.35, 5.1, 5.2], colors[index], shop, [-5.82, 2.55, 0]);
+    box([0.35, 5.1, 5.2], colors[index], shop, [5.82, 2.55, 0]);
+    box([12.8, 0.45, 5.8], 0xf0c95d, shop, [0, 5.3, 0]);
+    box([10.2, 1.15, 1.1], 0xf3e4bd, shop, [0, 1.18, -2.2]);
+    box([9.6, 0.18, 0.65], 0x5d402c, shop, [0, 2.7, 2.05]);
+    box([9.6, 0.18, 0.65], 0x5d402c, shop, [0, 3.8, 2.05]);
+
+    for (let display = 0; display < 7; display++) {
+      const x = -4.2 + display * 1.4;
+      cylinder(
+        0.24,
+        0.3,
+        0.72,
+        HD.CONFIG.playerColors[display],
+        shop,
+        [x, 3.22, 1.82],
+        10,
+      );
+      box(
+        [0.75, 0.55, 0.32],
+        HD.CONFIG.playerColors[(display + 3) % 8],
+        shop,
+        [x, 4.22, 1.82],
+      );
+    }
+
+    for (let stripe = 0; stripe < 8; stripe++) {
+      box(
+        [1.5, 0.18, 1.3],
+        stripe % 2 ? 0xf8e6b0 : colors[index],
+        shop,
+        [-5.25 + stripe * 1.5, 5.08, -2.8],
+      );
+    }
+
+    const sign = createTextSign(shopNames[index], 0xffda62);
+    sign.position.set(0, 4.48, -2.64);
+    sign.scale.set(7.8, 1.08, 1);
+    shop.add(sign);
+    addShopWorker(shop, colors[index], [0, 0.78, 0.75], 0.58);
+
+    HD.world.shopPositions.push(new THREE.Vector3(position.x, 18.3, position.z));
+    HD.world.barriers.push({
+      type: "box",
+      x: position.x,
+      z: position.z,
+      angle: shop.rotation.y,
+      halfWidth: 6.2,
+      halfDepth: 2.7,
+    });
+    createBettingCounter(scene, position, angle, index);
+  }
+
+  function createBettingCounter(scene, shopPosition, angle, index) {
+    const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
+    const position = shopPosition.clone().addScaledVector(tangent, 10);
+    const counter = new THREE.Group();
+    const colors = [0x315f43, 0x315b77, 0x704858, 0x6d542f];
+    counter.position.set(position.x, 13.5, position.z);
+    counter.rotation.y = -angle + Math.PI / 2;
+    scene.add(counter);
+
+    box([5.2, 2.6, 2.4], colors[index], counter, [0, 1.3, 0]);
+    box([5.8, 0.3, 2.9], 0xe8cf87, counter, [0, 2.75, 0]);
+    box([4.5, 1.25, 0.16], 0x17382a, counter, [0, 4.05, 0]);
+    const sign = createTextSign("BET - NO FEE", 0xf4d259);
+    sign.position.set(0, 1.35, -1.23);
+    sign.scale.set(4.1, 0.78, 1);
+    counter.add(sign);
+    addShopWorker(counter, colors[index], [0, 1.72, 0.45], 0.5);
+
+    HD.world.betCounterPositions.push(new THREE.Vector3(position.x, 18.3, position.z));
+    HD.world.barriers.push({ x: position.x, z: position.z, radius: 3.2 });
+  }
+
+  function createConcourseGlassRails(scene) {
+    createCurvedGlassRail(scene, 102.9, 69.4, 13.5, 2.2, 72);
+  }
+
+  function createCurvedGlassRail(scene, radiusX, radiusZ, baseY, height, segments) {
+    const panels = [];
+    const glass = new THREE.MeshPhysicalMaterial({
+      color: 0xb6ebef,
+      transparent: true,
+      opacity: height > 3 ? 0.32 : 0.24,
+      roughness: 0.1,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    for (let index = 0; index < segments; index++) {
+      const angleA = (index / segments) * Math.PI * 2;
+      const angleB = ((index + 1) / segments) * Math.PI * 2;
+      const midpoint = (angleA + angleB) / 2;
+      const atStairs = height <= 3 && STAIR_ANGLES.some(
+        (stairAngle) => Math.abs(Math.atan2(
+          Math.sin(midpoint - stairAngle),
+          Math.cos(midpoint - stairAngle),
+        )) < 0.065,
+      );
+      if (atStairs) continue;
+
+      const start = oval(radiusX, radiusZ, angleA);
+      const end = oval(radiusX, radiusZ, angleB);
+      panels.push({ start, end });
+    }
+
+    const glassBatch = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      glass,
+      panels.length,
+    );
+    const frameBatch = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      HD.util.material(0x526970),
+      panels.length,
+    );
+    const railBatch = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      HD.util.material(0x526970),
+      panels.length * 2,
+    );
+    const dummy = new THREE.Object3D();
+
+    panels.forEach(({ start, end }, index) => {
+      const length = start.distanceTo(end);
+      dummy.position.copy(start).add(end).multiplyScalar(0.5);
+      dummy.position.y = baseY + height / 2;
+      dummy.rotation.set(0, -Math.atan2(end.z - start.z, end.x - start.x), 0);
+      dummy.scale.set(length - 0.08, height, 0.09);
+      dummy.updateMatrix();
+      glassBatch.setMatrixAt(index, dummy.matrix);
+
+      dummy.position.set(start.x, baseY + height / 2, start.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(0.08, height + 0.12, 0.12);
+      dummy.updateMatrix();
+      frameBatch.setMatrixAt(index, dummy.matrix);
+
+      for (let edge = 0; edge < 2; edge++) {
+        dummy.position.copy(start).add(end).multiplyScalar(0.5);
+        dummy.position.y = baseY + edge * height;
+        dummy.rotation.set(0, -Math.atan2(end.z - start.z, end.x - start.x), 0);
+        dummy.scale.set(length, 0.1, 0.14);
+        dummy.updateMatrix();
+        railBatch.setMatrixAt(index * 2 + edge, dummy.matrix);
+      }
+    });
+
+    glassBatch.renderOrder = 2;
+    glassBatch.instanceMatrix.needsUpdate = true;
+    frameBatch.instanceMatrix.needsUpdate = true;
+    railBatch.instanceMatrix.needsUpdate = true;
+    scene.add(glassBatch, frameBatch, railBatch);
+  }
+
+  function addShopWorker(parent, color, position, scale) {
+    const worker = HD.Models.character(color, {
+      hat: color,
+      skin: 0xc88962,
+    });
+    worker.position.set(...position);
+    worker.scale.setScalar(scale);
+    parent.add(worker);
+  }
+
+  function createTextSign(text, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#17382a";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
+    context.font = "900 54px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }),
+    );
+    sign.rotation.y = Math.PI;
+    return sign;
   }
 
   function createRaisedRing(scene, outerX, outerZ, innerX, innerZ, height, color) {
+    createSolidOvalRing(scene, outerX, outerZ, innerX, innerZ, height, color, 128);
+  }
+
+  function createSolidOvalRing(
+    parent,
+    outerX,
+    outerZ,
+    innerX,
+    innerZ,
+    height,
+    color,
+    segments,
+  ) {
     const shape = new THREE.Shape();
     shape.absellipse(0, 0, outerX, outerZ, 0, Math.PI * 2, false);
     const hole = new THREE.Path();
     hole.absellipse(0, 0, innerX, innerZ, 0, Math.PI * 2, true);
     shape.holes.push(hole);
-    const geometry = new THREE.ShapeGeometry(shape, 128);
+
+    const foundationBottom = -0.55;
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: height - foundationBottom,
+      bevelEnabled: false,
+      curveSegments: segments,
+      steps: 1,
+    });
     geometry.rotateX(-Math.PI / 2);
-    geometry.rotateZ(Math.PI / 2);
-    const walkway = new THREE.Mesh(geometry, HD.util.material(color));
-    walkway.position.y = height;
-    walkway.receiveShadow = true;
-    scene.add(walkway);
+
+    const structure = new THREE.Mesh(geometry, HD.util.material(color));
+    structure.position.y = foundationBottom;
+    structure.castShadow = false;
+    structure.receiveShadow = true;
+    parent.add(structure);
+    return structure;
   }
   function createViewModels(scene) {
     const camera = HD.world.camera,
@@ -463,7 +1227,10 @@ HD.Stadium = (() => {
     HD.world.heldItems = {};
     Object.keys(HD.CONFIG.items).forEach((type) => {
       const item = HD.Models.throwable(type);
-      item.scale.setScalar(type === "horseshoe" ? 0.85 : 0.7);
+      const config = HD.CONFIG.items[type];
+      const fallbackScale = type === "horseshoe" ? 0.85 : type === "chair" ? 0.48 : 0.7;
+      const heldScale = config.heldScale || fallbackScale;
+      item.scale.setScalar(heldScale);
       item.position.set(-0.06, 0.24, -0.03);
       item.visible = type === HD.state.selectedItem;
       hand.add(item);
@@ -477,14 +1244,13 @@ HD.Stadium = (() => {
     phone.rotation.set(-0.18, -0.22, -0.05);
     phone.visible = false;
     HD.world.phoneModel = phone;
-    const aimMaterial = new THREE.LineDashedMaterial({
+    const aimMaterial = new THREE.LineBasicMaterial({
       color: 0xffe25d,
-      dashSize: 0.7,
-      gapSize: 0.42,
       transparent: true,
       opacity: 0.9,
     });
     HD.world.trajectory = new THREE.Line(new THREE.BufferGeometry(), aimMaterial);
+    HD.world.trajectory.frustumCulled = false;
     scene.add(HD.world.trajectory);
     HD.world.trajectory.visible = false;
   }
@@ -524,7 +1290,17 @@ HD.Stadium = (() => {
     box([0.28, 0.08, 0.025], 0x050807, phone, [0, 0.61, 0.105]);
     sphere(0.025, 0x1e3545, phone, [0.1, 0.61, 0.12]);
 
-    const iconColors = [0xff5b5b, 0x4bc879, 0x4aa4ff, 0xffc84b, 0x9d6cff, 0x55d6d0];
+    const iconColors = [
+      0xff5b5b,
+      0x4bc879,
+      0x4aa4ff,
+      0xffc84b,
+      0x9d6cff,
+      0x55d6d0,
+      0xe55777,
+      0x5a8fdb,
+      0xf28b3c,
+    ];
     iconColors.forEach((color, index) => {
       const column = index % 3;
       const row = Math.floor(index / 3);
@@ -556,7 +1332,23 @@ HD.Stadium = (() => {
     HD.world.crowd.forEach((p, i) => {
       if (i % 3 === 0) HD.Models.animateCharacter(p, time, true);
     });
-    HD.world.players.forEach((p) => HD.Models.animateCharacter(p, time, true));
+    HD.world.players.forEach((player) => {
+      if (!player.userData.staticPlaceholder) {
+        HD.Models.animateCharacter(player, time, true);
+      }
+    });
+    if (HD.world.localPlayer) HD.Models.animateCharacter(HD.world.localPlayer, time, true);
+    if (HD.world.raceBoard && time - HD.world.raceBoard.lastUpdate >= 1) {
+      HD.world.raceBoard.lastUpdate = time;
+      drawRaceBoard();
+    }
   }
-  return { build, update, oval };
+  return {
+    build,
+    update,
+    oval,
+    assignLocalSeat,
+    playerSeatPlacement,
+    refreshLocalPlayer,
+  };
 })();

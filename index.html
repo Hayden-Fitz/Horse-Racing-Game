@@ -19,7 +19,13 @@
           <div><small>RACE</small><strong id="race-number">1 / 6</strong></div>
           <div><small>ITEMS</small><strong id="inventory">0</strong></div>
         </div>
+        <div id="network-status" class="network-status" data-state="offline">
+          SINGLE PLAYER
+        </div>
+        <div id="performance-status" class="performance-status">PERFORMANCE MODE</div>
+        <button id="menu-button" class="menu-button" aria-label="Open game menu">☰ MENU</button>
         <div id="countdown" class="countdown"></div>
+        <div id="race-winner-banner" class="race-winner-banner"></div>
         <div id="announcement" class="announcement">Click the stadium to look around</div>
         <div id="crosshair" class="crosshair">+</div>
         <div id="mode-badge" class="mode-badge">SEATED</div>
@@ -29,10 +35,21 @@
           <strong>55%</strong>
         </div>
         <div class="camera-help">
-          <kbd>Mouse</kbd> Look <kbd>F</kbd> Ready item <kbd>Q</kbd> Change item
-          <kbd>P</kbd> Phone <kbd>Esc</kbd> Menu
+          <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand <kbd>WASD</kbd> Walk <kbd>E</kbd> Interact
+          <kbd>F</kbd> Throw <kbd>P</kbd> Phone <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
         </div>
         <div id="race-progress" class="race-progress"><div></div></div>
+        <div id="hotbar" class="hotbar">
+          <div id="hotbar-items" class="hotbar-items"></div>
+          <div id="best-bet" class="best-bet">
+            <small>TOP TICKET</small>
+            <strong>NO BET</strong>
+            <span>Place a wager to track it here</span>
+          </div>
+        </div>
+        <button id="current-rankings" class="current-rankings" hidden>
+          CURRENT RANKINGS
+        </button>
       </section>
       <button id="phone-toggle" class="phone-toggle" aria-expanded="true">📱 PHONE</button>
       <aside id="phone" class="phone">
@@ -44,7 +61,7 @@
           <button data-app="odds">OddsWatch</button>
           <button data-app="bank">Bank</button>
           <button data-app="leaders">Leaderboard</button>
-          <button data-app="cards">PonyCards</button>
+          <button data-app="sabotage">Fixer</button>
         </nav>
         <section class="app-panel active" data-panel="bet">
           <div class="section-title">
@@ -57,7 +74,8 @@
               >STAKE $<input id="bet-amount" type="number" min="5" step="5" value="10" /></label
             ><button class="stake-step" data-step="5">+</button>
           </div>
-          <button id="place-bet" class="primary">PLACE BET</button>
+          <button id="place-bet" class="primary">PLACE BET + 8% ONLINE FEE</button>
+          <p class="tip">RaceBet charges an 8% service fee. Stadium betting counters are free.</p>
           <div class="ticket-title">YOUR TICKETS</div>
           <div id="tickets" class="tickets">No bets placed.</div>
         </section>
@@ -77,19 +95,22 @@
           <div id="ledger" class="ledger"></div>
         </section>
         <section class="app-panel" data-panel="odds">
-          <div class="section-title"><span>LIVE TELEMETRY</span><em>3 LAPS</em></div>
+          <div class="section-title"><span>HORSE DIRECTORY</span><em>ALL 24 HORSES</em></div>
           <div id="odds-watch" class="odds-watch"></div>
         </section>
         <section class="app-panel" data-panel="leaders">
-          <div class="section-title"><span>MATCH STANDINGS</span><em>LOCAL</em></div>
+          <div class="section-title"><span>MATCH STANDINGS</span><em>LIVE MATCH</em></div>
           <div id="leaderboard-list" class="leaderboard-list"></div>
         </section>
-        <section class="app-panel" data-panel="cards">
-          <div class="section-title"><span>PONYCARDS</span><em>VERY IMPORTANT</em></div>
-          <div id="pony-card" class="pony-card">
-            <small>COMMON</small><strong>ACCOUNTANT COLT</strong><span>+2 SPREADSHEETS</span>
-          </div>
-          <button id="draw-card" class="primary">DRAW USELESS CARD</button>
+        <section class="app-panel" data-panel="sabotage">
+          <div class="section-title"><span>THE FIXER</span><em>PRE-RACE ONLY</em></div>
+          <p class="tip">
+            Hire one anonymous sabotage attempt per race. Every option has a 33% chance to fail.
+            The result stays secret until the gates open.
+          </p>
+          <div id="sabotage-targets" class="horse-list"></div>
+          <div id="sabotage-options" class="sabotage-options"></div>
+          <div id="sabotage-status" class="deliveries">No fixer hired for this race.</div>
         </section>
         <div class="home-bar"></div>
       </aside>
@@ -102,26 +123,234 @@
         </div>
       </div>
       <div id="game-menu" class="game-menu">
+        <div class="menu-shell">
         <div class="menu-card">
-          <small>WELCOME TO</small>
-          <h1>HOTDOG DOWNS</h1>
-          <p>Bet smart. Throw accurately. Leave richer than your friends.</p>
-          <button id="menu-play">TAKE YOUR SEAT</button>
-          <button id="menu-resume" hidden>RESUME RACE</button>
-          <div class="menu-controls">
-            <kbd>Mouse</kbd> Look <kbd>P</kbd> Phone <kbd>F</kbd> Throw <kbd>Q</kbd> Change item
-            <kbd>Esc</kbd> Menu
+          <div class="menu-intro">
+            <small>WELCOME TO</small>
+            <h1>HOTDOG DOWNS</h1>
+            <p>Bet smart. Throw accurately. Leave richer than your friends.</p>
           </div>
+          <small class="pause-label">GAME PAUSED</small>
+          <div class="lobby-actions">
+            <div class="lobby-title">
+              <span>
+                <small>ONLINE CLUBHOUSE</small>
+                <strong>FIND YOUR RACE NIGHT</strong>
+              </span>
+              <em>8 PLAYER FIREBASE LOBBIES</em>
+            </div>
+            <div class="lobby-profile-row">
+              <label>
+                DISPLAY NAME
+                <input id="player-name" maxlength="28" value="Track Fan" />
+              </label>
+              <label>
+                GRAPHICS PRESET
+                <select id="graphics-quality">
+                  <option value="performance">Performance</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="high">High quality</option>
+                </select>
+              </label>
+            </div>
+            <button id="menu-play">SINGLE PLAYER</button>
+            <div class="lobby-connect-grid">
+              <section>
+                <small>HOST A NEW TABLE</small>
+                <input id="lobby-name" maxlength="28" placeholder="Lobby name" />
+                <div class="lobby-privacy" role="group" aria-label="Lobby visibility">
+                  <button id="lobby-public" class="active" type="button">PUBLIC</button>
+                  <button id="lobby-private" type="button">PRIVATE</button>
+                </div>
+                <button id="lobby-create">CREATE ONLINE LOBBY</button>
+              </section>
+              <section>
+                <small>JOIN YOUR FRIENDS</small>
+                <input id="lobby-code" maxlength="6" placeholder="6-letter code" />
+                <button id="lobby-join">JOIN BY CODE</button>
+              </section>
+            </div>
+            <div class="lobby-browser-header">
+              <strong>PUBLIC LOBBIES</strong>
+              <button id="lobby-refresh">REFRESH</button>
+            </div>
+            <div id="lobby-browser" class="lobby-browser">
+              Connecting to Firebase lobbies...
+            </div>
+            <div id="lobby-room" class="lobby-room" hidden>
+              <div class="lobby-room-heading">
+                <span>
+                  <small>ONLINE WAITING ROOM</small>
+                  <strong id="lobby-room-name">LOBBY</strong>
+                </span>
+                <em id="lobby-room-code"></em>
+              </div>
+              <div id="lobby-members"></div>
+              <div class="lobby-room-actions">
+                <button id="lobby-copy">COPY INVITE</button>
+                <button id="lobby-ready">I'M READY</button>
+                <button id="lobby-leave">LEAVE LOBBY</button>
+              </div>
+              <button id="lobby-start">START ONLINE MATCH</button>
+            </div>
+            <p id="lobby-message" class="lobby-message">
+              Single player is ready. Online play connects directly through Firebase.
+            </p>
+          </div>
+          <button id="menu-resume" hidden>RESUME RACE</button>
+          <div class="menu-system-actions">
+            <button id="settings-open">SETTINGS & ACCESSIBILITY</button>
+            <button id="exit-game">QUIT GAME</button>
+          </div>
+          <section id="settings-panel" class="settings-panel" hidden>
+            <div class="settings-heading">
+              <span>
+                <small>GAME OPTIONS</small>
+                <strong>SETTINGS</strong>
+              </span>
+              <button id="settings-close">DONE</button>
+            </div>
+            <div class="settings-grid">
+              <fieldset>
+                <legend>DISPLAY</legend>
+                <label>
+                  Render quality
+                  <select id="settings-graphics-quality">
+                    <option value="performance">Performance · 58–78%</option>
+                    <option value="balanced">Balanced · 68–100%</option>
+                    <option value="high">High · 82–120%</option>
+                  </select>
+                </label>
+                <label>
+                  Internal resolution
+                  <select id="render-resolution">
+                    <option value="adaptive">Adaptive</option>
+                    <option value="640">640p · fastest</option>
+                    <option value="720">720p</option>
+                    <option value="900">900p</option>
+                    <option value="1080">1080p · clear boards</option>
+                    <option value="1440">1440p</option>
+                    <option value="1800">1800p</option>
+                    <option value="2160">2160p · ultra sharp</option>
+                  </select>
+                </label>
+                <label>
+                  Model detail
+                  <select id="model-detail">
+                    <option value="low">Low · fastest</option>
+                    <option value="standard">Standard</option>
+                    <option value="high">High detail</option>
+                  </select>
+                </label>
+                <label>
+                  Field of view
+                  <input id="fov-setting" type="range" min="55" max="90" value="64" />
+                  <output id="fov-value">64°</output>
+                </label>
+                <button id="fullscreen-toggle">TOGGLE FULLSCREEN</button>
+              </fieldset>
+              <fieldset>
+                <legend>ACCESSIBILITY</legend>
+                <label class="toggle-setting">
+                  <input id="reduced-motion" type="checkbox" /> Reduced camera motion
+                </label>
+                <label class="toggle-setting">
+                  <input id="high-contrast" type="checkbox" /> High-contrast interface
+                </label>
+                <label>
+                  Interface size
+                  <input id="ui-scale" type="range" min="90" max="125" value="100" />
+                  <output id="ui-scale-value">100%</output>
+                </label>
+                <label>
+                  Mouse sensitivity
+                  <input id="mouse-sensitivity" type="range" min="50" max="180" value="100" />
+                  <output id="sensitivity-value">100%</output>
+                </label>
+                <label>
+                  HUD opacity
+                  <input id="hud-opacity" type="range" min="55" max="100" value="92" />
+                  <output id="hud-opacity-value">92%</output>
+                </label>
+                <label class="toggle-setting">
+                  <input id="show-control-help" type="checkbox" checked /> Show control hints
+                </label>
+                <label class="toggle-setting">
+                  <input id="show-performance" type="checkbox" checked /> Show performance readout
+                </label>
+              </fieldset>
+            </div>
+            <fieldset class="keybind-settings">
+              <legend>KEY BINDS · CLICK A KEY THEN PRESS A REPLACEMENT</legend>
+              <div id="keybind-list"></div>
+              <button id="keybind-reset">RESET DEFAULT KEYS</button>
+            </fieldset>
+          </section>
+          <div class="menu-controls">
+            <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand/sit <kbd>WASD</kbd> Walk
+            <kbd>E</kbd> Shop <kbd>P</kbd> Phone <kbd>F</kbd> Throw <kbd>Q</kbd> Item
+            <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
+          </div>
+        </div>
+        <aside class="lobby-avatar-card">
+          <small>YOUR RACEDAY LOOK</small>
+          <div id="lobby-avatar" class="lobby-avatar" aria-label="Character preview">
+            <div class="avatar-head"><i></i><i></i><b></b></div>
+            <div class="avatar-hat"><i></i></div>
+            <div class="avatar-body"></div>
+            <div class="avatar-arm left"><i></i></div>
+            <div class="avatar-arm right"><i></i></div>
+            <div class="avatar-leg left"><i></i></div>
+            <div class="avatar-leg right"><i></i></div>
+          </div>
+          <div class="avatar-customize">
+            <strong>CUSTOMIZE</strong>
+            <label>SKIN TONE
+              <select id="avatar-skin">
+                <option value="f1c7a5">Light</option>
+                <option value="e0aa82">Warm</option>
+                <option value="c88962">Medium</option>
+                <option value="8d593d">Deep</option>
+                <option value="6e432f">Dark</option>
+              </select>
+            </label>
+            <label>HAT
+              <select id="avatar-hat">
+                <option value="cap">Race cap</option>
+                <option value="beanie">Beanie</option>
+                <option value="none">No hat</option>
+              </select>
+            </label>
+            <label>EXPRESSION
+              <select id="avatar-expression">
+                <option value="smile">Smile</option>
+                <option value="neutral">Focused</option>
+                <option value="surprised">Surprised</option>
+              </select>
+            </label>
+            <p>Shirt color is assigned by your lobby seat.</p>
+          </div>
+        </aside>
         </div>
       </div>
       <div id="round-break" class="round-break" hidden>
         <small>ROUND INTERMISSION</small>
-        <strong id="break-timer">2:00</strong>
+        <strong id="break-timer">1:00</strong>
         <span>Visit the concourse shops for instant discounted items.</span>
       </div>
       <div id="day-transition" class="day-transition" hidden>
         <small>HOTDOG DOWNS</small>
         <strong id="day-title">DAY 2</strong>
+        <span id="day-subtitle">CURRENT BANKROLL STANDINGS</span>
+        <div id="day-rankings" class="animated-rankings"></div>
+      </div>
+      <div id="rankings-overlay" class="rankings-overlay" hidden>
+        <div>
+          <small>HOTDOG DOWNS</small>
+          <h2 id="rankings-title">CURRENT RANKINGS</h2>
+          <div id="rankings-chart" class="animated-rankings"></div>
+          <button id="rankings-close">RETURN TO THE STADIUM</button>
+        </div>
       </div>
       <div id="vendor-shop" class="vendor-shop" hidden>
         <div>
@@ -130,6 +359,22 @@
           <p>25% cheaper than TrackMart. No delivery wait.</p>
           <div id="vendor-items" class="shop-items"></div>
           <button id="vendor-close">CLOSE [E]</button>
+        </div>
+      </div>
+      <div id="bet-counter" class="bet-counter" hidden>
+        <div>
+          <small>OFFICIAL STADIUM BOOK</small>
+          <h2>BETTING COUNTER</h2>
+          <p>No service fee. Tickets use the same live odds as RaceBet.</p>
+          <div id="counter-horses" class="horse-list"></div>
+          <div class="stake-row">
+            <label>
+              STAKE $
+              <input id="counter-bet-amount" type="number" min="5" step="5" value="10" />
+            </label>
+          </div>
+          <button id="counter-place-bet" class="primary">PLACE FEE-FREE BET</button>
+          <button id="counter-close">CLOSE [E]</button>
         </div>
       </div>
     </main>

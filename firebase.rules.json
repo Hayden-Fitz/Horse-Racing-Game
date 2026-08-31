@@ -1,0 +1,10 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "hotdogDowns": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
