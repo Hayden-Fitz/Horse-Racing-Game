@@ -328,7 +328,14 @@ HD.Network = (() => {
       members.set(playerId, { ...player, id: playerId });
 
       if (playerId !== selfId) {
-        if (!known) createRemotePlayer({ ...player, id: playerId });
+        const avatarSignature = JSON.stringify(player.avatar || {});
+        const remoteAvatar = HD.world.remotePlayers.get(playerId);
+        if (known && remoteAvatar?.userData.avatarSignature !== avatarSignature) {
+          removeRemotePlayer(playerId);
+        }
+        if (!HD.world.remotePlayers.has(playerId)) {
+          createRemotePlayer({ ...player, id: playerId });
+        }
         applyCachedPlayerState(playerId, player);
       }
       if (!initial && !known) HD.UI.announce(`${player.name} joined the lobby.`);
@@ -358,6 +365,7 @@ HD.Network = (() => {
     avatar.userData.targetPosition.set(state.x, state.y, state.z);
     avatar.userData.targetYaw = state.yaw;
     avatar.userData.targetHeadTurn = Number(state.headTurn) || 0;
+    avatar.userData.targetHeadPitch = Number(state.pitch) || 0;
     HD.Models.setPlayerStanding(avatar, state.standing);
     avatar.userData.activity = state.mode === "throw"
       ? "throw"
@@ -543,6 +551,14 @@ HD.Network = (() => {
     postLobbyEvent("sabotage", { horse, optionId });
   }
 
+  function updateAvatar(avatar) {
+    if (!lobby) return;
+    firebaseRequest(`lobbies/${lobby.id}/players/${selfId}/avatar`, {
+      method: "PUT",
+      body: avatar,
+    }).catch((error) => showFirebaseError(error, "Your outfit was not synchronized."));
+  }
+
   function postLobbyEvent(type, payload) {
     firebaseRequest(`lobbies/${lobby.id}/events`, {
       method: "POST",
@@ -576,6 +592,7 @@ HD.Network = (() => {
     avatar.userData.name = player.name;
     avatar.userData.targetPosition = seat.position.clone();
     avatar.userData.targetYaw = seat.yaw;
+    avatar.userData.avatarSignature = JSON.stringify(player.avatar || {});
     avatar.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = false;
@@ -603,6 +620,11 @@ HD.Network = (() => {
       avatar.userData.headTurn = THREE.MathUtils.lerp(
         avatar.userData.headTurn || 0,
         avatar.userData.targetHeadTurn || 0,
+        blend,
+      );
+      avatar.userData.headPitch = THREE.MathUtils.lerp(
+        avatar.userData.headPitch || 0,
+        avatar.userData.targetHeadPitch || 0,
         blend,
       );
       HD.Models.animateCharacter(avatar, S.elapsed, true);
@@ -770,9 +792,10 @@ HD.Network = (() => {
     const everyoneReady = [...members.values()].every((player) => player.ready);
     if (!isHost() || !lobby || !everyoneReady) return;
 
+    const matchId = Date.now();
     firebaseRequest(`lobbies/${lobby.id}/meta`, {
       method: "PATCH",
-      body: { started: true, updatedAt: Date.now() },
+      body: { started: true, matchId, updatedAt: matchId },
     }).catch((error) => showFirebaseError(error, "The match could not start."));
   }
 
@@ -1039,14 +1062,41 @@ HD.Network = (() => {
     }));
   }
 
+  function claimMatchWinReward() {
+    const matchId = lobbyCache?.meta?.matchId;
+    if (!lobby || !matchId || members.size < 2) return false;
+
+    const standings = [...members.values()]
+      .map((player) => ({
+        id: player.id,
+        seatIndex: Number(player.seatIndex) || 0,
+        money: player.id === selfId
+          ? S.money
+          : Math.max(0, Math.round(Number(player.state?.money) || 100)),
+      }))
+      .sort((first, second) => {
+        return second.money - first.money || first.seatIndex - second.seatIndex;
+      });
+    if (standings[0]?.id !== selfId) return false;
+
+    const rewardId = `${lobby.id}:${matchId}`;
+    const awarded = HD.Settings.awardWinnerCoins(25, rewardId);
+    if (awarded) {
+      HD.UI.announce("ONLINE VICTORY · 25 WINNER COINS EARNED!");
+    }
+    return awarded;
+  }
+
   return {
     init,
     update,
     sendThrow,
     sendSabotage,
+    updateAvatar,
     isConnected,
     isHost,
     isPlaying,
     rankingPlayers,
+    claimMatchWinReward,
   };
 })();

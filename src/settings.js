@@ -30,6 +30,8 @@ HD.Settings = (() => {
   };
   let values = load();
   let initialized = false;
+  let avatarControls = {};
+  let pendingCosmetic = null;
 
   function init() {
     if (initialized) return;
@@ -61,7 +63,14 @@ HD.Settings = (() => {
         skin: "f1c7a5",
         hat: "cap",
         expression: "smile",
+        outfit: "raceday",
+        trousers: "252525",
+        shoes: "sneakers",
+        accessory: "none",
       },
+      winnerCoins: 0,
+      cosmeticUnlocks: [],
+      rewardedMatches: [],
     };
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -70,6 +79,12 @@ HD.Settings = (() => {
         ...saved,
         bindings: { ...DEFAULT_BINDINGS, ...(saved.bindings || {}) },
         avatar: { ...defaults.avatar, ...(saved.avatar || {}) },
+        cosmeticUnlocks: Array.isArray(saved.cosmeticUnlocks)
+          ? saved.cosmeticUnlocks
+          : [],
+        rewardedMatches: Array.isArray(saved.rewardedMatches)
+          ? saved.rewardedMatches
+          : [],
       };
     } catch {
       return defaults;
@@ -193,28 +208,105 @@ HD.Settings = (() => {
   }
 
   function bindAvatarOptions() {
-    const controls = {
+    avatarControls = {
       skin: document.querySelector("#avatar-skin"),
       hat: document.querySelector("#avatar-hat"),
       expression: document.querySelector("#avatar-expression"),
+      outfit: document.querySelector("#avatar-outfit"),
+      trousers: document.querySelector("#avatar-trousers"),
+      shoes: document.querySelector("#avatar-shoes"),
+      accessory: document.querySelector("#avatar-accessory"),
     };
-    Object.entries(controls).forEach(([key, control]) => {
+    Object.entries(avatarControls).forEach(([key, control]) => {
       control.value = values.avatar[key];
       control.addEventListener("change", () => {
+        const option = control.selectedOptions[0];
+        const cost = Number(option.dataset.cost) || 0;
+        const unlockId = `${key}:${control.value}`;
+        if (cost > 0 && !values.cosmeticUnlocks.includes(unlockId)) {
+          pendingCosmetic = {
+            key,
+            value: control.value,
+            cost,
+            unlockId,
+            name: option.textContent.split("·")[0].trim(),
+          };
+          applyAvatarPreview({ [key]: control.value });
+          renderCosmeticWallet();
+          return;
+        }
+
+        pendingCosmetic = null;
         values.avatar[key] = control.value;
         applyAvatarPreview();
+        syncAvatarControls();
+        renderCosmeticWallet();
         save();
         HD.Stadium?.refreshLocalPlayer?.();
+        HD.Network?.updateAvatar?.(avatarOptions());
       });
     });
+    document.querySelector("#avatar-unlock").addEventListener("click", unlockCosmetic);
     applyAvatarPreview();
+    renderCosmeticWallet();
   }
 
-  function applyAvatarPreview() {
+  function applyAvatarPreview(overrides = {}) {
+    const avatar = { ...values.avatar, ...overrides };
     const preview = document.querySelector("#lobby-avatar");
-    preview.style.setProperty("--avatar-skin", `#${values.avatar.skin}`);
-    preview.dataset.hat = values.avatar.hat;
-    preview.dataset.expression = values.avatar.expression;
+    preview.style.setProperty("--avatar-skin", `#${avatar.skin}`);
+    preview.style.setProperty("--avatar-trousers", `#${avatar.trousers}`);
+    preview.dataset.hat = avatar.hat;
+    preview.dataset.expression = avatar.expression;
+    preview.dataset.outfit = avatar.outfit;
+    preview.dataset.shoes = avatar.shoes;
+    preview.dataset.accessory = avatar.accessory;
+  }
+
+  function unlockCosmetic() {
+    if (!pendingCosmetic || values.winnerCoins < pendingCosmetic.cost) return;
+
+    values.winnerCoins -= pendingCosmetic.cost;
+    values.cosmeticUnlocks.push(pendingCosmetic.unlockId);
+    values.avatar[pendingCosmetic.key] = pendingCosmetic.value;
+    pendingCosmetic = null;
+    save();
+    syncAvatarControls();
+    applyAvatarPreview();
+    renderCosmeticWallet();
+    HD.Stadium?.refreshLocalPlayer?.();
+    HD.Network?.updateAvatar?.(avatarOptions());
+    HD.UI?.announce?.("Cosmetic unlocked and equipped.");
+  }
+
+  function syncAvatarControls() {
+    Object.entries(avatarControls).forEach(([key, control]) => {
+      control.value = values.avatar[key];
+    });
+  }
+
+  function renderCosmeticWallet() {
+    const balance = document.querySelector("#winner-coins");
+    const unlock = document.querySelector("#avatar-unlock");
+    const status = document.querySelector("#avatar-customize-status");
+    if (!balance || !unlock || !status) return;
+
+    balance.textContent = String(values.winnerCoins);
+    unlock.hidden = !pendingCosmetic;
+    if (!pendingCosmetic) {
+      status.textContent =
+        "Shirt color follows your lobby seat. Win online matches to earn Winner Coins.";
+      return;
+    }
+
+    const affordable = values.winnerCoins >= pendingCosmetic.cost;
+    unlock.disabled = !affordable;
+    unlock.textContent = affordable
+      ? `UNLOCK ${pendingCosmetic.name.toUpperCase()} · ${pendingCosmetic.cost} WC`
+      : `NEED ${pendingCosmetic.cost - values.winnerCoins} MORE WC`;
+    status.textContent = affordable
+      ? "Unlocking permanently adds this cosmetic to your local wardrobe."
+      : "Winner Coins are awarded for finishing first in a multiplayer match.";
   }
 
   function applyAccessibility() {
@@ -303,7 +395,25 @@ HD.Settings = (() => {
       skin: Number.parseInt(values.avatar.skin, 16),
       hat: values.avatar.hat,
       expression: values.avatar.expression,
+      outfit: values.avatar.outfit,
+      trousers: Number.parseInt(values.avatar.trousers, 16),
+      shoes: values.avatar.shoes,
+      accessory: values.avatar.accessory,
     };
+  }
+
+  function awardWinnerCoins(amount, rewardId) {
+    if (!rewardId || values.rewardedMatches.includes(rewardId)) return false;
+
+    values.rewardedMatches = [...values.rewardedMatches.slice(-49), rewardId];
+    values.winnerCoins += Math.max(0, Math.round(amount));
+    save();
+    renderCosmeticWallet();
+    return true;
+  }
+
+  function winnerCoins() {
+    return values.winnerCoins;
   }
 
   return {
@@ -316,5 +426,7 @@ HD.Settings = (() => {
     modelDetail,
     renderHeight,
     avatarOptions,
+    awardWinnerCoins,
+    winnerCoins,
   };
 })();

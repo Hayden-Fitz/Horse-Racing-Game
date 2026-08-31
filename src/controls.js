@@ -18,6 +18,8 @@ HD.Controls = (() => {
   let phoneRequested = false;
   let phoneBlend = 0;
   let throwAnimation = 0;
+  let chargeSource = null;
+  let chargeTime = 0;
 
   // ---------------------------------------------------------------------------
   // Input registration and interaction modes
@@ -35,10 +37,12 @@ HD.Controls = (() => {
     trajectory.geometry.setDrawRange(0, 0);
     canvas.addEventListener("click", click);
     canvas.addEventListener("pointerdown", beginCharge);
-    canvas.addEventListener("pointerup", endCharge);
+    document.addEventListener("pointerup", endCharge);
+    document.addEventListener("pointercancel", cancelCharge);
     document.addEventListener("mousemove", look);
     document.addEventListener("keydown", keydown);
     document.addEventListener("keyup", keyup);
+    window.addEventListener("blur", cancelCharge);
     document.addEventListener("pointerlockchange", () => {
       if (!document.pointerLockElement && S.mode !== "phone")
         HD.UI.announce("Click the stadium to resume looking around.");
@@ -56,8 +60,8 @@ HD.Controls = (() => {
     S.yaw = THREE.MathUtils.euclideanModulo(S.yaw + Math.PI, Math.PI * 2) - Math.PI;
     S.pitch = THREE.MathUtils.clamp(
       S.pitch - event.movementY * 0.0018 * sensitivity,
-      -0.72,
-      0.48,
+      -Math.PI / 2 + 0.02,
+      Math.PI / 2 - 0.02,
     );
   }
   function keydown(event) {
@@ -84,7 +88,8 @@ HD.Controls = (() => {
       setMode(S.mode === "phone" ? "look" : "phone");
     }
     if (HD.Settings.matches(event, "throw")) {
-      setMode(S.mode === "throw" ? "look" : "throw");
+      if (S.mode !== "throw") return setMode("throw");
+      return startCharge("keyboard");
     }
     if (HD.Settings.matches(event, "item")) cycleItem();
     if (HD.Settings.matches(event, "rankings")) {
@@ -93,6 +98,9 @@ HD.Controls = (() => {
   }
   function keyup(event) {
     setMovementKey(event.code, false);
+    if (HD.Settings.matches(event, "throw") && chargeSource === "keyboard") {
+      releaseThrow();
+    }
   }
   function setMovementKey(code, pressed) {
     const direction = ["forward", "backward", "left", "right"]
@@ -119,6 +127,8 @@ HD.Controls = (() => {
     trajectory.visible = throwing;
     S.charging = false;
     S.throwPower = 0.55;
+    chargeSource = null;
+    chargeTime = 0;
     HD.UI.power(S.throwPower, throwing);
     HD.UI.phone(phoning);
     if (HD.world.localPlayer) {
@@ -156,23 +166,42 @@ HD.Controls = (() => {
     velocity.y += item.lift * S.throwPower;
     const visualOnly = HD.Network.isConnected() && !HD.Network.isHost();
     HD.Models.playPlayerThrow(HD.world.localPlayer, thrownType);
-    throwAnimation = 0.38;
+    throwAnimation = 0.55;
     HD.Race.launch(thrownType, start, velocity, { visualOnly });
     HD.Network.sendThrow(thrownType, start, velocity, S.throwPower);
     HD.UI.announce(`${item.name.toUpperCase()} AWAY!`);
     S.charging = false;
+    chargeSource = null;
+    chargeTime = 0;
     S.throwPower = 0.55;
     autoSwapAfterThrow(thrownType);
   }
   function beginCharge(event) {
     if (event.button !== 0 || S.mode !== "throw") return;
-    if (S.phase !== "racing") return HD.UI.announce("Wait for the race to start.");
+    event.preventDefault();
+    startCharge("pointer");
+  }
+  function startCharge(source) {
+    if (S.mode !== "throw" || S.charging) return;
+    if (S.phase !== "racing") {
+      HD.UI.announce("Wait for the race to start.");
+      return;
+    }
     S.charging = true;
-    S.throwPower = 0.55;
+    chargeSource = source;
+    chargeTime = 0;
+    S.throwPower = 0.4;
   }
   function endCharge(event) {
-    if (event.button !== 0 || !S.charging) return;
+    if (event.button !== 0 || !S.charging || chargeSource !== "pointer") return;
     releaseThrow();
+  }
+  function cancelCharge() {
+    if (!S.charging) return;
+    S.charging = false;
+    chargeSource = null;
+    chargeTime = 0;
+    S.throwPower = 0.55;
   }
   function update(dt) {
     if (S.standing) {
@@ -185,7 +214,11 @@ HD.Controls = (() => {
     if (!HD.Settings.reducedMotion()) {
       camera.position.y += Math.sin(S.elapsed * 2) * 0.008;
     }
-    if (S.charging) S.throwPower = Math.min(1.35, S.throwPower + dt * 0.72);
+    if (S.charging) {
+      chargeTime += dt;
+      const chargeWave = (Math.sin(chargeTime * 4.8 - Math.PI / 2) + 1) / 2;
+      S.throwPower = 0.4 + chargeWave * 0.95;
+    }
     if (S.mode === "throw") {
       updateTrajectory();
       HD.UI.power(S.throwPower, true);
@@ -261,6 +294,7 @@ HD.Controls = (() => {
 
     player.userData.lookYaw = S.yaw;
     player.userData.lookPitch = S.pitch;
+    player.userData.headPitch = S.pitch;
     if (S.standing) {
       player.position.set(
         camera.position.x,
@@ -286,8 +320,14 @@ HD.Controls = (() => {
         camera.position.y - HD.CONFIG.characterEyeOffset,
         HD.CONFIG.playerSeatRoot.z,
       );
-      player.rotation.y = HD.CONFIG.playerSeatYaw;
-      player.userData.bodyYaw = player.rotation.y;
+      if (!Number.isFinite(player.userData.bodyYaw)) {
+        player.userData.bodyYaw = HD.CONFIG.playerSeatYaw;
+      }
+      const seatedHeadLead = angleDifference(S.yaw, player.userData.bodyYaw);
+      if (Math.abs(seatedHeadLead) > 0.72) {
+        player.userData.bodyYaw += seatedHeadLead * 0.085;
+      }
+      player.rotation.y = player.userData.bodyYaw;
       player.userData.headTurn = THREE.MathUtils.clamp(
         angleDifference(S.yaw, player.rotation.y),
         -0.95,

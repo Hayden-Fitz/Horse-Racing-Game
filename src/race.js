@@ -481,6 +481,7 @@ HD.Race = (() => {
       "PLAY AGAIN",
     );
     HD.UI.showRankings(true, "FINAL MATCH RANKINGS");
+    setTimeout(() => HD.Network?.claimMatchWinReward?.(), 600);
   }
   function restart() {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
@@ -839,6 +840,7 @@ HD.Race = (() => {
         `You leave Hotdog Downs with $${S.money}.`,
         "WAITING FOR HOST",
       );
+      setTimeout(() => HD.Network?.claimMatchWinReward?.(), 600);
     }
     if (S.phase === "racing" && previousPhase === "betting") {
       HD.UI.announce(

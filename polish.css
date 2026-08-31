@@ -330,7 +330,8 @@
 
 .lobby-avatar-card {
   display: grid;
-  min-height: 610px;
+  min-height: 690px;
+  max-height: 94vh;
   align-content: start;
   padding: 22px;
   border: 2px solid #e8c965;
@@ -349,6 +350,7 @@
 .lobby-avatar {
   --avatar-color: #ef476f;
   --avatar-skin: #f1c7a5;
+  --avatar-trousers: #252525;
   position: relative;
   width: 230px;
   height: 335px;
@@ -412,6 +414,33 @@
 
 .lobby-avatar[data-hat="none"] .avatar-hat { display: none; }
 .lobby-avatar[data-hat="beanie"] .avatar-hat i { display: none; }
+.lobby-avatar[data-hat="fedora"] .avatar-hat,
+.lobby-avatar[data-hat="cowboy"] .avatar-hat {
+  top: 20px;
+  left: 78px;
+  width: 76px;
+  height: 42px;
+  border-radius: 13px 13px 5px 5px;
+}
+.lobby-avatar[data-hat="fedora"] .avatar-hat i,
+.lobby-avatar[data-hat="cowboy"] .avatar-hat i {
+  right: -17px;
+  bottom: -2px;
+  width: 110px;
+  height: 9px;
+}
+.lobby-avatar[data-hat="cowboy"] .avatar-hat i {
+  right: -26px;
+  width: 128px;
+}
+.lobby-avatar[data-hat="crown"] .avatar-hat {
+  top: 17px;
+  height: 48px;
+  border-radius: 5px;
+  background: #f1bf3e;
+  clip-path: polygon(0 10%, 20% 44%, 36% 0, 52% 44%, 70% 0, 84% 44%, 100% 10%, 90% 100%, 10% 100%);
+}
+.lobby-avatar[data-hat="crown"] .avatar-hat i { display: none; }
 .lobby-avatar[data-expression="neutral"] .avatar-head b {
   height: 0;
   border-radius: 0;
@@ -435,11 +464,21 @@
   border-radius: 18px 18px 34px 34px;
   background: var(--avatar-color);
 }
+.lobby-avatar[data-outfit="varsity"] .avatar-body {
+  background: linear-gradient(90deg, #f2eee4 0 18%, var(--avatar-color) 18% 82%, #f2eee4 82%);
+}
+.lobby-avatar[data-outfit="hoodie"] .avatar-body {
+  border-top: 8px solid #ffffff42;
+  box-shadow: inset 0 0 0 3px #0002;
+}
+.lobby-avatar[data-outfit="blazer"] .avatar-body {
+  background: linear-gradient(115deg, #202a3a 0 47%, #f2eee4 48% 52%, #202a3a 53%);
+}
 
 .avatar-arm,
 .avatar-leg {
   position: absolute;
-  background: #282725;
+  background: var(--avatar-color);
 }
 .avatar-arm { top: 139px; width: 24px; height: 106px; border-radius: 14px; }
 .avatar-arm.left { left: 40px; transform: rotate(8deg); }
@@ -453,7 +492,13 @@
   border-radius: 50%;
   background: var(--avatar-skin);
 }
-.avatar-leg { top: 232px; width: 27px; height: 82px; border-radius: 10px; }
+.avatar-leg {
+  top: 232px;
+  width: 27px;
+  height: 82px;
+  border-radius: 10px;
+  background: var(--avatar-trousers);
+}
 .avatar-leg.left { left: 78px; }
 .avatar-leg.right { right: 76px; }
 .avatar-leg i {
@@ -465,6 +510,36 @@
   border-radius: 12px;
   background: #20201f;
 }
+.lobby-avatar[data-shoes="boots"] .avatar-leg i {
+  bottom: -3px;
+  height: 31px;
+  border-radius: 8px 8px 12px 12px;
+}
+.lobby-avatar[data-shoes="high-tops"] .avatar-leg i {
+  height: 25px;
+  border: 2px solid #f2eee4;
+}
+.lobby-avatar[data-accessory="glasses"] .avatar-head::before {
+  position: absolute;
+  z-index: 5;
+  top: 23px;
+  left: 11px;
+  width: 22px;
+  height: 19px;
+  border: 3px solid #171717;
+  border-radius: 8px;
+  box-shadow: 27px 0 0 -3px var(--avatar-skin), 27px 0 0 0 #171717;
+  content: "";
+}
+.lobby-avatar[data-accessory="headphones"] .avatar-head::before {
+  position: absolute;
+  z-index: 5;
+  inset: -8px -9px 9px;
+  border: 7px solid var(--avatar-color);
+  border-bottom-color: transparent;
+  border-radius: 48% 48% 25% 25%;
+  content: "";
+}
 
 .avatar-customize {
   display: grid;
@@ -473,7 +548,23 @@
   text-align: left;
 }
 .avatar-customize > strong,
-.avatar-customize > p { grid-column: 1 / -1; }
+.avatar-customize > p,
+.winner-coin-balance,
+#avatar-unlock { grid-column: 1 / -1; }
+.winner-coin-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid #f1bf3e66;
+  border-radius: 8px;
+  background: #f1bf3e12;
+  color: #f7df8d;
+  font-size: 9px;
+  font-weight: 900;
+}
+.winner-coin-balance b { font-size: 13px; }
+.winner-coin-balance i { font-style: normal; }
 .avatar-customize label {
   display: grid;
   gap: 3px;
@@ -494,6 +585,20 @@
   margin: 0;
   color: #789083;
   font-size: 8px;
+}
+#avatar-unlock {
+  padding: 9px;
+  border: 1px solid #f1bf3e;
+  border-radius: 8px;
+  background: #f1bf3e;
+  color: #302400;
+  font-size: 9px;
+  font-weight: 900;
+}
+#avatar-unlock:disabled {
+  border-color: #ffffff1c;
+  background: #253029;
+  color: #87958d;
 }
 
 .game-menu.pause-menu .menu-shell {

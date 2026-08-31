@@ -55,22 +55,35 @@ HD.Models = (() => {
 
   function playerCharacter(color, options = {}) {
     const root = new THREE.Group();
+    const bodyRig = new THREE.Group();
+    root.add(bodyRig);
+
     const skinTones = [0xf1c7a5, 0xc88962, 0x8d593d, 0xe0aa82, 0x6e432f];
     const skin = options.skin || skinTones[options.variant % skinTones.length];
     const trousers = options.trousers || 0x252525;
+    const shoeColor = options.shoeColor || 0x20201f;
+    const outfit = options.outfit || "raceday";
 
     const torso = mesh(
-      new THREE.CylinderGeometry(0.58, 0.78, 1.6, 14),
+      new THREE.CapsuleGeometry(0.61, 0.72, 5, 14),
       color,
-      root,
+      bodyRig,
       [0, 1.62, 0],
     );
     torso.scale.z = 0.72;
     torso.userData.baseY = 1.62;
-    cylinder(0.1, 0.12, 0.12, 0x242424, root, [0, 2.48, -0.04], 10);
+    cylinder(0.13, 0.15, 0.16, skin, bodyRig, [0, 2.52, -0.02], 12);
+    addPlayerOutfit(bodyRig, outfit, color);
 
-    const head = sphere(0.64, skin, root, [0, 3.25, -0.02]);
+    const head = sphere(0.64, skin, bodyRig, [0, 3.25, -0.02]);
     head.scale.set(0.95, 1.02, 0.94);
+    [-1, 1].forEach((side) => {
+      const ear = sphere(0.13, skin, bodyRig, [side * 0.62, 3.26, -0.01]);
+      ear.scale.set(0.45, 0.9, 0.65);
+    });
+    const nose = sphere(0.095, skin, bodyRig, [0, 3.22, -0.625]);
+    nose.scale.set(0.72, 0.95, 0.62);
+
     const faceMaterial = new THREE.MeshBasicMaterial({
       color: 0x171717,
       side: THREE.DoubleSide,
@@ -81,21 +94,49 @@ HD.Models = (() => {
       const eye = mesh(
         new THREE.PlaneGeometry(0.085, 0.22),
         0x171717,
-        root,
+        bodyRig,
         [x, 3.32, -0.625],
       );
       eye.material = faceMaterial;
       faceParts.push(eye);
+
+      const brow = box(
+        [0.2, 0.035, 0.025],
+        0x3a281f,
+        bodyRig,
+        [x, 3.5, -0.61],
+      );
+      brow.rotation.z = x < 0 ? -0.05 : 0.05;
+      faceParts.push(brow);
     });
     faceParts.push(
-      ...createPlayerExpression(root, options.expression || "smile", faceMaterial),
+      ...createPlayerExpression(bodyRig, options.expression || "smile", faceMaterial),
     );
 
-    const hatParts = createPlayerHat(root, options.hat || "cap", color);
+    const hair = mesh(
+      new THREE.SphereGeometry(0.65, 14, 8, 0, Math.PI * 2, 0, 1.25),
+      options.hairColor || 0x3a281f,
+      bodyRig,
+      [0, 3.58, 0],
+    );
+    hair.scale.set(0.96, 0.6, 0.96);
+    const hatParts = createPlayerHat(bodyRig, options.hat || "cap", color);
+    const accessoryParts = createPlayerAccessory(
+      bodyRig,
+      options.accessory || "none",
+      color,
+    );
     const headRig = new THREE.Group();
     headRig.position.set(0, 3.25, 0);
-    root.add(headRig);
-    [head, ...faceParts, ...hatParts].forEach((part) => headRig.attach(part));
+    bodyRig.add(headRig);
+    [
+      head,
+      hair,
+      nose,
+      ...faceParts,
+      ...hatParts,
+      ...accessoryParts,
+    ].forEach((part) => headRig.attach(part));
 
     const arms = [];
     const forearms = [];
@@ -103,22 +144,24 @@ HD.Models = (() => {
       const arm = new THREE.Group();
       arm.position.set(side * 0.68, 2.13, 0);
       arm.rotation.z = side * -0.13;
-      root.add(arm);
-      cylinder(0.14, 0.17, 1.05, 0x282725, arm, [0, -0.45, 0], 10);
-      sphere(0.16, skin, arm, [0, -0.96, 0]);
+      bodyRig.add(arm);
+      sphere(0.2, color, arm, [0, -0.05, 0]);
+      cylinder(0.15, 0.18, 0.82, color, arm, [0, -0.42, 0], 12);
+      sphere(0.16, skin, arm, [0, -0.84, 0]);
 
       const forearm = new THREE.Group();
-      forearm.position.set(0, -0.98, 0);
+      forearm.position.set(0, -0.83, 0);
       forearm.rotation.x = 1.05;
       arm.add(forearm);
-      cylinder(0.11, 0.13, 0.9, 0x282725, forearm, [0, -0.38, 0], 9);
-      sphere(0.17, skin, forearm, [0, -0.86, 0]);
+      cylinder(0.11, 0.14, 0.72, 0x282725, forearm, [0, -0.34, 0], 11);
+      cylinder(0.14, 0.14, 0.12, color, forearm, [0, -0.69, 0], 10);
+      sphere(0.18, skin, forearm, [0, -0.79, 0]);
       arms.push(arm);
       forearms.push(forearm);
     });
 
     const propAnchor = new THREE.Group();
-    propAnchor.position.set(0, -0.88, -0.05);
+    propAnchor.position.set(0, -0.82, -0.05);
     propAnchor.rotation.set(-0.2, 0, -0.18);
     forearms[1].add(propAnchor);
 
@@ -126,21 +169,40 @@ HD.Models = (() => {
     const shins = [];
     const shoes = [];
     [-1, 1].forEach((side) => {
-      const leg = cylinder(0.18, 0.22, 1.35, trousers, root, [side * 0.34, 0.35, -0.35], 9);
-      leg.rotation.x = Math.PI / 2.7;
-      legs.push(leg);
-      const shin = cylinder(0.15, 0.18, 1.15, trousers, root, [side * 0.34, -0.38, -0.95], 9);
-      shin.rotation.x = 0.12;
-      shins.push(shin);
+      const hip = new THREE.Group();
+      hip.position.set(side * 0.33, 0.54, -0.02);
+      root.add(hip);
+      cylinder(0.2, 0.23, 0.94, trousers, hip, [0, -0.46, 0], 12);
+      sphere(0.205, trousers, hip, [0, -0.92, 0]);
+
+      const knee = new THREE.Group();
+      knee.position.set(0, -0.91, 0);
+      hip.add(knee);
+      cylinder(0.16, 0.19, 0.9, trousers, knee, [0, -0.44, 0], 12);
+
+      const foot = new THREE.Group();
+      foot.position.set(0, -0.88, -0.08);
+      knee.add(foot);
       const shoe = mesh(
         new THREE.CapsuleGeometry(0.22, 0.38, 4, 10),
-        0x20201f,
-        root,
-        [side * 0.34, -1, -1.08],
+        shoeColor,
+        foot,
+        [0, 0, -0.16],
       );
-      shoe.rotation.x = Math.PI / 2 + 0.08;
-      shoe.scale.set(1.05, 1, 0.88);
-      shoes.push(shoe);
+      shoe.rotation.x = Math.PI / 2;
+      shoe.scale.set(1.05, 1.12, 0.92);
+      const sole = box([0.48, 0.1, 0.78], 0x111211, foot, [0, -0.19, -0.19]);
+      sole.rotation.x = -0.03;
+      if (options.shoes === "boots") {
+        cylinder(0.23, 0.24, 0.42, shoeColor, foot, [0, 0.12, 0.05], 12);
+      } else if (options.shoes === "high-tops") {
+        box([0.45, 0.42, 0.42], shoeColor, foot, [0, 0.08, 0.04]);
+        box([0.28, 0.22, 0.03], 0xf4f1e8, foot, [0, 0.1, -0.19]);
+      }
+
+      legs.push(hip);
+      shins.push(knee);
+      shoes.push(foot);
     });
 
     root.userData = {
@@ -150,6 +212,7 @@ HD.Models = (() => {
       shins,
       shoes,
       torso,
+      bodyRig,
       head: headRig,
       hatParts,
       activity: options.activity || "watch",
@@ -162,10 +225,47 @@ HD.Models = (() => {
       throwUntil: 0,
       throwStartedAt: 0,
       walkBlend: 0,
+      gaitPhase: Math.random() * Math.PI * 2,
+      lastAnimationTime: null,
       phoneBlend: 0,
       headTurn: 0,
+      headPitch: 0,
     };
     return root;
+  }
+
+  function addPlayerOutfit(parent, outfit, color) {
+    if (outfit === "varsity") {
+      box([0.32, 1.18, 0.06], 0xf2eee4, parent, [-0.3, 1.67, -0.56]);
+      box([0.32, 1.18, 0.06], 0xf2eee4, parent, [0.3, 1.67, -0.56]);
+      cylinder(0.5, 0.5, 0.08, 0xf2eee4, parent, [0, 2.35, 0], 14);
+      return;
+    }
+
+    if (outfit === "blazer") {
+      const left = box([0.48, 1.18, 0.07], 0x202a3a, parent, [-0.24, 1.66, -0.57]);
+      const right = box([0.48, 1.18, 0.07], 0x202a3a, parent, [0.24, 1.66, -0.57]);
+      left.rotation.z = -0.08;
+      right.rotation.z = 0.08;
+      box([0.07, 0.07, 0.05], 0xe8c04e, parent, [0, 1.6, -0.63]);
+      return;
+    }
+
+    if (outfit === "hoodie") {
+      const hood = mesh(
+        new THREE.TorusGeometry(0.45, 0.13, 8, 16, Math.PI),
+        color,
+        parent,
+        [0, 2.37, 0.06],
+      );
+      hood.rotation.x = Math.PI / 2;
+      cylinder(0.025, 0.025, 0.58, 0xf2eee4, parent, [-0.12, 2.12, -0.58], 6);
+      cylinder(0.025, 0.025, 0.58, 0xf2eee4, parent, [0.12, 2.12, -0.58], 6);
+      return;
+    }
+
+    box([1.02, 0.13, 0.08], 0xf2eee4, parent, [0, 2.22, -0.55]);
+    box([0.09, 0.92, 0.06], 0xf2eee4, parent, [0, 1.68, -0.58]);
   }
 
   function createPlayerExpression(root, expression, material) {
@@ -196,6 +296,39 @@ HD.Models = (() => {
     const parts = [];
     if (style === "none") return parts;
 
+    if (style === "crown") {
+      const band = cylinder(0.58, 0.62, 0.28, 0xf1bf3e, root, [0, 3.66, 0], 12);
+      parts.push(band);
+      for (let index = 0; index < 6; index++) {
+        const angle = (index / 6) * Math.PI * 2;
+        const point = mesh(
+          new THREE.ConeGeometry(0.16, 0.5, 6),
+          0xf1bf3e,
+          root,
+          [Math.cos(angle) * 0.48, 4.02, Math.sin(angle) * 0.48],
+        );
+        parts.push(point);
+      }
+      return parts;
+    }
+
+    if (style === "fedora" || style === "cowboy") {
+      const crown = cylinder(0.48, 0.58, 0.55, color, root, [0, 3.86, 0], 14);
+      const brim = cylinder(
+        style === "cowboy" ? 0.92 : 0.78,
+        style === "cowboy" ? 0.92 : 0.78,
+        0.09,
+        color,
+        root,
+        [0, 3.58, 0],
+        18,
+      );
+      crown.scale.z = 0.88;
+      brim.scale.z = style === "cowboy" ? 0.62 : 0.78;
+      parts.push(crown, brim);
+      return parts;
+    }
+
     const crown = mesh(
       new THREE.SphereGeometry(0.66, 14, 8, 0, Math.PI * 2, 0, 1.62),
       color,
@@ -214,6 +347,36 @@ HD.Models = (() => {
     return parts;
   }
 
+  function createPlayerAccessory(root, style, color) {
+    const parts = [];
+    if (style === "glasses") {
+      [-1, 1].forEach((side) => {
+        const lens = mesh(
+          new THREE.TorusGeometry(0.18, 0.025, 7, 14),
+          0x171717,
+          root,
+          [side * 0.22, 3.33, -0.61],
+        );
+        parts.push(lens);
+      });
+      parts.push(box([0.12, 0.025, 0.025], 0x171717, root, [0, 3.33, -0.63]));
+    } else if (style === "headphones") {
+      const band = mesh(
+        new THREE.TorusGeometry(0.68, 0.07, 8, 20, Math.PI),
+        color,
+        root,
+        [0, 3.45, 0],
+      );
+      band.rotation.z = Math.PI;
+      parts.push(band);
+      [-1, 1].forEach((side) => {
+        const cup = box([0.16, 0.42, 0.3], color, root, [side * 0.66, 3.25, 0]);
+        parts.push(cup);
+      });
+    }
+    return parts;
+  }
+
   function setPlayerColor(person, color) {
     if (!person?.userData?.torso) return;
     person.userData.torso.material.color.setHex(color);
@@ -226,18 +389,16 @@ HD.Models = (() => {
     });
     person.userData.legs.forEach((leg, index) => {
       const side = index ? 1 : -1;
-      leg.position.set(side * 0.34, standing ? 0.45 : 0.35, standing ? 0 : -0.35);
-      leg.rotation.x = standing ? 0 : Math.PI / 2.7;
+      leg.position.set(side * 0.33, standing ? 0.54 : 0.44, standing ? -0.02 : -0.1);
+      leg.rotation.x = standing ? 0 : 0.98;
     });
     person.userData.shins.forEach((shin, index) => {
-      const side = index ? 1 : -1;
-      shin.position.set(side * 0.34, standing ? -0.72 : -0.38, standing ? 0 : -0.95);
-      shin.rotation.x = standing ? 0 : 0.12;
+      shin.position.set(0, -0.91, 0);
+      shin.rotation.x = standing ? 0 : -0.82;
     });
-    person.userData.shoes.forEach((shoe, index) => {
-      const side = index ? 1 : -1;
-      shoe.position.set(side * 0.34, standing ? -1.38 : -1, standing ? -0.13 : -1.08);
-      shoe.rotation.x = standing ? Math.PI / 2 : Math.PI / 2 + 0.08;
+    person.userData.shoes.forEach((shoe) => {
+      shoe.position.set(0, -0.88, standing ? -0.08 : -0.04);
+      shoe.rotation.x = standing ? 0 : -0.16;
     });
     person.userData.standing = standing;
   }
@@ -696,18 +857,31 @@ HD.Models = (() => {
 
   function animateCharacter(person, time, active = true) {
     const data = person.userData;
+    const previousTime = data.lastAnimationTime;
+    const deltaTime = previousTime === null || previousTime === undefined
+      ? 1 / 60
+      : THREE.MathUtils.clamp(time - previousTime, 1 / 240, 0.05);
+    data.lastAnimationTime = time;
+
     const idleWave = Math.sin(time * 2 + data.phase);
+    const movementTarget = data.standing && data.moving ? 1 : 0;
+    const movementBlend = 1 - Math.exp(-deltaTime * 10);
+    const actionBlend = 1 - Math.exp(-deltaTime * 12);
     data.walkBlend = THREE.MathUtils.lerp(
       data.walkBlend || 0,
-      data.standing && data.moving ? 1 : 0,
-      0.1,
+      movementTarget,
+      movementBlend,
     );
     data.phoneBlend = THREE.MathUtils.lerp(
       data.phoneBlend || 0,
       data.activity === "phone" ? 1 : 0,
-      0.14,
+      actionBlend,
     );
-    const stride = Math.sin(time * 6.8 + data.phase) * data.walkBlend;
+    if (data.walkBlend > 0.002) {
+      data.gaitPhase += deltaTime * (7.2 + data.walkBlend * 0.8);
+    }
+
+    const stride = Math.sin(data.gaitPhase) * data.walkBlend;
     const throwing = active && data.throwUntil > time;
     const throwPhase = throwing
       ? THREE.MathUtils.clamp(
@@ -716,76 +890,107 @@ HD.Models = (() => {
         1,
       )
       : 1;
+
     if (data.head) {
       data.head.rotation.y = THREE.MathUtils.lerp(
         data.head.rotation.y,
         data.headTurn || 0,
-        0.16,
+        actionBlend,
+      );
+      data.head.rotation.x = THREE.MathUtils.lerp(
+        data.head.rotation.x,
+        THREE.MathUtils.clamp(data.headPitch || 0, -1.35, 1.35),
+        actionBlend,
       );
     }
 
-    data.torso.position.y = data.torso.userData.baseY +
-      Math.abs(data.moving ? stride : idleWave) * (data.moving ? 0.09 : 0.035);
+    if (data.bodyRig) {
+      const stepBounce = (1 - Math.cos(data.gaitPhase * 2)) * 0.035 * data.walkBlend;
+      data.bodyRig.position.y = stepBounce + Math.abs(idleWave) * 0.012;
+      data.bodyRig.rotation.x = 0.035 * data.walkBlend;
+      data.bodyRig.rotation.z = Math.sin(data.gaitPhase) * 0.022 * data.walkBlend;
+    }
 
     if (data.standing) {
       data.legs.forEach((leg, index) => {
-        const direction = index ? -1 : 1;
-        leg.rotation.x = stride * 0.42 * direction;
-        leg.position.y = 0.45 + Math.max(0, stride * direction) * 0.05;
+        const legCycle = Math.sin(data.gaitPhase + index * Math.PI);
+        leg.rotation.x = legCycle * 0.55 * data.walkBlend;
+        leg.rotation.z = Math.cos(data.gaitPhase + index * Math.PI) *
+          0.025 * data.walkBlend;
+        leg.position.y = 0.54;
       });
       (data.shins || []).forEach((shin, index) => {
-        const direction = index ? -1 : 1;
-        const kneeBend = Math.max(0, -stride * direction) * 0.48;
-        shin.rotation.x = kneeBend;
-        shin.position.y = -0.72 + kneeBend * 0.05;
-        shin.position.z = -kneeBend * 0.18;
+        const legCycle = Math.sin(data.gaitPhase + index * Math.PI);
+        const kneeLift = Math.max(0, -legCycle) * 0.78 * data.walkBlend;
+        const pushOff = Math.max(0, legCycle) * 0.1 * data.walkBlend;
+        shin.rotation.x = kneeLift + pushOff;
+        shin.position.set(0, -0.91, 0);
       });
       (data.shoes || []).forEach((shoe, index) => {
-        const direction = index ? -1 : 1;
-        const footSwing = stride * direction;
-        shoe.position.y = -1.38 + Math.max(0, footSwing) * 0.1;
-        shoe.position.z = -0.13 - footSwing * 0.24;
-        shoe.rotation.x = Math.PI / 2 - footSwing * 0.18;
+        const legCycle = Math.sin(data.gaitPhase + index * Math.PI);
+        const kneeLift = Math.max(0, -legCycle) * 0.78 * data.walkBlend;
+        const hipSwing = legCycle * 0.55 * data.walkBlend;
+        shoe.position.set(0, -0.88, -0.08);
+        shoe.rotation.x = THREE.MathUtils.clamp(
+          -hipSwing * 0.38 - kneeLift * 0.72,
+          -0.58,
+          0.28,
+        );
       });
     }
 
     data.arms.forEach((arm, index) => {
       const side = index ? -1 : 1;
       if (throwing && index === 1) {
-        if (throwPhase < 0.25) {
-          arm.rotation.x = THREE.MathUtils.lerp(0.72, -1.3, throwPhase / 0.25);
-        } else if (throwPhase < 0.43) {
+        if (throwPhase < 0.28) {
+          arm.rotation.x = THREE.MathUtils.lerp(0.45, -1.35, throwPhase / 0.28);
+          arm.rotation.z = THREE.MathUtils.lerp(-0.13, -0.55, throwPhase / 0.28);
+        } else if (throwPhase < 0.45) {
           arm.rotation.x = THREE.MathUtils.lerp(
-            -1.3,
-            2.55,
-            (throwPhase - 0.25) / 0.18,
+            -1.35,
+            2.5,
+            (throwPhase - 0.28) / 0.17,
+          );
+          arm.rotation.z = THREE.MathUtils.lerp(
+            -0.55,
+            -0.08,
+            (throwPhase - 0.28) / 0.17,
           );
         } else {
           arm.rotation.x = THREE.MathUtils.lerp(
-            2.55,
-            0.72,
-            (throwPhase - 0.43) / 0.57,
+            2.5,
+            0.45,
+            (throwPhase - 0.45) / 0.55,
+          );
+          arm.rotation.z = THREE.MathUtils.lerp(
+            -0.08,
+            -0.13,
+            (throwPhase - 0.45) / 0.55,
           );
         }
       } else if (throwing && index === 0) {
-        arm.rotation.x = -0.4;
+        arm.rotation.x = -0.35;
       } else if (data.phoneBlend > 0.01) {
         arm.rotation.x = THREE.MathUtils.lerp(
           data.standing ? stride * 0.3 * side : idleWave * 0.06 * side,
           1.12 + idleWave * 0.025,
           data.phoneBlend,
         );
+      } else if (data.activity === "throw" && index === 1) {
+        arm.rotation.x = 0.72;
+      } else {
+        arm.rotation.x = data.standing
+          ? stride * 0.34 * side
+          : idleWave * 0.06 * side;
       }
-      else if (data.activity === "throw" && index === 1) arm.rotation.x = 0.72;
-      else arm.rotation.x = data.standing ? stride * 0.34 * side : idleWave * 0.06 * side;
     });
 
     (data.forearms || []).forEach((forearm, index) => {
       const rest = data.standing ? 0.08 : 1.05;
       if (throwing && index === 1) {
-        forearm.rotation.x = throwPhase < 0.48
-          ? THREE.MathUtils.lerp(1.05, 0.25, throwPhase / 0.48)
-          : THREE.MathUtils.lerp(0.25, 0.65, (throwPhase - 0.48) / 0.52);
+        forearm.rotation.x = throwPhase < 0.45
+          ? THREE.MathUtils.lerp(1.05, 0.12, throwPhase / 0.45)
+          : THREE.MathUtils.lerp(0.12, 0.7, (throwPhase - 0.45) / 0.55);
         return;
       }
       forearm.rotation.x = THREE.MathUtils.lerp(rest, 1.35, data.phoneBlend);

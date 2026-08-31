@@ -430,12 +430,6 @@ HD.Stadium = (() => {
       cylinder(0.45, 0.7, 6, 0x765034, scene, [p.x, 2.5, p.z]);
       sphere(3.8, 0x2f7d3e, scene, [p.x, 7, p.z]);
     }
-    for (const x of [-89, 89]) {
-      cylinder(1, 1.5, 28, 0xd7c990, scene, [x, 13, 0], 10);
-      const lamps = box([11, 5, 1.6], 0x27352e, scene, [x, 27, 0]);
-      for (let y = -1.5; y <= 1.5; y += 1.5)
-        for (let z = -4; z <= 4; z += 2) sphere(0.35, 0xfff4be, lamps, [y, 0, z]);
-    }
   }
 
   function createRaceBoard(scene) {
@@ -1148,10 +1142,11 @@ HD.Stadium = (() => {
   }
 
   function addShopWorker(parent, color, position, scale) {
-    const worker = HD.Models.character(color, {
-      hat: color,
+    const worker = HD.Models.playerCharacter(color, {
+      hat: "cap",
       skin: 0xc88962,
     });
+    HD.Models.setPlayerStanding(worker, true);
     worker.position.set(...position);
     worker.scale.setScalar(scale);
     parent.add(worker);

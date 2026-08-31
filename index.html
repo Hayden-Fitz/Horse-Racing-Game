@@ -305,6 +305,10 @@
           </div>
           <div class="avatar-customize">
             <strong>CUSTOMIZE</strong>
+            <div class="winner-coin-balance">
+              <span>WINNER COINS</span>
+              <b>WC <i id="winner-coins">0</i></b>
+            </div>
             <label>SKIN TONE
               <select id="avatar-skin">
                 <option value="f1c7a5">Light</option>
@@ -319,6 +323,9 @@
                 <option value="cap">Race cap</option>
                 <option value="beanie">Beanie</option>
                 <option value="none">No hat</option>
+                <option value="fedora" data-cost="15">Fedora · 15 WC</option>
+                <option value="cowboy" data-cost="25">Track cowboy · 25 WC</option>
+                <option value="crown" data-cost="50">Champion crown · 50 WC</option>
               </select>
             </label>
             <label>EXPRESSION
@@ -328,7 +335,40 @@
                 <option value="surprised">Surprised</option>
               </select>
             </label>
-            <p>Shirt color is assigned by your lobby seat.</p>
+            <label>OUTFIT
+              <select id="avatar-outfit">
+                <option value="raceday">Raceday shirt</option>
+                <option value="varsity" data-cost="15">Varsity jacket · 15 WC</option>
+                <option value="hoodie" data-cost="20">Track hoodie · 20 WC</option>
+                <option value="blazer" data-cost="30">Clubhouse blazer · 30 WC</option>
+              </select>
+            </label>
+            <label>TROUSERS
+              <select id="avatar-trousers">
+                <option value="252525">Charcoal</option>
+                <option value="24344d">Navy</option>
+                <option value="5c382d" data-cost="10">Chestnut · 10 WC</option>
+                <option value="e5ddd0" data-cost="20">Derby white · 20 WC</option>
+              </select>
+            </label>
+            <label>SHOES
+              <select id="avatar-shoes">
+                <option value="sneakers">Track sneakers</option>
+                <option value="boots" data-cost="15">Riding boots · 15 WC</option>
+                <option value="high-tops" data-cost="20">High-tops · 20 WC</option>
+              </select>
+            </label>
+            <label>ACCESSORY
+              <select id="avatar-accessory">
+                <option value="none">None</option>
+                <option value="glasses" data-cost="10">Glasses · 10 WC</option>
+                <option value="headphones" data-cost="25">Headphones · 25 WC</option>
+              </select>
+            </label>
+            <button id="avatar-unlock" type="button" hidden>UNLOCK COSMETIC</button>
+            <p id="avatar-customize-status">
+              Shirt color is assigned by your lobby seat. Win online matches to earn Winner Coins.
+            </p>
           </div>
         </aside>
         </div>

@@ -85,6 +85,14 @@ button {
   font-family: var(--display-font);
   letter-spacing: 0.035em;
 }
+
+#viewport button,
+#viewport .camera-help,
+#viewport .power-meter,
+#viewport .performance-status,
+#viewport .network-status {
+  font-family: var(--display-font);
+}
 .topbar div {
   min-width: 78px;
   padding: 7px 11px;
