@@ -450,7 +450,25 @@ HD.Controls = (() => {
         HD.CONFIG.eyeHeight;
     }
 
-    if (onCommentatorRoof(x, z)) return 13.5 + HD.CONFIG.eyeHeight;
+    if (onCommentatorRoof(x, z)) {
+      const distance = Math.hypot(x, z);
+      const innerDistance = Math.hypot(
+        Math.cos(0.15) * 93,
+        Math.sin(0.15) * 60,
+      );
+      const outerDistance = Math.hypot(
+        Math.cos(0.15) * 109,
+        Math.sin(0.15) * 74,
+      );
+      const inward = THREE.MathUtils.clamp(
+        (outerDistance - distance) / Math.max(0.01, outerDistance - innerDistance),
+        0,
+        1,
+      );
+      const accessBlend = THREE.MathUtils.smoothstep(inward, 0, 0.38);
+      const floor = THREE.MathUtils.lerp(13.5, HD.world.commentatorBox.floorY || 10.25, accessBlend);
+      return floor + HD.CONFIG.eyeHeight;
+    }
 
     const ovalDistance = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
     if (ovalDistance <= 1.08) return 1.65 + HD.CONFIG.eyeHeight;

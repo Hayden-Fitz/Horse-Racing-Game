@@ -34,7 +34,12 @@ HD.AI = (() => {
       openingBetPlaced: false,
       liveBetPlaced: false,
       throwMade: false,
-      inventory: HD.createInventory(),
+      inventory: {
+        ...HD.createInventory(),
+        hotdog: 2,
+        soda: 1,
+        carrot: personalities[index] === "favorite" ? 1 : 0,
+      },
       destination: null,
       route: [],
       routeMode: "seat",
@@ -269,7 +274,12 @@ HD.AI = (() => {
     const horse = S.horses[horseIndex]?.userData.data;
     if (!horse) return;
 
-    const desiredStake = live ? 5 + (player.id.length % 3) * 5 : 10 + horseIndex % 4 * 5;
+    const confidence = player.personality === "favorite" ? 0.13 :
+      player.personality === "value" ? 0.1 : 0.075;
+    const bankrollStake = Math.floor((player.money * confidence) / 5) * 5;
+    const desiredStake = live
+      ? Math.max(5, Math.min(60, Math.floor((bankrollStake * 0.7) / 5) * 5))
+      : Math.max(10, Math.min(90, bankrollStake + (horseIndex % 3) * 5));
     const stake = Math.min(Math.floor(player.money / 5) * 5, desiredStake);
     if (stake < 5) return;
 
@@ -310,12 +320,19 @@ HD.AI = (() => {
       ? backedHorse
       : raceOrder.find((entry) => entry.index !== backedHorse)?.index ?? backedHorse;
     const ownedItems = Object.keys(player.inventory).filter((type) => player.inventory[type] > 0);
+    const totalOwned = ownedItems.reduce((total, type) => total + player.inventory[type], 0);
+    const shouldSave = S.race < C.totalRaces &&
+      totalOwned <= 2 &&
+      (playerIndex + S.race) % 3 !== 0;
+    if (shouldSave || !ownedItems.length) return;
     const itemTypes = ownedItems.length
       ? ownedItems
       : supportFavorite
       ? ["carrot", "carrot", "hurdle"]
       : ["hotdog", "soda", "bananaPeel", "airHorn"];
-    const itemType = itemTypes[(playerIndex + S.race) % itemTypes.length];
+    const itemType = supportFavorite && player.inventory.carrot > 0
+      ? "carrot"
+      : itemTypes[(playerIndex + S.race) % itemTypes.length];
     const target = S.horses[targetIndex];
     if (!target) return;
 

@@ -148,6 +148,11 @@
 
 .phone:not(.app-open) .apps {
   display: grid;
+  grid-row: 3;
+  align-self: end;
+  width: 100%;
+  margin: auto 0 10px;
+  overflow: visible;
 }
 
 .phone.app-open .apps {
@@ -1581,30 +1586,24 @@
   color: white;
   font-size: 8px;
   box-shadow: inset 0 1px #ffffff2b, 0 5px 12px #0005;
+  background-position: center;
+  background-size: cover;
+  text-shadow: 0 1px 3px #000, 0 0 8px #000;
 }
 
 .apps button::before {
-  display: block;
-  font-size: 23px;
-  content: "🏇";
+  display: none;
+  content: "";
 }
 
-.apps button[data-app="shop"]::before { content: "🛍️"; }
-.apps button[data-app="odds"]::before { content: "📊"; }
-.apps button[data-app="bank"]::before { content: "🏦"; }
-.apps button[data-app="leaders"]::before { content: "🏆"; }
-.apps button[data-app="sabotage"]::before { content: "🕵️"; }
-.apps button[data-app="transfer"]::before { content: "💸"; }
-.apps button[data-app="flappy"]::before { content: "🐴"; }
-
-.apps button[data-app="bet"] { background: linear-gradient(145deg, #e46b3e, #9c321f); }
-.apps button[data-app="shop"] { background: linear-gradient(145deg, #58a970, #23613c); }
-.apps button[data-app="odds"] { background: linear-gradient(145deg, #5e8dd7, #304c91); }
-.apps button[data-app="bank"] { background: linear-gradient(145deg, #d6ad45, #85651b); }
-.apps button[data-app="leaders"] { background: linear-gradient(145deg, #8d67c5, #52347e); }
-.apps button[data-app="sabotage"] { background: linear-gradient(145deg, #555b62, #20252a); }
-.apps button[data-app="transfer"] { background: linear-gradient(145deg, #52bfaa, #1d7167); }
-.apps button[data-app="flappy"] { background: linear-gradient(145deg, #75c9e8, #31799d); }
+.apps button[data-app="bet"] { background-image: url("assets/phone-apps/racebet.png"); }
+.apps button[data-app="shop"] { background-image: url("assets/phone-apps/trackmart.png"); }
+.apps button[data-app="odds"] { background-image: url("assets/phone-apps/oddswatch.png"); }
+.apps button[data-app="bank"] { background-image: url("assets/phone-apps/bank.png"); }
+.apps button[data-app="leaders"] { background-image: url("assets/phone-apps/leaderboard.png"); }
+.apps button[data-app="sabotage"] { background-image: url("assets/phone-apps/fixer.png"); }
+.apps button[data-app="transfer"] { background-image: url("assets/phone-apps/trackpay.png"); }
+.apps button[data-app="flappy"] { background-image: url("assets/phone-apps/flappy-horse.png"); }
 
 .apps button.active {
   outline: 2px solid #ffe17c;

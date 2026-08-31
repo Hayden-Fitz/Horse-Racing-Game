@@ -27,6 +27,7 @@ HD.Stadium = (() => {
   function build(scene) {
     const ground = mesh(new THREE.CircleGeometry(190, 72), 0x4b8a45, scene, [0, -0.6, 0]);
     ground.rotation.x = -Math.PI / 2;
+    createExteriorTerrain(scene);
     const trackShape = new THREE.Shape();
     trackShape.absellipse(0, 0, 72, 43, 0, Math.PI * 2, false);
     const hole = new THREE.Path();
@@ -63,6 +64,63 @@ HD.Stadium = (() => {
   }
   function oval(rx, rz, t) {
     return new THREE.Vector3(Math.cos(t) * rx, 0, Math.sin(t) * rz);
+  }
+
+  function createExteriorTerrain(scene) {
+    const roadShape = new THREE.Shape();
+    roadShape.absellipse(0, 0, 172, 128, 0, Math.PI * 2, false);
+    const roadHole = new THREE.Path();
+    roadHole.absellipse(0, 0, 143, 99, 0, Math.PI * 2, true);
+    roadShape.holes.push(roadHole);
+    const roadGeometry = new THREE.ShapeGeometry(roadShape, 72);
+    roadGeometry.rotateX(-Math.PI / 2);
+    const road = new THREE.Mesh(roadGeometry, HD.util.material(0x424844));
+    road.position.y = -0.48;
+    road.receiveShadow = true;
+    scene.add(road);
+
+    const pathMaterial = HD.util.material(0xc6b58e);
+    const parkingMaterial = HD.util.material(0x66706a);
+    const locations = [
+      [0, -142, 0],
+      [0, 142, 0],
+      [-155, 0, Math.PI / 2],
+      [155, 0, Math.PI / 2],
+    ];
+    locations.forEach(([x, z, rotation], index) => {
+      const lot = new THREE.Mesh(new THREE.PlaneGeometry(34, 19), parkingMaterial);
+      lot.rotation.x = -Math.PI / 2;
+      lot.rotation.z = rotation;
+      lot.position.set(x, -0.455, z);
+      lot.receiveShadow = true;
+      scene.add(lot);
+
+      const path = new THREE.Mesh(new THREE.PlaneGeometry(7, 34), pathMaterial);
+      path.rotation.x = -Math.PI / 2;
+      path.rotation.z = rotation;
+      const pathRadius = index < 2 ? 118 : 128;
+      path.position.set(
+        index < 2 ? 0 : Math.sign(x) * pathRadius,
+        -0.44,
+        index < 2 ? Math.sign(z) * pathRadius : 0,
+      );
+      scene.add(path);
+
+      for (let stripe = -3; stripe <= 3; stripe++) {
+        const marker = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.16, 15),
+          new THREE.MeshBasicMaterial({ color: 0xe6dfc6 }),
+        );
+        marker.rotation.x = -Math.PI / 2;
+        marker.rotation.z = rotation;
+        marker.position.set(
+          x + (index < 2 ? stripe * 4.2 : 0),
+          -0.43,
+          z + (index >= 2 ? stripe * 4.2 : 0),
+        );
+        scene.add(marker);
+      }
+    });
   }
   function addTrackLine(scene, rx, rz) {
     const points = [];
@@ -230,22 +288,22 @@ HD.Stadium = (() => {
   }
 
   function createCommentatorBooth(root) {
-    const halfAngle = 0.12;
-    const innerLeft = oval(105, 70, COMMENTATOR_ANGLE - halfAngle);
-    const innerRight = oval(105, 70, COMMENTATOR_ANGLE + halfAngle);
-    const outerLeft = oval(127, 88, COMMENTATOR_ANGLE - halfAngle);
-    const outerRight = oval(127, 88, COMMENTATOR_ANGLE + halfAngle);
+    const halfAngle = 0.105;
+    const innerLeft = oval(93, 60, COMMENTATOR_ANGLE - halfAngle);
+    const innerRight = oval(93, 60, COMMENTATOR_ANGLE + halfAngle);
+    const outerLeft = oval(109, 74, COMMENTATOR_ANGLE - halfAngle);
+    const outerRight = oval(109, 74, COMMENTATOR_ANGLE + halfAngle);
     const footprint = [innerLeft, outerLeft, outerRight, innerRight];
 
-    createBoothSurface(root, footprint, 13.5, 0x344a43);
-    createBoothSurface(root, footprint, 19.25, 0xb9aa89);
-    createBoothWall(root, innerLeft, outerLeft, 13.6, 19.25, 0x435a51);
-    createBoothWall(root, innerRight, outerRight, 13.6, 19.25, 0x435a51);
+    createBoothSurface(root, footprint, 10.25, 0xc7b98f);
+    createBoothSurface(root, footprint, 15.75, 0x334941);
+    createBoothWall(root, innerLeft, outerLeft, 10.3, 15.75, 0x6f4d36);
+    createBoothWall(root, innerRight, outerRight, 10.3, 15.75, 0x6f4d36);
 
-    const backLeftEnd = innerLeft.clone().lerp(innerRight, 0.38);
-    const backRightStart = innerLeft.clone().lerp(innerRight, 0.62);
-    createBoothWall(root, innerLeft, backLeftEnd, 13.6, 19.25, 0x435a51);
-    createBoothWall(root, backRightStart, innerRight, 13.6, 19.25, 0x435a51);
+    const backLeftEnd = outerLeft.clone().lerp(outerRight, 0.36);
+    const backRightStart = outerLeft.clone().lerp(outerRight, 0.64);
+    createBoothWall(root, outerLeft, backLeftEnd, 10.3, 15.75, 0x435a51);
+    createBoothWall(root, backRightStart, outerRight, 10.3, 15.75, 0x435a51);
 
     const glassMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xbceaf0,
@@ -255,15 +313,33 @@ HD.Stadium = (() => {
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-    createBoothWall(root, outerLeft, outerRight, 13.75, 19.1, glassMaterial);
+    createBoothWall(root, innerLeft, innerRight, 11.05, 15.05, glassMaterial);
+    createBoothWall(root, innerLeft, innerRight, 10.3, 11.05, 0x344a43);
+    createBoothWall(root, innerLeft, innerRight, 15.05, 15.75, 0x344a43);
     for (let panel = 0; panel <= 5; panel++) {
-      const point = outerLeft.clone().lerp(outerRight, panel / 5);
-      cylinder(0.08, 0.08, 5.45, 0x53696d, root, [point.x, 16.42, point.z], 8);
+      const point = innerLeft.clone().lerp(innerRight, panel / 5);
+      cylinder(0.07, 0.07, 4.1, 0x53696d, root, [point.x, 13.05, point.z], 8);
     }
 
-    const counterLeft = outerLeft.clone().lerp(innerLeft, 0.24);
-    const counterRight = outerRight.clone().lerp(innerRight, 0.24);
-    createBoothWall(root, counterLeft, counterRight, 13.65, 14.8, 0x76583a, 1.2);
+    const counterLeft = innerLeft.clone().lerp(outerLeft, 0.2);
+    const counterRight = innerRight.clone().lerp(outerRight, 0.2);
+    createBoothWall(root, counterLeft, counterRight, 10.35, 11.45, 0x76583a, 1.05);
+
+    for (let step = 0; step < 5; step++) {
+      const progress = step / 4;
+      const center = oval(
+        THREE.MathUtils.lerp(109, 103, progress),
+        THREE.MathUtils.lerp(74, 68.5, progress),
+        COMMENTATOR_ANGLE,
+      );
+      const accessStep = box(
+        [5.2, 0.25, 1.25],
+        step % 2 ? 0xb7a47f : 0xc7b98f,
+        root,
+        [center.x, THREE.MathUtils.lerp(13.25, 10.4, progress), center.z],
+      );
+      accessStep.rotation.y = -COMMENTATOR_ANGLE + Math.PI / 2;
+    }
 
     const commentator = HD.Models.playerCharacter(0x7a3046, {
       variant: 6,
@@ -272,15 +348,18 @@ HD.Stadium = (() => {
       skin: 0x8d593d,
     });
     HD.Models.setPlayerStanding(commentator, true);
-    const commentatorPosition = oval(119, 81.5, COMMENTATOR_ANGLE);
-    commentator.position.set(commentatorPosition.x, 13.78, commentatorPosition.z);
+    const commentatorPosition = oval(98, 64, COMMENTATOR_ANGLE);
+    commentator.position.set(commentatorPosition.x, 10.48, commentatorPosition.z);
     commentator.rotation.y = -COMMENTATOR_ANGLE - Math.PI / 2;
     commentator.scale.setScalar(0.72);
     root.add(commentator);
     HD.world.commentators = HD.world.commentators || [];
     HD.world.commentators.push(commentator);
 
-    HD.world.commentatorBox = { polygon: footprint.map((point) => [point.x, point.z]) };
+    HD.world.commentatorBox = {
+      polygon: footprint.map((point) => [point.x, point.z]),
+      floorY: 10.25,
+    };
   }
 
   function createBoothSurface(parent, points, y, color) {
@@ -1362,9 +1441,7 @@ HD.Stadium = (() => {
           Math.cos(midpoint - stairAngle),
         )) < 0.065,
       );
-      const atCommentatorBooth = height > 3 &&
-        angleDistance(midpoint, COMMENTATOR_ANGLE) < 0.15;
-      if (atStairs || atCommentatorBooth) continue;
+      if (atStairs) continue;
 
       const start = oval(radiusX, radiusZ, angleA);
       const end = oval(radiusX, radiusZ, angleB);

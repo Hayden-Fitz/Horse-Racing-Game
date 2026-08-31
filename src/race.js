@@ -87,9 +87,18 @@ HD.Race = (() => {
         -Math.cos(angle) * radiusZ,
         -Math.sin(angle) * radiusX,
       );
-      const movement = THREE.MathUtils.clamp(d.motionSpeed / Math.max(0.001, d.baseSpeed), 0, 1.35);
+      const safeBaseSpeed = Math.max(0.001, Number.isFinite(d.baseSpeed) ? d.baseSpeed : 0.04);
+      const safeMotionSpeed = Number.isFinite(d.motionSpeed) ? Math.max(0, d.motionSpeed) : 0;
+      const movement = THREE.MathUtils.clamp(safeMotionSpeed / safeBaseSpeed, 0, 1.35);
       const moving = S.phase === "racing" || S.phase === "finished" || d.staging;
-      const stridePhase = S.elapsed * (10.5 + movement * 3.5) + i * 0.7;
+      const previousGaitTime = Number.isFinite(d.lastGaitTime) ? d.lastGaitTime : S.elapsed;
+      const gaitDelta = THREE.MathUtils.clamp(S.elapsed - previousGaitTime, 0, 0.05);
+      d.lastGaitTime = S.elapsed;
+      d.gaitPhase = Number.isFinite(d.gaitPhase) ? d.gaitPhase : i * 0.7;
+      if (moving && movement > 0.01) {
+        d.gaitPhase += gaitDelta * THREE.MathUtils.lerp(4.5, 15.5, movement / 1.35);
+      }
+      const stridePhase = d.gaitPhase;
       const gallop = moving ? Math.sin(stridePhase) * movement : 0;
       const tumble = d.ragdoll > 0 ? Math.sin(S.elapsed * 15) : 0;
       horse.userData.body.position.x = 0;
@@ -106,14 +115,15 @@ HD.Race = (() => {
       if (horse.userData.tail) {
         horse.userData.tail.rotation.z = -0.8 + gallop * 0.18;
       }
-      horse.userData.ears.forEach((ear) => {
+      (horse.userData.ears || []).forEach((ear) => {
         ear.rotation.z = -0.3;
       });
       if (horse.userData.jockey) {
         horse.userData.jockey.position.y = 3.2 + Math.abs(gallop) * 0.12;
         horse.userData.jockey.rotation.z = -0.08 - movement * 0.08;
       }
-      horse.userData.legs.forEach((leg) => {
+      (horse.userData.legs || []).forEach((leg) => {
+        if (!leg?.rotation || !leg.position) return;
         const cycle = Math.sin(stridePhase + leg.userData.phase);
         leg.rotation.z = cycle * 0.72 * movement;
         leg.position.y = 0.55 + Math.max(0, -cycle) * 0.12 * movement;
@@ -547,7 +557,7 @@ HD.Race = (() => {
 
     S.race++;
     prepareRace();
-    HD.UI.announce("Thirty seconds until the next race. Study the field!");
+    HD.UI.announce("Forty-five seconds until the next race. Study the field!");
   }
   function prepareRace() {
     Object.assign(S, {
