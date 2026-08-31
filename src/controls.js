@@ -171,8 +171,8 @@ HD.Controls = (() => {
     const velocity = new THREE.Vector3(0, 0, -1)
       .applyQuaternion(camera.quaternion)
       .normalize()
-      .multiplyScalar(item.speed * S.throwPower);
-    velocity.y += item.lift * S.throwPower;
+      .multiplyScalar(item.speed * S.throwPower * HD.CONFIG.throwVelocityMultiplier);
+    velocity.y += item.lift * S.throwPower * HD.CONFIG.throwVelocityMultiplier;
     const visualOnly = HD.Network.isConnected() && !HD.Network.isHost();
     HD.Models.playPlayerThrow(HD.world.localPlayer, thrownType);
     throwAnimation = 0.55;
@@ -379,9 +379,13 @@ HD.Controls = (() => {
     const insideFence = Math.sqrt((S.playerPosition.x / 73.2) ** 2 + (S.playerPosition.z / 43.2) ** 2);
     const blocked = collidesWithBarrier(S.playerPosition.x, S.playerPosition.z);
     const nextZone = walkZoneAt(S.playerPosition.x, S.playerPosition.z);
+    const connectedUpperSurface = [previousZone, nextZone].every((zone) =>
+      ["upper-concourse", "commentator-roof"].includes(zone),
+    );
     const skippedStairs = previousZone !== nextZone &&
       previousZone !== "stairs" &&
-      nextZone !== "stairs";
+      nextZone !== "stairs" &&
+      !connectedUpperSurface;
     if (
       insideFence < 1.03 ||
       blocked ||
@@ -413,6 +417,7 @@ HD.Controls = (() => {
   }
 
   function walkZoneAt(x, z) {
+    if (onCommentatorRoof(x, z)) return "commentator-roof";
     if (staircaseProgress(x, z) !== null) return "stairs";
     const row = grandstandRowAt(x, z);
     if (row !== null) return `row-${row}`;
@@ -431,7 +436,8 @@ HD.Controls = (() => {
     const onTrackWalk = trackWalk >= 0.92 && trackWalk <= 1.08;
     const upperConcourse = Math.sqrt((x / 110.6) ** 2 + (z / 75.4) ** 2);
     const onUpperConcourse = upperConcourse >= 0.9 && upperConcourse <= 1.1;
-    return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse;
+    return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse ||
+      onCommentatorRoof(x, z);
   }
   function walkingEyeHeight(x, z) {
     const stairProgress = staircaseProgress(x, z);
@@ -444,9 +450,24 @@ HD.Controls = (() => {
         HD.CONFIG.eyeHeight;
     }
 
+    if (onCommentatorRoof(x, z)) return 13.5 + HD.CONFIG.eyeHeight;
+
     const ovalDistance = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
     if (ovalDistance <= 1.08) return 1.65 + HD.CONFIG.eyeHeight;
     return 13.5 + HD.CONFIG.eyeHeight;
+  }
+
+  function onCommentatorRoof(x, z) {
+    const booth = HD.world.commentatorBox;
+    if (!booth) return false;
+    const dx = x - booth.x;
+    const dz = z - booth.z;
+    const cosine = Math.cos(booth.angle);
+    const sine = Math.sin(booth.angle);
+    const localX = dx * cosine - dz * sine;
+    const localZ = dx * sine + dz * cosine;
+    return Math.abs(localX) <= booth.halfWidth &&
+      Math.abs(localZ) <= booth.halfDepth;
   }
 
   function grandstandRowAt(x, z) {
@@ -576,8 +597,8 @@ HD.Controls = (() => {
       .set(0, 0, -1)
       .applyQuaternion(camera.quaternion)
       .normalize()
-      .multiplyScalar(item.speed * S.throwPower);
-    trajectoryVelocity.y += item.lift * S.throwPower;
+      .multiplyScalar(item.speed * S.throwPower * HD.CONFIG.throwVelocityMultiplier);
+    trajectoryVelocity.y += item.lift * S.throwPower * HD.CONFIG.throwVelocityMultiplier;
     let pointCount = 0;
     for (let i = 0; i < 42; i++) {
       const t = i * 0.055;

@@ -619,6 +619,7 @@ HD.Race = (() => {
   function updateProjectiles(dt) {
     S.projectiles.forEach((p) => {
       p.age += dt;
+      if (p.landed) p.landedAge = (p.landedAge || 0) + dt;
       if (!p.grounded) p.velocity.y -= p.config.gravity * dt;
       p.position.addScaledVector(p.velocity, dt);
       p.mesh.position.copy(p.position);
@@ -656,9 +657,7 @@ HD.Race = (() => {
           createGroundEffect(p);
           if (p.config.trap) {
             p.velocity.set(0, 0, 0);
-            p.position.y = 0.72;
-            p.mesh.position.y = 0.72;
-            p.mesh.rotation.set(0, Math.atan2(p.position.z, p.position.x), 0);
+            snapTrapToLane(p);
             p.grounded = true;
           }
         }
@@ -670,10 +669,14 @@ HD.Race = (() => {
           p.velocity.z *= 0.72;
         } else {
           p.velocity.y = 0;
-          p.velocity.x *= Math.pow(0.08, dt);
-          p.velocity.z *= Math.pow(0.08, dt);
+          p.velocity.x *= Math.pow(0.015, dt);
+          p.velocity.z *= Math.pow(0.015, dt);
           p.grounded = p.velocity.lengthSq() < 0.16;
           if (p.grounded) p.velocity.set(0, 0, 0);
+        }
+        if (!p.config.trap && p.landedAge > 2.4) {
+          p.velocity.set(0, 0, 0);
+          p.grounded = true;
         }
       }
     });
@@ -683,6 +686,23 @@ HD.Race = (() => {
       if (p.groundEffect) HD.world.scene.remove(p.groundEffect);
     });
     S.projectiles = S.projectiles.filter((p) => p.age < 18);
+  }
+
+  function snapTrapToLane(projectile) {
+    let best = null;
+    for (let lane = 0; lane < C.raceHorseCount; lane++) {
+      const radiusX = 50.5 + lane * 2.85;
+      const radiusZ = 23 + lane * 2.68;
+      const angle = Math.atan2(projectile.position.z / radiusZ, projectile.position.x / radiusX);
+      const x = Math.cos(angle) * radiusX;
+      const z = Math.sin(angle) * radiusZ;
+      const error = Math.hypot(x - projectile.position.x, z - projectile.position.z);
+      if (!best || error < best.error) best = { lane, angle, x, z, error };
+    }
+    projectile.trapLane = best.lane;
+    projectile.position.set(best.x, 0.72, best.z);
+    projectile.mesh.position.copy(projectile.position);
+    projectile.mesh.rotation.set(0, -best.angle, 0);
   }
   function createGroundEffect(projectile) {
     const effects = {

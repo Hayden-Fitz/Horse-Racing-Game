@@ -39,6 +39,8 @@ HD.AI = (() => {
       route: [],
       routeMode: "seat",
       shopVisited: false,
+      activityTimer: 0,
+      patrolStep: 0,
     }));
     activeRaceKey = "";
     settledRaceKey = "";
@@ -103,16 +105,39 @@ HD.AI = (() => {
       : S.phase === "racing"
         ? "walkway"
         : "seat";
-    if (player.routeMode !== desiredMode || !player.route.length) {
+    if (player.routeMode !== desiredMode) {
       player.routeMode = desiredMode;
       player.route = createRoute(avatar.position, index, desiredMode);
+      player.activityTimer = 1.5 + (index % 4) * 0.7;
       if (desiredMode !== "shop") player.shopVisited = false;
+      HD.Models.setPlayerStanding(avatar, desiredMode !== "seat");
     }
 
     const destination = player.route[0];
     if (!destination) {
       avatar.userData.moving = false;
-      if (desiredMode === "shop" && !player.shopVisited) visitShop(player);
+      player.activityTimer -= dt;
+      if (desiredMode === "seat") {
+        avatar.userData.activity = index % 3 === 0 ? "phone" : "watch";
+        HD.Models.equipPlayer(avatar, avatar.userData.activity, "hotdog");
+        return;
+      }
+      if (desiredMode === "shop") {
+        avatar.userData.activity = "phone";
+        HD.Models.equipPlayer(avatar, "phone", "hotdog");
+        if (!player.shopVisited) visitShop(player);
+        if (player.activityTimer <= 0) {
+          player.activityTimer = 3 + (index % 3);
+          player.route = upperPatrolRoute(index, player);
+        }
+        return;
+      }
+      avatar.userData.activity = "watch";
+      HD.Models.equipPlayer(avatar, "look", "hotdog");
+      if (player.activityTimer <= 0) {
+        player.activityTimer = 4 + (index % 4);
+        player.route = walkwayPatrolRoute(index, player);
+      }
       return;
     }
 
@@ -129,25 +154,65 @@ HD.AI = (() => {
     avatar.rotation.y = Math.atan2(direction.x, direction.z);
     avatar.userData.moving = true;
     avatar.userData.standing = true;
+    avatar.userData.activity = "watch";
   }
 
   function createRoute(start, index, mode) {
     const seat = HD.Stadium.playerSeatPlacement(index + 1).avatar;
-    if (mode === "seat") return [seat.clone()];
+    const startOnUpperFloor = start.y > 10;
+    const startOnWalkway = start.y < 3.5;
 
     const seatAngle = Math.atan2(seat.z, seat.x);
     const stairAngle = Math.round(seatAngle / (Math.PI / 2)) * (Math.PI / 2);
+    const seatDefinition = [
+      { row: 1 }, { row: 1 }, { row: 1 }, { row: 3 },
+      { row: 3 }, { row: 5 }, { row: 5 }, { row: 5 },
+    ][(index + 1) % 8];
+    const row = seatDefinition.row;
+    const rowAtStairs = ovalPoint(
+      82.1 + row * 3.25,
+      51.85 + row * 2.75,
+      stairAngle,
+      C.grandstandBaseHeight + row * 1.5,
+    );
     const lower = ovalPoint(78.5, 48, stairAngle, 1.85);
     const upper = ovalPoint(104.5, 70.5, stairAngle, 13.7);
     const approach = ovalPoint(78.5, 48, seatAngle, 1.85);
-    if (mode === "walkway") return [lower, approach];
+    if (mode === "seat") {
+      return startOnUpperFloor
+        ? [upper, lower, rowAtStairs, seat.clone()]
+        : startOnWalkway
+          ? [lower, rowAtStairs, seat.clone()]
+          : [rowAtStairs, seat.clone()];
+    }
+    if (mode === "walkway") {
+      return startOnUpperFloor
+        ? [upper, lower, approach]
+        : [rowAtStairs, lower, approach];
+    }
 
     const shops = HD.world.shopPositions || [];
     const shop = shops[index % Math.max(1, shops.length)];
     const shopPoint = shop
       ? new THREE.Vector3(shop.x, 13.7, shop.z)
       : ovalPoint(110, 74, stairAngle + Math.PI / 4, 13.7);
-    return [lower, upper, shopPoint];
+    return startOnUpperFloor
+      ? [upper, shopPoint]
+      : startOnWalkway
+        ? [lower, upper, shopPoint]
+        : [rowAtStairs, lower, upper, shopPoint];
+  }
+
+  function upperPatrolRoute(index, player) {
+    player.patrolStep++;
+    const angle = ((index * 0.72 + player.patrolStep * 0.38) % (Math.PI * 2));
+    return [ovalPoint(110, 74, angle, 13.7)];
+  }
+
+  function walkwayPatrolRoute(index, player) {
+    player.patrolStep++;
+    const angle = ((index * 0.78 + player.patrolStep * 0.25) % (Math.PI * 2));
+    return [ovalPoint(78.5, 48, angle, 1.85)];
   }
 
   function ovalPoint(radiusX, radiusZ, angle, y) {
