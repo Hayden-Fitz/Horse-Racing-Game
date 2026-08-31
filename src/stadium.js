@@ -8,7 +8,7 @@ HD.Stadium = (() => {
     (Math.PI * 3) / 2,
   ];
   const GRANDSTAND_COLUMNS = 128;
-  const COMMENTATOR_ANGLE = Math.PI / 4;
+  const COMMENTATOR_ANGLE = 0.15;
   const DETAILED_SEATS = [
     { row: 1, column: 30, local: true, activity: "watch" },
     { row: 1, column: 29, activity: "phone" },
@@ -214,7 +214,7 @@ HD.Stadium = (() => {
             angleDistance(angle, stairAngle) < stairHalfAngle(rx, rz, stairAngle),
         );
         const inCommentatorCutout = row >= 3 &&
-          angleDistance(angle, COMMENTATOR_ANGLE) < 0.095;
+          angleDistance(angle, COMMENTATOR_ANGLE) < 0.145;
         if (detailedPlayerSeat || inStairAisle || inCommentatorCutout) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
@@ -230,18 +230,18 @@ HD.Stadium = (() => {
   }
 
   function createCommentatorBooth(root) {
-    const position = oval(105, 70.5, COMMENTATOR_ANGLE);
+    const position = oval(106, 71, COMMENTATOR_ANGLE);
     const booth = new THREE.Group();
     booth.position.set(position.x, 0, position.z);
     booth.rotation.y = -COMMENTATOR_ANGLE + Math.PI / 2;
     root.add(booth);
 
-    box([13.5, 0.45, 11], 0x344a43, booth, [0, 8.15, 0]);
-    box([13.8, 0.38, 12.5], 0xb9aa89, booth, [0, 13.5, 0]);
-    box([0.35, 5.3, 11], 0x435a51, booth, [-6.55, 10.8, 0]);
-    box([0.35, 5.3, 11], 0x435a51, booth, [6.55, 10.8, 0]);
-    box([4.25, 5.3, 0.35], 0x435a51, booth, [-4.55, 10.8, 5.25]);
-    box([4.25, 5.3, 0.35], 0x435a51, booth, [4.55, 10.8, 5.25]);
+    box([18.5, 0.45, 13], 0x344a43, booth, [0, 8.15, 0]);
+    box([19.5, 0.38, 14.5], 0xb9aa89, booth, [0, 13.5, 0]);
+    box([0.35, 5.3, 13], 0x435a51, booth, [-9.05, 10.8, 0]);
+    box([0.35, 5.3, 13], 0x435a51, booth, [9.05, 10.8, 0]);
+    box([6.55, 5.3, 0.35], 0x435a51, booth, [-5.8, 10.8, 6.25]);
+    box([6.55, 5.3, 0.35], 0x435a51, booth, [5.8, 10.8, 6.25]);
 
     const glassMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xbceaf0,
@@ -251,13 +251,13 @@ HD.Stadium = (() => {
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(11.8, 4.25, 0.12), glassMaterial);
-    glass.position.set(0, 10.9, -5.25);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(16.8, 4.25, 0.12), glassMaterial);
+    glass.position.set(0, 10.9, -6.25);
     booth.add(glass);
     for (let panel = -2; panel <= 2; panel++) {
-      box([0.1, 4.35, 0.18], 0x53696d, booth, [panel * 2.35, 10.9, -5.3]);
+      box([0.1, 4.35, 0.18], 0x53696d, booth, [panel * 3.35, 10.9, -6.3]);
     }
-    box([10.4, 1.15, 1.3], 0x76583a, booth, [0, 9, -3.9]);
+    box([15.4, 1.15, 1.3], 0x76583a, booth, [0, 9, -4.9]);
 
     const commentator = HD.Models.playerCharacter(0x7a3046, {
       variant: 6,
@@ -270,13 +270,15 @@ HD.Stadium = (() => {
     commentator.rotation.y = Math.PI;
     commentator.scale.setScalar(0.72);
     booth.add(commentator);
+    HD.world.commentators = HD.world.commentators || [];
+    HD.world.commentators.push(commentator);
 
     HD.world.commentatorBox = {
       x: position.x,
       z: position.z,
       angle: booth.rotation.y,
-      halfWidth: 6.9,
-      halfDepth: 6.25,
+      halfWidth: 9.75,
+      halfDepth: 7.25,
     };
   }
 
@@ -1032,6 +1034,36 @@ HD.Stadium = (() => {
       cylinder(0.18, 0.24, 1.2, 0x465456, table, [0, 0.6, 0], 10);
       HD.world.barriers.push({ x: position.x, z: position.z, radius: 1.5 });
     }
+
+    for (let index = 0; index < 8; index++) {
+      const angle = (index / 8) * Math.PI * 2 + 0.2;
+      const position = oval(106.5, 72, angle);
+      const kiosk = new THREE.Group();
+      kiosk.position.set(position.x, 13.5, position.z);
+      kiosk.rotation.y = -angle + Math.PI / 2;
+      scene.add(kiosk);
+      cylinder(0.45, 0.62, 2.8, 0x3d5455, kiosk, [0, 1.4, 0], 10);
+      box([2.3, 1.25, 0.3], index % 2 ? 0xd76b38 : 0x3f83a4, kiosk, [0, 3.1, 0]);
+      const plaque = createTextSign(index % 2 ? "FOOD" : "TRACK", 0xffdf75);
+      plaque.position.set(0, 3.1, -0.18);
+      plaque.scale.set(1.85, 0.8, 1);
+      kiosk.add(plaque);
+      HD.world.barriers.push({ x: position.x, z: position.z, radius: 1.25 });
+    }
+
+    const pennantColors = [0xe65c3d, 0xf0c84d, 0x4784b8, 0x56a66e];
+    for (let index = 0; index < 24; index++) {
+      const angle = (index / 24) * Math.PI * 2;
+      const position = oval(98, 65, angle);
+      const pennant = mesh(
+        new THREE.ConeGeometry(0.7, 2.2, 3),
+        pennantColors[index % pennantColors.length],
+        scene,
+        [position.x, 20.7, position.z],
+      );
+      pennant.rotation.set(Math.PI, -angle, 0);
+      pennant.castShadow = false;
+    }
   }
 
   function createSabotageCounter(scene, angle) {
@@ -1543,6 +1575,10 @@ HD.Stadium = (() => {
       }
     });
     if (HD.world.localPlayer) HD.Models.animateCharacter(HD.world.localPlayer, time, true);
+    (HD.world.commentators || []).forEach((commentator) => {
+      commentator.userData.headTurn = Math.sin(time * 0.45) * 0.32;
+      HD.Models.animateCharacter(commentator, time, true);
+    });
     if (HD.world.raceBoard && time - HD.world.raceBoard.lastUpdate >= 1) {
       HD.world.raceBoard.lastUpdate = time;
       drawRaceBoard();

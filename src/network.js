@@ -401,6 +401,14 @@ HD.Network = (() => {
       if (event.type === "sabotage" && event.payload && isHost()) {
         HD.Race.addNetworkSabotage(event.payload);
       }
+      if (event.type === "transfer" && event.payload?.to === selfId) {
+        const money = Math.max(0, Math.floor(Number(event.payload.money) || 0));
+        const itemId = event.payload.itemId;
+        S.money += money;
+        if (itemId && S.inventory[itemId] !== undefined) S.inventory[itemId]++;
+        HD.UI.announce(`${event.payload.fromName || "A player"} sent you ${money ? `$${money}` : HD.CONFIG.items[itemId]?.name || "an item"}.`);
+        HD.UI.render();
+      }
     });
   }
 
@@ -549,6 +557,29 @@ HD.Network = (() => {
   function sendSabotage(horse, optionId) {
     if (!lobby) return;
     postLobbyEvent("sabotage", { horse, optionId });
+  }
+
+  function transferTargets() {
+    return [...members.values()]
+      .filter((player) => player.id !== selfId)
+      .map((player) => ({ id: player.id, name: player.name }));
+  }
+
+  function sendTransfer(to, money, itemId) {
+    if (!lobby || !members.has(to) || to === selfId) return false;
+    const amount = Math.max(0, Math.floor(Number(money) || 0));
+    if (amount > S.money) return false;
+    if (itemId && (!S.inventory[itemId] || S.inventory[itemId] < 1)) return false;
+    if (!amount && !itemId) return false;
+    S.money -= amount;
+    if (itemId) S.inventory[itemId]--;
+    postLobbyEvent("transfer", {
+      to,
+      money: amount,
+      itemId: itemId || "",
+      fromName: members.get(selfId)?.name || "A player",
+    });
+    return true;
   }
 
   function updateAvatar(avatar) {
@@ -1092,6 +1123,8 @@ HD.Network = (() => {
     update,
     sendThrow,
     sendSabotage,
+    sendTransfer,
+    transferTargets,
     updateAvatar,
     isConnected,
     isHost,

@@ -62,6 +62,7 @@
           <button data-app="bank">Bank</button>
           <button data-app="leaders">Leaderboard</button>
           <button data-app="sabotage">Fixer</button>
+          <button data-app="transfer">TrackPay</button>
         </nav>
         <section class="app-panel active" data-panel="bet">
           <div class="section-title">
@@ -111,6 +112,26 @@
           <div id="sabotage-targets" class="horse-list"></div>
           <div id="sabotage-options" class="sabotage-options"></div>
           <div id="sabotage-status" class="deliveries">No fixer hired for this race.</div>
+        </section>
+        <section class="app-panel" data-panel="transfer">
+          <div class="section-title"><span>TRACKPAY</span><em>PLAYER TRANSFERS</em></div>
+          <p class="tip">Send money or one owned item to another player. Transfers are immediate.</p>
+          <label class="transfer-field">
+            Recipient
+            <select id="transfer-player"></select>
+          </label>
+          <div class="transfer-grid">
+            <label>
+              Money
+              <input id="transfer-money" type="number" min="0" step="5" value="0" />
+            </label>
+            <label>
+              Item
+              <select id="transfer-item"></select>
+            </label>
+          </div>
+          <button id="send-transfer" class="primary">SEND TRANSFER</button>
+          <div id="transfer-status" class="deliveries">Choose a player and something to send.</div>
         </section>
         <div class="home-bar"></div>
       </aside>

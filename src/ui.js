@@ -49,6 +49,11 @@ HD.UI = (() => {
     sabotageTargets: $("#sabotage-targets"),
     sabotageOptions: $("#sabotage-options"),
     sabotageStatus: $("#sabotage-status"),
+    transferPlayer: $("#transfer-player"),
+    transferMoney: $("#transfer-money"),
+    transferItem: $("#transfer-item"),
+    sendTransfer: $("#send-transfer"),
+    transferStatus: $("#transfer-status"),
     deliveries: $("#deliveries"),
     menu: $("#game-menu"),
     menuPlay: $("#menu-play"),
@@ -88,6 +93,7 @@ HD.UI = (() => {
     renderLeaderboard();
     renderHotbar();
     renderSabotage();
+    renderTransfer();
   }
 
   function renderOddsWatch() {
@@ -244,7 +250,8 @@ HD.UI = (() => {
 
   function renderSabotage() {
     if (!S.horses.length) return;
-    const canHire = S.phase === "betting" && S.sabotagePlans.length === 0;
+    const playerPlan = S.sabotagePlans.find((plan) => !plan.ai && !plan.remote);
+    const canHire = S.phase === "betting" && !playerPlan;
     el.sabotageTargets.innerHTML = S.horses
       .map((horse, index) => {
         const data = horse.userData.data;
@@ -275,7 +282,7 @@ HD.UI = (() => {
       })
       .join("");
 
-    const plan = S.sabotagePlans[0];
+    const plan = playerPlan;
     if (!plan) el.sabotageStatus.textContent = "No fixer hired for this race.";
     else if (!plan.resolved) {
       el.sabotageStatus.textContent =
@@ -295,6 +302,53 @@ HD.UI = (() => {
     el.sabotageOptions.querySelectorAll("[data-sabotage-option]").forEach((button) => {
       button.onclick = () => HD.Race.purchaseSabotage(S.selected, button.dataset.sabotageOption);
     });
+  }
+
+  function renderTransfer() {
+    if (!el.transferPlayer) return;
+    const targets = HD.Network.isConnected()
+      ? HD.Network.transferTargets()
+      : HD.AI.transferTargets();
+    const previousTarget = el.transferPlayer.value;
+    el.transferPlayer.innerHTML = targets.length
+      ? targets.map((target) => `<option value="${target.id}">${target.name}</option>`).join("")
+      : '<option value="">No other players online</option>';
+    if (targets.some((target) => target.id === previousTarget)) {
+      el.transferPlayer.value = previousTarget;
+    }
+
+    const previousItem = el.transferItem.value;
+    const ownedItems = Object.entries(S.inventory).filter(([, count]) => count > 0);
+    el.transferItem.innerHTML = '<option value="">No item</option>' + ownedItems
+      .map(([id, count]) => `<option value="${id}">${C.items[id].name} · x${count}</option>`)
+      .join("");
+    if (ownedItems.some(([id]) => id === previousItem)) el.transferItem.value = previousItem;
+    el.sendTransfer.disabled = !targets.length;
+  }
+
+  function sendTransfer() {
+    const target = el.transferPlayer.value;
+    const money = Math.max(0, Math.floor(Number(el.transferMoney.value) || 0));
+    const itemId = el.transferItem.value;
+    if (money > S.money) return announce("You do not have that much money.");
+    if (!money && !itemId) return announce("Choose money or an item to send.");
+
+    let sent = false;
+    if (HD.Network.isConnected()) {
+      sent = HD.Network.sendTransfer(target, money, itemId);
+    } else {
+      sent = HD.AI.receiveTransfer(target, money, itemId);
+      if (sent) {
+        S.money -= money;
+        if (itemId) S.inventory[itemId]--;
+      }
+    }
+    if (!sent) return announce("That transfer could not be completed.");
+    el.transferMoney.value = 0;
+    el.transferStatus.textContent = `Sent ${money ? `$${money}` : C.items[itemId].name}.`;
+    addLedger(`TrackPay transfer`, -money);
+    announce("TrackPay transfer sent.");
+    render();
   }
 
   function horseStatus(data) {
@@ -649,6 +703,7 @@ HD.UI = (() => {
   el.vendorClose.onclick = () => HD.Controls.closeVendor();
   el.counterPlaceBet.onclick = placeCounterBet;
   el.counterClose.onclick = () => HD.Controls.closeBetCounter();
+  el.sendTransfer.onclick = sendTransfer;
   el.rankingsButton.onclick = () => {
     showRankings(true, `DAY ${S.round} CURRENT RANKINGS`);
   };

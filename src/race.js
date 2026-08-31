@@ -12,6 +12,9 @@ HD.Race = (() => {
   // ---------------------------------------------------------------------------
 
   function resetHorses() {
+    const previousProgress = new Map(
+      S.horses.map((horse) => [horse.userData.data.id, horse.userData.data.progress]),
+    );
     S.horses.forEach((h) => HD.world.scene.remove(h));
     if (
       S.activeHorseIds.length !== C.raceHorseCount ||
@@ -23,6 +26,15 @@ HD.Race = (() => {
       return C.horses.find((horse) => horse.id === horseId);
     });
     S.horses = field.map(HD.Models.horse);
+    S.horses.forEach((horse) => {
+      const data = horse.userData.data;
+      const oldProgress = previousProgress.get(data.id);
+      if (!Number.isFinite(oldProgress)) return;
+      data.progress = oldProgress;
+      data.stagingStart = oldProgress;
+      data.stagingTarget = Math.floor(oldProgress) + 1;
+      data.staging = true;
+    });
     S.horses.forEach((h) => HD.world.scene.add(h));
     S.finishOrder = [];
     positionHorses();
@@ -76,8 +88,9 @@ HD.Race = (() => {
         -Math.sin(angle) * radiusX,
       );
       const movement = THREE.MathUtils.clamp(d.motionSpeed / Math.max(0.001, d.baseSpeed), 0, 1.35);
-      const gallop =
-        S.phase === "racing" && !d.finished ? Math.sin(S.elapsed * 14 + i) * movement : 0;
+      const moving = S.phase === "racing" || S.phase === "finished" || d.staging;
+      const stridePhase = S.elapsed * (10.5 + movement * 3.5) + i * 0.7;
+      const gallop = moving ? Math.sin(stridePhase) * movement : 0;
       const tumble = d.ragdoll > 0 ? Math.sin(S.elapsed * 15) : 0;
       horse.userData.body.position.x = 0;
       horse.userData.body.position.y = d.ragdoll > 0
@@ -87,6 +100,9 @@ HD.Race = (() => {
       horse.userData.body.rotation.z = d.ragdoll > 0
         ? 1.15 + tumble * 0.35
         : 0;
+      if (d.ragdoll <= 0) {
+        horse.userData.body.rotation.x = -0.035 * movement + Math.sin(stridePhase * 2) * 0.018 * movement;
+      }
       if (horse.userData.tail) {
         horse.userData.tail.rotation.z = -0.8 + gallop * 0.18;
       }
@@ -95,9 +111,12 @@ HD.Race = (() => {
       });
       if (horse.userData.jockey) {
         horse.userData.jockey.position.y = 3.2 + Math.abs(gallop) * 0.12;
+        horse.userData.jockey.rotation.z = -0.08 - movement * 0.08;
       }
       horse.userData.legs.forEach((leg) => {
-        leg.rotation.z = gallop * 0.6 * Math.cos(leg.userData.phase);
+        const cycle = Math.sin(stridePhase + leg.userData.phase);
+        leg.rotation.z = cycle * 0.72 * movement;
+        leg.position.y = 0.55 + Math.max(0, -cycle) * 0.12 * movement;
       });
     });
   }
@@ -105,6 +124,11 @@ HD.Race = (() => {
     if (S.phase !== "betting") return;
     S.phase = "racing";
     S.raceTime = 0;
+    S.horses.forEach((horse) => {
+      const data = horse.userData.data;
+      data.progress = 0;
+      data.staging = false;
+    });
     const sabotageReport = resolveSabotage();
     const bettingNotice =
       "Live betting remains open until the leader completes lap one.";
@@ -113,12 +137,15 @@ HD.Race = (() => {
       : `They're off! ${bettingNotice}`;
     HD.UI.countdown("GO!");
     HD.UI.announce(S.raceAnnouncement);
+    if (sabotageReport) HD.UI.showRaceWinner(sabotageReport.replace("PADDOCK ALERT: ", ""));
     setTimeout(() => HD.UI.countdown(""), 700);
     HD.UI.render();
   }
   function purchaseSabotage(horseIndex, optionId) {
     if (S.phase !== "betting") return HD.UI.announce("The fixer only works before the race.");
-    if (S.sabotagePlans.length) return HD.UI.announce("You already hired a fixer this race.");
+    if (S.sabotagePlans.some((plan) => !plan.ai && !plan.remote)) {
+      return HD.UI.announce("You already hired a fixer this race.");
+    }
     const option = C.sabotageOptions[optionId];
     if (!option) return;
     const price = S.atSabotageCounter
@@ -172,9 +199,23 @@ HD.Race = (() => {
       remote: true,
     });
   }
+
+  function addAISabotage(horse, optionId, actor) {
+    if (S.phase !== "betting" || !S.horses[horse] || !C.sabotageOptions[optionId]) return;
+    S.sabotagePlans.push({ horse, optionId, actor, ai: true });
+  }
   function update(dt) {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
       updateNetworkHorses(dt);
+      return;
+    }
+    if (S.phase === "betting") {
+      updateStagingHorses();
+      return;
+    }
+    if (S.phase === "finished") {
+      updateFinishedHorses(dt);
+      positionHorses();
       return;
     }
     if (S.phase !== "racing") return;
@@ -184,7 +225,11 @@ HD.Race = (() => {
 
     S.horses.forEach((horse, i) => {
       const d = horse.userData.data;
-      if (d.finished) return;
+      if (d.finished) {
+        d.progress += Math.max(0.012, d.coastSpeed || d.baseSpeed * 0.55) * dt;
+        d.coastSpeed = Math.max(d.baseSpeed * 0.35, (d.coastSpeed || d.baseSpeed) * (1 - dt * 0.22));
+        return;
+      }
       d.slow = Math.max(0, d.slow - dt);
       d.ragdoll = Math.max(0, (d.ragdoll || 0) - dt);
       d.boost = Math.max(0, (d.boost || 0) - dt);
@@ -260,6 +305,7 @@ HD.Race = (() => {
       d.progress += d.motionSpeed * dt;
       if (d.progress >= C.raceLaps) {
         d.finished = true;
+        d.coastSpeed = d.motionSpeed;
         d.place = S.finishOrder.length + 1;
         S.finishOrder.push(d.index);
         if (d.place === 1) HD.UI.announce(`${d.name} crosses the line first!`);
@@ -280,6 +326,27 @@ HD.Race = (() => {
     const currentLeader = Math.max(...S.horses.map((h) => h.userData.data.progress));
     HD.UI.progress(Math.min(1, currentLeader / C.raceLaps));
     positionHorses();
+  }
+
+  function updateStagingHorses() {
+    const elapsed = C.preparationDuration - S.timer;
+    const blend = THREE.MathUtils.smoothstep(elapsed / C.preparationDuration, 0, 1);
+    S.horses.forEach((horse) => {
+      const data = horse.userData.data;
+      if (!data.staging) return;
+      data.progress = THREE.MathUtils.lerp(data.stagingStart, data.stagingTarget, blend);
+      data.motionSpeed = data.baseSpeed * 0.42;
+    });
+    positionHorses();
+  }
+
+  function updateFinishedHorses(dt) {
+    S.horses.forEach((horse) => {
+      const data = horse.userData.data;
+      data.progress += Math.max(0.01, data.coastSpeed || data.baseSpeed * 0.4) * dt;
+      data.coastSpeed = Math.max(data.baseSpeed * 0.28, (data.coastSpeed || data.baseSpeed) * (1 - dt * 0.3));
+      data.motionSpeed = data.coastSpeed;
+    });
   }
 
   function applyHorseTraffic(dt) {
@@ -317,6 +384,13 @@ HD.Race = (() => {
       const leaderData = leader.userData.data;
       const gap = leaderData.progress - data.progress;
       if (gap >= 0.05) {
+        data.blockedTime = 0;
+        return;
+      }
+
+      const leaderStopped = leaderData.motionSpeed < data.baseSpeed * 0.18;
+      if (leaderStopped && gap < 0.09 && choosePassingLane(horse, runners)) {
+        data.motionSpeed = Math.min(data.motionSpeed, data.momentum);
         data.blockedTime = 0;
         return;
       }
@@ -373,8 +447,9 @@ HD.Race = (() => {
       data.targetLane = candidateLane;
       data.passing = true;
       data.blockedTime = 0;
-      return;
+      return true;
     }
+    return false;
   }
 
   function laneIsClear(candidateLane, horse, runners) {
@@ -645,8 +720,14 @@ HD.Race = (() => {
       if (!p.impacted && trapCanHit && distance < 5.2 * 5.2) {
         p.impacted = true;
         applyItemEffect(closest, p);
-        p.velocity.multiplyScalar(0.38);
-        p.velocity.y = Math.max(2.5, p.velocity.y * -0.3);
+        if (p.config.trap) {
+          p.velocity.set(0, 0, 0);
+          p.grounded = true;
+          p.removeAt = p.age + 1;
+        } else {
+          p.velocity.multiplyScalar(0.24);
+          p.velocity.y = Math.max(1.2, p.velocity.y * -0.2);
+        }
       } else if (p.position.y <= 0.5) {
         p.position.y = 0.5;
         p.mesh.position.y = 0.5;
@@ -681,11 +762,11 @@ HD.Race = (() => {
       }
     });
 
-    S.projectiles.filter((p) => p.age >= 18).forEach((p) => {
+    S.projectiles.filter((p) => p.age >= (p.removeAt || 18)).forEach((p) => {
       HD.world.scene.remove(p.mesh);
       if (p.groundEffect) HD.world.scene.remove(p.groundEffect);
     });
-    S.projectiles = S.projectiles.filter((p) => p.age < 18);
+    S.projectiles = S.projectiles.filter((p) => p.age < (p.removeAt || 18));
   }
 
   function snapTrapToLane(projectile) {
@@ -1005,6 +1086,7 @@ HD.Race = (() => {
     trackPoint,
     purchaseSabotage,
     addNetworkSabotage,
+    addAISabotage,
     liveBettingOpen,
   };
 })();

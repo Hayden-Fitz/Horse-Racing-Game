@@ -1466,7 +1466,57 @@
 }
 
 .apps {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+  padding: 12px 8px;
+  background: linear-gradient(145deg, #163b4d, #213d2d);
+}
+
+.apps button {
+  display: grid;
+  aspect-ratio: 1;
+  place-items: end center;
+  padding: 8px 3px;
+  border: 1px solid #ffffff22;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #4d8061, #294b39);
+  color: white;
+  font-size: 8px;
+  box-shadow: inset 0 1px #ffffff2b, 0 5px 12px #0005;
+}
+
+.apps button::before {
+  display: block;
+  font-size: 23px;
+  content: "🏇";
+}
+
+.apps button[data-app="shop"]::before { content: "🛍️"; }
+.apps button[data-app="odds"]::before { content: "📊"; }
+.apps button[data-app="bank"]::before { content: "🏦"; }
+.apps button[data-app="leaders"]::before { content: "🏆"; }
+.apps button[data-app="sabotage"]::before { content: "🕵️"; }
+.apps button[data-app="transfer"]::before { content: "💸"; }
+
+.apps button.active {
+  outline: 2px solid #ffe17c;
+  background: linear-gradient(145deg, #d77937, #9b4528);
+}
+
+.transfer-field,
+.transfer-grid label {
+  display: grid;
+  gap: 5px;
+  color: #b9cabd;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.transfer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 10px 0;
 }
 
 .odds-watch,
@@ -1621,8 +1671,24 @@
   letter-spacing: 0.3em;
 }
 
-.day-transition strong {
+.day-transition > strong {
   font-size: clamp(70px, 14vw, 150px);
+}
+
+.day-transition .ranking-row strong {
+  min-width: 70px;
+  overflow: hidden;
+  font-size: 13px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-transition .ranking-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vendor-shop,

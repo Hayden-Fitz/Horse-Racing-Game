@@ -41,6 +41,7 @@ HD.AI = (() => {
       shopVisited: false,
       activityTimer: 0,
       patrolStep: 0,
+      sabotageMade: false,
     }));
     activeRaceKey = "";
     settledRaceKey = "";
@@ -58,6 +59,7 @@ HD.AI = (() => {
       player.liveBetPlaced = false;
       player.throwMade = false;
       player.shopVisited = false;
+      player.sabotageMade = false;
       player.betDelay = 2 + ((index * 17 + S.race * 5) % 16);
       player.liveBetAt = 3.5 + ((index * 11 + S.race) % 8);
       player.throwAt = 6 + ((index * 13 + S.race * 3) % 18);
@@ -73,9 +75,12 @@ HD.AI = (() => {
 
     if (S.phase === "betting") {
       const bettingElapsed = C.preparationDuration - S.timer;
-      players.forEach((player) => {
+      players.forEach((player, index) => {
         if (!player.openingBetPlaced && bettingElapsed >= player.betDelay) {
           placeBet(player, false);
+        }
+        if (!player.sabotageMade && bettingElapsed >= 8 + index * 1.4) {
+          attemptSabotage(player, index);
         }
       });
       return;
@@ -180,15 +185,15 @@ HD.AI = (() => {
     const approach = ovalPoint(78.5, 48, seatAngle, 1.85);
     if (mode === "seat") {
       return startOnUpperFloor
-        ? [upper, lower, rowAtStairs, seat.clone()]
+        ? [upper, lower, ...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, stairAngle, seatAngle), seat.clone()]
         : startOnWalkway
-          ? [lower, rowAtStairs, seat.clone()]
-          : [rowAtStairs, seat.clone()];
+          ? [...ovalArc(78.5, 48, 1.85, Math.atan2(start.z, start.x), stairAngle), lower, rowAtStairs, ...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, stairAngle, seatAngle), seat.clone()]
+          : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, Math.atan2(start.z, start.x), seatAngle), seat.clone()];
     }
     if (mode === "walkway") {
       return startOnUpperFloor
-        ? [upper, lower, approach]
-        : [rowAtStairs, lower, approach];
+        ? [upper, lower, ...ovalArc(78.5, 48, 1.85, stairAngle, seatAngle)]
+        : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, seatAngle, stairAngle), rowAtStairs, lower, ...ovalArc(78.5, 48, 1.85, stairAngle, seatAngle)];
     }
 
     const shops = HD.world.shopPositions || [];
@@ -196,23 +201,47 @@ HD.AI = (() => {
     const shopPoint = shop
       ? new THREE.Vector3(shop.x, 13.7, shop.z)
       : ovalPoint(110, 74, stairAngle + Math.PI / 4, 13.7);
+    const shopAngle = Math.atan2(shopPoint.z, shopPoint.x);
     return startOnUpperFloor
-      ? [upper, shopPoint]
+      ? [...ovalArc(110, 74, 13.7, Math.atan2(start.z, start.x), shopAngle), shopPoint]
       : startOnWalkway
-        ? [lower, upper, shopPoint]
-        : [rowAtStairs, lower, upper, shopPoint];
+        ? [...ovalArc(78.5, 48, 1.85, Math.atan2(start.z, start.x), stairAngle), lower, upper, ...ovalArc(110, 74, 13.7, stairAngle, shopAngle), shopPoint]
+        : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, seatAngle, stairAngle), rowAtStairs, lower, upper, ...ovalArc(110, 74, 13.7, stairAngle, shopAngle), shopPoint];
   }
 
   function upperPatrolRoute(index, player) {
     player.patrolStep++;
     const angle = ((index * 0.72 + player.patrolStep * 0.38) % (Math.PI * 2));
-    return [ovalPoint(110, 74, angle, 13.7)];
+    const avatar = HD.world.players?.[index];
+    return ovalArc(110, 74, 13.7, Math.atan2(avatar.position.z, avatar.position.x), angle);
   }
 
   function walkwayPatrolRoute(index, player) {
     player.patrolStep++;
     const angle = ((index * 0.78 + player.patrolStep * 0.25) % (Math.PI * 2));
-    return [ovalPoint(78.5, 48, angle, 1.85)];
+    const avatar = HD.world.players?.[index];
+    return ovalArc(78.5, 48, 1.85, Math.atan2(avatar.position.z, avatar.position.x), angle);
+  }
+
+  function ovalArc(radiusX, radiusZ, y, fromAngle, toAngle) {
+    let delta = Math.atan2(Math.sin(toAngle - fromAngle), Math.cos(toAngle - fromAngle));
+    const steps = Math.max(1, Math.ceil(Math.abs(delta) / 0.08));
+    return Array.from({ length: steps }, (_, index) => {
+      const angle = fromAngle + delta * ((index + 1) / steps);
+      return ovalPoint(radiusX, radiusZ, angle, y);
+    });
+  }
+
+  function attemptSabotage(player, index) {
+    player.sabotageMade = true;
+    if (player.money < 70 || index % 3 === 1) return;
+    const optionIds = ["looseShoe", "badFeed", "gateTampering"];
+    const optionId = optionIds[(index + S.race) % optionIds.length];
+    const option = C.sabotageOptions[optionId];
+    const target = chooseHorse(player, false);
+    if (!option || player.money < option.price) return;
+    player.money -= option.price;
+    HD.Race.addAISabotage(target, optionId, player.name);
   }
 
   function ovalPoint(radiusX, radiusZ, angle, y) {
@@ -334,6 +363,18 @@ HD.AI = (() => {
     }));
   }
 
+  function transferTargets() {
+    return players.map((player) => ({ id: player.id, name: player.name }));
+  }
+
+  function receiveTransfer(id, money, itemId) {
+    const player = players.find((candidate) => candidate.id === id);
+    if (!player) return false;
+    player.money += money;
+    if (itemId && player.inventory[itemId] !== undefined) player.inventory[itemId]++;
+    return true;
+  }
+
   return {
     init,
     update,
@@ -341,5 +382,7 @@ HD.AI = (() => {
     settleRace,
     resetMatch,
     rankingPlayers,
+    transferTargets,
+    receiveTransfer,
   };
 })();

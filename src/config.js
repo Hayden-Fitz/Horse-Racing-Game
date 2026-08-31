@@ -212,7 +212,7 @@ HD.CONFIG = {
   phoneDeliveryDuration: 12,
   vendorDiscount: 0.33,
   onlineBetFeeRate: 0.08,
-  throwVelocityMultiplier: 2,
+  throwVelocityMultiplier: 1,
   walkSpeed: 11.5,
   seat: new THREE.Vector3(8, 12.73, 60.85),
   playerSeatRoot: new THREE.Vector3(8, 9.45, 60.85),
