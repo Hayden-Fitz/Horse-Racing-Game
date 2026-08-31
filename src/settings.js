@@ -439,3 +439,4 @@ HD.Settings = (() => {
     winnerCoins,
   };
 })();
+  
