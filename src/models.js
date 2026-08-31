@@ -20,7 +20,7 @@ HD.Models = (() => {
     box([1.9, 0.16, 0.75], options.hat || color, root, [0, 4.43, -0.25]);
     [-0.28, 0.28].forEach((x) => {
       faceDetails.push(sphere(0.09, 0x171717, root, [x, 3.88, -0.77]));
-    });
+    });  
     [-0.29, 0.29].forEach((x) => {
       const brow = box([0.28, 0.06, 0.05], 0x51362b, root, [x, 4.09, -0.76]);
       brow.rotation.z = x > 0 ? -0.08 : 0.08;
