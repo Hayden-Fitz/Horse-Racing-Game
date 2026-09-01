@@ -113,27 +113,34 @@ HD.UI = (() => {
     const runningById = new Map(
       S.horses.map((horse) => [horse.userData.data.id, horse.userData.data]),
     );
-    const styles = ["FRONT RUNNER", "CLOSER", "BALANCED", "STALKER"];
     el.oddsWatch.innerHTML = C.horses
-      .map((horse, poolIndex) => {
+      .map((horse) => {
         const active = runningById.get(horse.id);
         const odds = active?.odds || horse.odds;
         const chance = active?.liveChance
           ? Math.round(active.liveChance * 100)
           : Math.max(3, Math.round(100 / (odds + 1)));
-        const rating = Math.round(horse.ability * 100);
+        const rating = Math.round(
+          horse.speed * 0.45 +
+          horse.stamina * 0.25 +
+          horse.acceleration * 0.2 +
+          horse.resistance * 0.1,
+        );
         const color = horse.color.toString(16).padStart(6, "0");
         return `
           <article class="odds-profile ${active ? "active" : "reserve"}">
             <header>
               <i style="background:#${color}"></i>
-              <span><strong>${horse.name}</strong><small>${styles[poolIndex % 4]}</small></span>
+              <span><strong>${horse.name}</strong><small>${horse.style.toUpperCase()}</small></span>
               <em>${odds}:1</em>
             </header>
             <div>
               <span>WIN CHANCE <b>${chance}%</b></span>
-              <span>RATING <b>${rating}</b></span>
-              <span>FORM <b>${rating >= 102 ? "A" : rating >= 98 ? "B" : "C"}</b></span>
+              <span>OVERALL <b>${rating}</b></span>
+              <span>SPEED <b>${horse.speed}</b></span>
+              <span>STAMINA <b>${horse.stamina}</b></span>
+              <span>ACCEL <b>${horse.acceleration}</b></span>
+              <span>RESIST <b>${horse.resistance}</b></span>
               <span>FIELD <b>${active ? horseStatus(active) : "RESERVE"}</b></span>
             </div>
           </article>

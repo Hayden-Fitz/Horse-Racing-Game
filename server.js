@@ -12,8 +12,12 @@ const MIME_TYPES = {
   ".ico": "image/x-icon",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".wasm": "application/wasm",
+  ".wav": "audio/wav",
   ".webp": "image/webp",
 };
 

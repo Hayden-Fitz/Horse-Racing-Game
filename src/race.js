@@ -6,9 +6,8 @@ HD.Race = (() => {
   const MIN_PROGRESS_GAP = 0.018;
   let networkSettlement = "";
   let lastNetworkUi = -1;
-  let ambientThrowTimers = [0.4, 0.9, 1.4];
-  let ambientThrowGap = 0;
-  let ambientThrowerIndex = 0;
+  let ambientThrowSchedule = [];
+  let ambientThrowWindow = 0;
 
   // ---------------------------------------------------------------------------
   // Horse lifecycle and three-lap simulation
@@ -139,14 +138,8 @@ HD.Race = (() => {
     if (S.phase !== "betting") return;
     S.phase = "racing";
     S.raceTime = 0;
-    const staggerStart = 0.28 + Math.random() * 0.18;
-    ambientThrowTimers = [0, 1, 2].map((index) => {
-      return staggerStart + index * 0.44 + Math.random() * 0.12;
-    });
-    ambientThrowGap = 0;
-    ambientThrowerIndex = Math.floor(
-      Math.random() * Math.max(1, HD.world.crowdThrowers?.length || 0),
-    );
+    ambientThrowWindow = 0;
+    ambientThrowSchedule = createAmbientThrowSchedule(ambientThrowWindow);
     S.horses.forEach((horse) => {
       const data = horse.userData.data;
       data.progress = 0;
@@ -743,7 +736,7 @@ HD.Race = (() => {
       },
     );
     if (throwData.ambient) {
-      animateAmbientThrower(throwData.throwerIndex, throwData.type);
+      markAmbientThrow(throwData.throwerIndex);
     }
   }
 
@@ -813,24 +806,20 @@ HD.Race = (() => {
   function updateAmbientCrowdThrows(dt) {
     const throwers = HD.world.crowdThrowers || [];
     if (throwers.length !== 3) return;
-    ambientThrowTimers = ambientThrowTimers.map((timer) => timer - dt);
-    ambientThrowGap = Math.max(0, ambientThrowGap - dt);
-    if (ambientThrowGap > 0 || !S.horses.length) return;
+    if (!S.horses.length) return;
 
-    let throwerIndex = -1;
-    for (let offset = 0; offset < throwers.length; offset++) {
-      const candidate = (ambientThrowerIndex + offset) % throwers.length;
-      if (ambientThrowTimers[candidate] <= 0) {
-        throwerIndex = candidate;
-        break;
-      }
+    if (!ambientThrowSchedule.length && S.raceTime >= ambientThrowWindow + 10) {
+      ambientThrowWindow += 10;
+      ambientThrowSchedule = createAmbientThrowSchedule(ambientThrowWindow);
     }
-    if (throwerIndex < 0) return;
+
+    const nextThrow = ambientThrowSchedule[0];
+    if (!nextThrow || S.raceTime < nextThrow.time) return;
+
+    ambientThrowSchedule.shift();
+    const throwerIndex = nextThrow.throwerIndex;
 
     const thrower = throwers[throwerIndex];
-    ambientThrowerIndex = (throwerIndex + 1) % throwers.length;
-    ambientThrowTimers[throwerIndex] = 1 + Math.random();
-    ambientThrowGap = 0.26;
     const start = thrower.position.clone().add(new THREE.Vector3(0, 2.45, 0));
     const aimedAtHorse = Math.random() < 0.72;
     const horse = S.horses[Math.floor(Math.random() * S.horses.length)];
@@ -848,14 +837,35 @@ HD.Race = (() => {
       visualOnly: false,
       ambient: true,
     });
-    animateAmbientThrower(throwerIndex, type);
+    markAmbientThrow(throwerIndex);
     HD.Network?.sendAmbientThrow?.(type, start, velocity, throwerIndex);
   }
 
-  function animateAmbientThrower(index, type) {
+  function createAmbientThrowSchedule(windowStart) {
+    const throwerOrder = [0, 1, 2];
+
+    for (let index = throwerOrder.length - 1; index > 0; index--) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [throwerOrder[index], throwerOrder[swapIndex]] = [
+        throwerOrder[swapIndex],
+        throwerOrder[index],
+      ];
+    }
+
+    return [
+      0.8 + Math.random() * 1.8,
+      3.8 + Math.random() * 1.7,
+      6.8 + Math.random() * 1.8,
+    ].map((offset, index) => ({
+      time: windowStart + offset,
+      throwerIndex: throwerOrder[index],
+    }));
+  }
+
+  function markAmbientThrow(index) {
     const thrower = HD.world.crowdThrowers?.[Number(index)];
     if (!thrower) return;
-    HD.Models.playPlayerThrow(thrower, type);
+    thrower.userData.lastThrowAt = S.elapsed;
   }
 
   // ---------------------------------------------------------------------------
@@ -877,6 +887,23 @@ HD.Race = (() => {
       if (!p.grounded) {
         p.mesh.rotation.x += dt * (4 + Math.abs(p.velocity.z) * 0.35);
         p.mesh.rotation.z += dt * (4 + Math.abs(p.velocity.x) * 0.35);
+      }
+
+      if (
+        !p.grounded &&
+        !p.blockedByGlass &&
+        projectileHitsGlass(p, stepStartX, stepStartY, stepStartZ)
+      ) {
+        p.impacted = true;
+        p.blockedByGlass = true;
+        p.removeAt = Math.min(p.removeAt || Infinity, p.age + 3);
+        HD.Audio?.cue?.("glassImpact", {
+          scale: p.ambient ? 0.35 : 0.85,
+        });
+
+        if (!p.visualOnly && !p.ambient) {
+          HD.UI.announce("The throw bounces off the commentator booth glass!");
+        }
       }
 
       let closest;
@@ -924,6 +951,7 @@ HD.Race = (() => {
         p.mesh.position.y = 0.5;
         if (!p.visualOnly && !p.ambient && !p.landed && !p.impacted) {
           HD.UI.announce(`Miss! The ${p.config.name.toLowerCase()} lands in the dirt.`);
+          HD.Audio?.notifyMiss?.(p.type);
         }
         if (!p.landed) {
           HD.Audio?.trackImpact?.(p.type, p.ambient);
@@ -959,6 +987,88 @@ HD.Race = (() => {
       if (p.groundEffect) HD.world.scene.remove(p.groundEffect);
     });
     S.projectiles = S.projectiles.filter((p) => p.age < (p.removeAt || 18));
+  }
+
+  function projectileHitsGlass(projectile, startX, startY, startZ) {
+    const barriers = HD.world.projectileBarriers || [];
+    const endX = projectile.position.x;
+    const endY = projectile.position.y;
+    const endZ = projectile.position.z;
+    const moveX = endX - startX;
+    const moveZ = endZ - startZ;
+
+    for (const barrier of barriers) {
+      const [glassStartX, glassStartZ] = barrier.start;
+      const [glassEndX, glassEndZ] = barrier.end;
+      const glassX = glassEndX - glassStartX;
+      const glassZ = glassEndZ - glassStartZ;
+      const denominator = moveX * glassZ - moveZ * glassX;
+      let travel = null;
+
+      if (Math.abs(denominator) > 0.00001) {
+        const offsetX = glassStartX - startX;
+        const offsetZ = glassStartZ - startZ;
+        const pathProgress = (offsetX * glassZ - offsetZ * glassX) /
+          denominator;
+        const glassProgress = (offsetX * moveZ - offsetZ * moveX) /
+          denominator;
+
+        if (
+          pathProgress >= 0 &&
+          pathProgress <= 1 &&
+          glassProgress >= 0 &&
+          glassProgress <= 1
+        ) {
+          travel = pathProgress;
+        }
+      }
+
+      if (travel === null) {
+        const glassLengthSquared = glassX * glassX + glassZ * glassZ;
+        const glassProgress = THREE.MathUtils.clamp(
+          ((endX - glassStartX) * glassX +
+            (endZ - glassStartZ) * glassZ) /
+            Math.max(0.0001, glassLengthSquared),
+          0,
+          1,
+        );
+        const nearestX = glassStartX + glassX * glassProgress;
+        const nearestZ = glassStartZ + glassZ * glassProgress;
+        const distance = Math.hypot(endX - nearestX, endZ - nearestZ);
+
+        if (distance <= (barrier.thickness || 0.12) + 0.22) {
+          travel = 1;
+        }
+      }
+
+      if (travel === null) continue;
+
+      const impactY = THREE.MathUtils.lerp(startY, endY, travel);
+      if (impactY < barrier.bottom - 0.22 || impactY > barrier.top + 0.22) {
+        continue;
+      }
+
+      const glassLength = Math.max(0.0001, Math.hypot(glassX, glassZ));
+      const normalX = -glassZ / glassLength;
+      const normalZ = glassX / glassLength;
+      const velocityAlongNormal =
+        projectile.velocity.x * normalX + projectile.velocity.z * normalZ;
+
+      projectile.position.set(
+        THREE.MathUtils.lerp(startX, endX, Math.max(0, travel - 0.015)),
+        impactY,
+        THREE.MathUtils.lerp(startZ, endZ, Math.max(0, travel - 0.015)),
+      );
+      projectile.velocity.x =
+        (projectile.velocity.x - 1.65 * velocityAlongNormal * normalX) * 0.3;
+      projectile.velocity.z =
+        (projectile.velocity.z - 1.65 * velocityAlongNormal * normalZ) * 0.3;
+      projectile.velocity.y *= 0.34;
+      projectile.mesh.position.copy(projectile.position);
+      return true;
+    }
+
+    return false;
   }
 
   function snapTrapToLane(projectile) {
@@ -1003,7 +1113,15 @@ HD.Race = (() => {
   function applyItemEffect(horse, projectile) {
     const data = horse.userData.data;
     const item = projectile.config;
-    HD.Audio?.horseImpact?.(projectile.type, data.name, projectile.ambient);
+    const leader = [...S.horses].sort((a, b) => {
+      return b.userData.data.progress - a.userData.data.progress;
+    })[0];
+    HD.Audio?.horseImpact?.(
+      projectile.type,
+      data.name,
+      projectile.ambient,
+      { wasLeader: leader === horse },
+    );
 
     if (item.maxSpeedBonus) {
       const previousBonus = data.maxSpeedBonus || 0;
@@ -1051,7 +1169,12 @@ HD.Race = (() => {
       data.momentum *= 0.68;
     }
 
-    const resistance = data.resistance > 0 ? 0.25 : 1;
+    const naturalResistance = THREE.MathUtils.lerp(
+      1.08,
+      0.68,
+      (data.resistanceRating || 75) / 100,
+    );
+    const resistance = data.resistance > 0 ? 0.25 : naturalResistance;
     if (item.slowDuration) {
       data.slow = item.slowDuration * resistance;
       data.momentum *= 0.72 + (1 - resistance) * 0.2;

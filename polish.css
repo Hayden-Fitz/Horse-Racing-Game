@@ -2117,12 +2117,14 @@
   z-index: 5;
   top: 20px;
   right: 22px;
-  padding: 9px 12px;
-  border: 1px solid #f2dc9a;
-  border-radius: 8px;
+  min-width: 112px;
+  min-height: 46px;
+  padding: 12px 17px;
+  border: 2px solid #f2dc9a;
+  border-radius: 11px;
   background: #13271de8;
   color: white;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;
 }

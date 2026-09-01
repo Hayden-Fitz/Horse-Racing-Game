@@ -122,20 +122,75 @@ async function run() {
     "The placed hurdle continued rotating",
   );
 
+  HD.world.projectileBarriers = [{
+    start: [-2, 0],
+    end: [2, 0],
+    bottom: 0,
+    top: 10,
+    thickness: 0.12,
+  }];
+  HD.Race.launch(
+    "hotdog",
+    new THREE.Vector3(0, 4, 2),
+    new THREE.Vector3(0, 0, -20),
+    { consume: false },
+  );
+  const glassProjectile = HD.state.projectiles.at(-1);
+  HD.Race.updateProjectiles(0.1);
+  assert.ok(
+    glassProjectile.blockedByGlass && glassProjectile.velocity.z > 0,
+    "A projectile passed through commentator booth glass",
+  );
+  HD.world.projectileBarriers = [];
+
+  HD.world.crowdThrowers = [0, 1, 2].map((index) => {
+    const thrower = new THREE.Group();
+    thrower.position.set(index * 4 - 4, 5, 62);
+    thrower.userData.throwerIndex = index;
+    return thrower;
+  });
+
+  let tacticalLaneChangeObserved = false;
+  const observeLaneChanges = () => {
+    tacticalLaneChangeObserved ||= HD.state.horses.some((horse, index) => {
+      const data = horse.userData.data;
+      return Math.abs(data.lane - index) > 0.05 || data.targetLane !== index;
+    });
+  };
+
   HD.Race.begin();
+  for (let frame = 0; frame < 250; frame++) {
+    HD.state.elapsed += 0.04;
+    HD.Race.update(0.04);
+    observeLaneChanges();
+  }
+  assert.equal(
+    HD.state.projectiles.filter((projectile) => projectile.ambient).length,
+    3,
+    "The crowd should throw three staggered items in each ten-second window",
+  );
+  for (let frame = 0; frame < 250; frame++) {
+    HD.state.elapsed += 0.04;
+    HD.Race.update(0.04);
+    observeLaneChanges();
+  }
+  assert.equal(
+    HD.state.projectiles.filter((projectile) => projectile.ambient).length,
+    6,
+    "The second crowd-throw window did not produce exactly three more items",
+  );
+
   let frames = 0;
   while (HD.Race.liveBettingOpen() && frames < 1_500) {
     HD.state.elapsed += 0.04;
     HD.Race.update(0.04);
+    observeLaneChanges();
     frames++;
   }
   assert.ok(frames < 1_500, "The first-lap live betting window never closed");
   assert.equal(HD.Race.liveBettingOpen(), false, "Live betting remained open after lap one");
   assert.ok(
-    HD.state.horses.some((horse, index) => {
-      const data = horse.userData.data;
-      return Math.abs(data.lane - index) > 0.05 || data.targetLane !== index;
-    }),
+    tacticalLaneChangeObserved,
     "No horse made a tactical lane change",
   );
 

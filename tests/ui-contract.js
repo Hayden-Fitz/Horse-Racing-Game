@@ -42,7 +42,18 @@ vm.runInContext(read("src/config.js"), sandbox);
 
 assert.equal(Object.keys(sandbox.HD.CONFIG.items).length, 10, "The hotbar requires ten items");
 assert.equal(sandbox.HD.CONFIG.raceLaps, 3, "Races should run for three laps");
-assert.equal(sandbox.HD.CONFIG.horses.length, 24, "The rotating horse pool requires 24 horses");
+assert.equal(sandbox.HD.CONFIG.horses.length, 30, "The rotating horse pool requires 30 horses");
+assert.ok(
+  sandbox.HD.CONFIG.horses.every((horse) => {
+    return [
+      horse.speed,
+      horse.stamina,
+      horse.acceleration,
+      horse.resistance,
+    ].every((rating) => Number.isFinite(rating) && rating >= 0 && rating <= 100);
+  }),
+  "Every horse needs complete Odds Watch ratings",
+);
 assert.equal(sandbox.HD.CONFIG.raceHorseCount, 6, "Each race should contain six horses");
 assert.equal(
   sandbox.HD.CONFIG.trackLanes.centerX,
@@ -108,6 +119,49 @@ assert.ok(
   read("src/boot.js").includes('"audio.js"'),
   "The event-driven audio system is not loaded by the game",
 );
+const audioSource = read("src/audio.js");
+const commentatorWorkerSource = read("src/commentator-worker.js");
+assert.ok(
+  !audioSource.includes("createStadiumBed"),
+  "The removed looping crowd-noise bed was reintroduced",
+);
+assert.ok(
+  audioSource.includes("COMMENTARY_LINES") &&
+    audioSource.includes("leaderChange") &&
+    audioSource.includes("finalStretch") &&
+    audioSource.includes("sabotage"),
+  "The contextual race commentary library is incomplete",
+);
+assert.ok(
+  commentatorWorkerSource.includes('const VOICE = "am_fenrir"') &&
+    commentatorWorkerSource.includes("kokoro.web.js") &&
+    audioSource.includes("makeMegaphoneCurve"),
+  "The worker-based Kokoro PA announcer is not configured",
+);
+assert.ok(
+  !audioSource.includes("speech.cancel()"),
+  "Commentary must finish its current sentence instead of being interrupted",
+);
+[
+  "throw-whoosh-1.wav",
+  "throw-whoosh-2.wav",
+  "throw-whoosh-3.wav",
+  "impact-soft-1.wav",
+  "impact-soft-2.wav",
+  "impact-heavy.wav",
+  "horse-gallop-dirt.mp3",
+  "ui-hover.ogg",
+  "ui-click.ogg",
+  "ui-open.ogg",
+  "ui-close.ogg",
+  "ui-confirm.ogg",
+  "ui-error.ogg",
+  "music-menu.mp3",
+  "music-race.ogg",
+].forEach((fileName) => {
+  const audioPath = path.join(root, "assets", "audio", fileName);
+  assert.ok(fs.existsSync(audioPath), `Missing recorded audio asset ${fileName}`);
+});
 
 console.log("UI, messaging, audio, inventory, and resolution checks passed.");
 

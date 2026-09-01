@@ -4,29 +4,82 @@ HD.Audio = (() => {
   const S = HD.state;
   const C = HD.CONFIG;
   const buses = {};
-  const commentaryCooldowns = {
-    ambient: 15,
-    leader: 8,
-    lap: 5,
-    critical: 0,
+  const COMMENTARY_PRIORITIES = {
+    ambient: 0,
+    leader: 1,
+    lap: 2,
+    critical: 3,
   };
+  const CATEGORY_COOLDOWNS = {
+    betting: 9,
+    progress: 7,
+    closeRace: 7,
+    leaderChange: 5,
+    overtake: 6,
+    longshot: 10,
+    favorite: 11,
+    falling: 9,
+    surge: 8,
+    interference: 4,
+    leaderHit: 3,
+    miss: 9,
+    sabotage: 0,
+    lap: 3,
+    finalStretch: 0,
+    result: 0,
+  };
+  const SAMPLE_URLS = {
+    throwWhoosh1: "assets/audio/throw-whoosh-1.wav",
+    throwWhoosh2: "assets/audio/throw-whoosh-2.wav",
+    throwWhoosh3: "assets/audio/throw-whoosh-3.wav",
+    impactSoft1: "assets/audio/impact-soft-1.wav",
+    impactSoft2: "assets/audio/impact-soft-2.wav",
+    impactHeavy: "assets/audio/impact-heavy.wav",
+    horseGallop: "assets/audio/horse-gallop-dirt.mp3",
+    uiHover: "assets/audio/ui-hover.ogg",
+    uiClick: "assets/audio/ui-click.ogg",
+    uiOpen: "assets/audio/ui-open.ogg",
+    uiClose: "assets/audio/ui-close.ogg",
+    uiConfirm: "assets/audio/ui-confirm.ogg",
+    uiError: "assets/audio/ui-error.ogg",
+  };
+  const MUSIC_URLS = {
+    menuMusic: "assets/audio/music-menu.mp3",
+    raceMusic: "assets/audio/music-race.ogg",
+  };
+  const samples = new Map();
 
   let context = null;
   let compressor = null;
-  let ambienceGain = null;
-  let noiseBuffer = null;
   let initialized = false;
   let unlocked = false;
   let ducked = false;
-  let hoofTimer = 0;
-  let musicTimer = 2;
   let commentaryTimer = 7;
   let commentaryPriority = -1;
-  let lastCommentaryAt = -Infinity;
+  let commentaryToken = 0;
+  let commentaryQueue = [];
   let previousPhase = "";
   let previousLeader = -1;
+  let previousRanks = new Map();
+  let previousSpeeds = new Map();
   let announcedLap = 0;
   let announcedFinalStretch = false;
+  let lastCategoryTimes = new Map();
+  let recentCommentary = [];
+  let repeatedHits = new Map();
+  let sampleLoadPromise = null;
+  let musicLoadPromise = null;
+  let menuMusic = null;
+  let raceMusic = null;
+  let gallopLoop = null;
+  let commentarySpeaking = false;
+  let activeCommentarySource = null;
+  let commentatorWorker = null;
+  let commentatorReady = false;
+  let commentatorFailed = false;
+  let pendingSpeechToken = 0;
+  let lastHoveredControl = null;
+  let lastHoverSoundAt = 0;
 
   function init() {
     if (initialized) return;
@@ -44,6 +97,28 @@ HD.Audio = (() => {
     document.addEventListener("click", (event) => {
       if (event.target.closest("button, [role='button']")) cue("uiClick");
     });
+    document.addEventListener("pointerover", handleControlHover, true);
+    document.addEventListener("pointerout", handleControlExit, true);
+    startCommentatorWorker();
+  }
+
+  function handleControlHover(event) {
+    const control = event.target.closest(
+      "button, [role='button'], select, input[type='range'], input[type='checkbox']",
+    );
+    if (!control || control.disabled || control === lastHoveredControl) return;
+
+    const now = performance.now();
+    lastHoveredControl = control;
+    if (now - lastHoverSoundAt < 55) return;
+    lastHoverSoundAt = now;
+    cue("uiHover");
+  }
+
+  function handleControlExit(event) {
+    if (!lastHoveredControl) return;
+    if (event.relatedTarget && lastHoveredControl.contains(event.relatedTarget)) return;
+    lastHoveredControl = null;
   }
 
   async function unlock() {
@@ -53,7 +128,10 @@ HD.Audio = (() => {
     try {
       if (context.state === "suspended") await context.resume();
       unlocked = context.state === "running";
-      if (unlocked) cue("stadiumOpen");
+      if (unlocked) {
+        cue("stadiumOpen");
+        loadSamples();
+      }
     } catch {
       unlocked = false;
     }
@@ -84,42 +162,88 @@ HD.Audio = (() => {
     compressor.connect(buses.master);
     buses.master.connect(context.destination);
 
-    noiseBuffer = createNoiseBuffer(2.5);
-    createStadiumBed();
     applySettings(true);
   }
 
-  function createNoiseBuffer(seconds) {
-    const frameCount = Math.ceil(context.sampleRate * seconds);
-    const buffer = context.createBuffer(1, frameCount, context.sampleRate);
-    const samples = buffer.getChannelData(0);
-    let previous = 0;
+  function loadSamples() {
+    if (!context || sampleLoadPromise) return sampleLoadPromise;
 
-    for (let index = 0; index < frameCount; index++) {
-      const white = Math.random() * 2 - 1;
-      previous = previous * 0.84 + white * 0.16;
-      samples[index] = previous;
-    }
+    sampleLoadPromise = Promise.all(
+      Object.entries(SAMPLE_URLS).map(([name, url]) => loadBuffer(name, url)),
+    ).then(() => {
+      startGallopLoop();
+      const schedule = window.requestIdleCallback || ((callback) => {
+        return window.setTimeout(callback, 250);
+      });
+      schedule(loadMusic);
+    });
 
-    return buffer;
+    return sampleLoadPromise;
   }
 
-  function createStadiumBed() {
+  async function loadBuffer(name, url) {
+    try {
+      const response = await fetch(new URL(url, document.baseURI));
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const bytes = await response.arrayBuffer();
+      const buffer = await context.decodeAudioData(bytes);
+      samples.set(name, buffer);
+      return buffer;
+    } catch (error) {
+      console.warn(`Could not load audio sample ${name}:`, error);
+      return null;
+    }
+  }
+
+  function loadMusic() {
+    if (musicLoadPromise) return musicLoadPromise;
+
+    musicLoadPromise = Promise.all(
+      Object.entries(MUSIC_URLS).map(([name, url]) => loadBuffer(name, url)),
+    ).then(startMusicLoops);
+    return musicLoadPromise;
+  }
+
+  function playSample(name, options = {}) {
+    const buffer = samples.get(name);
+    if (!buffer || !context || context.state === "closed") return null;
+
     const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
+    const envelope = context.createGain();
+    const destination = buses[options.bus || "effects"] || buses.effects;
+    const start = context.currentTime + (options.delay || 0);
 
-    ambienceGain = context.createGain();
-    source.buffer = noiseBuffer;
-    source.loop = true;
-    filter.type = "bandpass";
-    filter.frequency.value = 720;
-    filter.Q.value = 0.52;
-    ambienceGain.gain.value = 0.012;
+    source.buffer = buffer;
+    source.loop = Boolean(options.loop);
+    source.playbackRate.value = options.playbackRate || 1;
+    envelope.gain.value = Math.max(0, options.gain ?? 0.3);
+    source.connect(envelope);
+    envelope.connect(destination);
+    source.start(start, options.offset || 0);
+    return { source, envelope };
+  }
 
-    source.connect(filter);
-    filter.connect(ambienceGain);
-    ambienceGain.connect(buses.crowd);
-    source.start();
+  function startMusicLoops() {
+    menuMusic ||= playSample("menuMusic", {
+      bus: "music",
+      gain: 0,
+      loop: true,
+    });
+    raceMusic ||= playSample("raceMusic", {
+      bus: "music",
+      gain: 0,
+      loop: true,
+    });
+    updateMusic();
+  }
+
+  function startGallopLoop() {
+    if (gallopLoop) return;
+    gallopLoop = playSample("horseGallop", {
+      bus: "effects",
+      gain: 0,
+      loop: true,
+    });
   }
 
   function applySettings(immediate = false) {
@@ -142,113 +266,50 @@ HD.Audio = (() => {
   function update(dt) {
     if (!context || !unlocked) return;
 
-    updateAmbience();
-    updateHooves(dt);
-    updateMusic(dt);
+    updateGallopLoop();
+    updateMusic();
     updateCommentary(dt);
   }
 
-  function updateAmbience() {
-    const horses = S.horses || [];
-    const leaderProgress = horses.length
-      ? Math.max(...horses.map((horse) => horse.userData.data.progress || 0))
-      : 0;
-    const finalStretch = leaderProgress > C.raceLaps - 0.34;
-    const target = S.phase === "racing"
-      ? finalStretch
-        ? 0.15
-        : 0.085
-      : S.phase === "finished"
-        ? 0.11
-        : S.matchStarted
-          ? 0.045
-          : 0.018;
-
-    ambienceGain.gain.setTargetAtTime(target, context.currentTime, 0.65);
-  }
-
-  function updateHooves(dt) {
+  function updateGallopLoop() {
+    if (!gallopLoop) return;
     if (S.phase !== "racing" || !S.horses?.length) {
-      hoofTimer = 0;
+      gallopLoop.envelope.gain.setTargetAtTime(0, context.currentTime, 0.12);
       return;
     }
 
     const moving = S.horses
       .map((horse) => horse.userData.data.motionSpeed || 0)
       .filter((speed) => speed > 0.002);
-    if (!moving.length) return;
+    if (!moving.length) {
+      gallopLoop.envelope.gain.setTargetAtTime(0, context.currentTime, 0.12);
+      return;
+    }
 
     const average = moving.reduce((sum, speed) => sum + speed, 0) / moving.length;
     const normalized = Math.min(1, average / 0.095);
-    hoofTimer -= dt;
-    if (hoofTimer > 0) return;
-
-    hoofTimer = 0.27 - normalized * 0.14;
-    hoofCluster(normalized);
+    gallopLoop.source.playbackRate.setTargetAtTime(
+      0.78 + normalized * 0.52,
+      context.currentTime,
+      0.18,
+    );
+    gallopLoop.envelope.gain.setTargetAtTime(
+      0.11 + normalized * 0.08,
+      context.currentTime,
+      0.12,
+    );
   }
 
-  function hoofCluster(speed) {
-    const volume = 0.018 + speed * 0.022;
-    const pitch = 115 + speed * 55 + Math.random() * 12;
+  function updateMusic() {
+    if (!menuMusic || !raceMusic) return;
 
-    tone(pitch, 0.045, {
-      bus: "effects",
-      gain: volume,
-      type: "triangle",
-    });
-    noise(0.038, {
-      bus: "effects",
-      gain: volume * 0.7,
-      frequency: 520,
-      delay: 0.028,
-    });
-  }
+    const menuVisible = !document.querySelector("#game-menu")?.classList.contains("closed");
+    const playMenuTrack = menuVisible || !S.matchStarted;
+    const menuLevel = playMenuTrack ? 0.2 : 0;
+    const raceLevel = playMenuTrack ? 0 : S.phase === "racing" ? 0.18 : 0.12;
 
-  function updateMusic(dt) {
-    musicTimer -= dt;
-    if (musicTimer > 0) return;
-
-    if (S.phase === "racing") {
-      const progress = leadingProgress();
-      const urgent = progress > C.raceLaps - 0.5;
-      playRacePulse(urgent);
-      musicTimer = urgent ? 2.4 : 4.8;
-      return;
-    }
-
-    if (S.phase === "betting" || S.phase === "roundBreak") {
-      playConcourseChord();
-      musicTimer = 8.5;
-      return;
-    }
-
-    musicTimer = 5;
-  }
-
-  function playRacePulse(urgent) {
-    const root = urgent ? 110 : 98;
-    const notes = urgent ? [1, 1.5, 2, 1.5] : [1, 1.25, 1.5];
-
-    notes.forEach((ratio, index) => {
-      tone(root * ratio, 0.19, {
-        bus: "music",
-        delay: index * 0.17,
-        gain: urgent ? 0.025 : 0.017,
-        type: "triangle",
-      });
-    });
-  }
-
-  function playConcourseChord() {
-    [130.81, 164.81, 196].forEach((frequency, index) => {
-      tone(frequency, 1.4, {
-        bus: "music",
-        delay: index * 0.055,
-        gain: 0.009,
-        type: "sine",
-        release: 1.2,
-      });
-    });
+    menuMusic.envelope.gain.setTargetAtTime(menuLevel, context.currentTime, 0.45);
+    raceMusic.envelope.gain.setTargetAtTime(raceLevel, context.currentTime, 0.45);
   }
 
   function cue(name, options = {}) {
@@ -256,85 +317,61 @@ HD.Audio = (() => {
 
     const scale = Number.isFinite(options.scale) ? options.scale : 1;
     const cues = {
-      uiClick: () => tone(520, 0.035, { gain: 0.022 * scale }),
-      stadiumOpen: () => tone(392, 0.12, { gain: 0.025, type: "sine" }),
-      phoneOpen: () => twoTone(660, 880, 0.038, 0.035 * scale),
-      phoneClose: () => twoTone(720, 520, 0.035, 0.026 * scale),
-      appOpen: () => twoTone(520, 680, 0.025, 0.02 * scale),
-      message: () => twoTone(784, 1047, 0.065, 0.04 * scale),
-      messageSent: () => twoTone(620, 830, 0.04, 0.028 * scale),
-      error: () => twoTone(210, 165, 0.09, 0.04 * scale),
-      bet: () => twoTone(330, 495, 0.07, 0.044 * scale),
-      purchase: () => twoTone(440, 660, 0.055, 0.04 * scale),
-      moneyGain: () => coinCascade(false),
-      moneySpend: () => coinCascade(true),
-      delivery: () => twoTone(660, 990, 0.1, 0.05 * scale),
-      throw: () => noise(0.12, {
-        gain: 0.055 * scale,
-        frequency: 1250,
+      uiHover: () => playSample("uiHover", { gain: 0.11 * scale }),
+      uiClick: () => playSample("uiClick", { gain: 0.2 * scale }),
+      stadiumOpen: () => playSample("uiOpen", { gain: 0.14 * scale }),
+      phoneOpen: () => playSample("uiOpen", { gain: 0.22 * scale }),
+      phoneClose: () => playSample("uiClose", { gain: 0.2 * scale }),
+      appOpen: () => playSample("uiOpen", { gain: 0.16 * scale, playbackRate: 1.08 }),
+      message: () => playSample("uiConfirm", { gain: 0.22 * scale }),
+      messageSent: () => playSample("uiConfirm", { gain: 0.18 * scale, playbackRate: 1.08 }),
+      error: () => playSample("uiError", { gain: 0.24 * scale }),
+      bet: () => playSample("uiConfirm", { gain: 0.24 * scale }),
+      purchase: () => playSample("uiConfirm", { gain: 0.24 * scale, playbackRate: 0.96 }),
+      moneyGain: () => playSample("uiConfirm", { gain: 0.27, playbackRate: 1.12 }),
+      moneySpend: () => playSample("uiClick", { gain: 0.22, playbackRate: 0.9 }),
+      delivery: () => playSample("uiConfirm", { gain: 0.3 }),
+      throw: () => playRandomSample(
+        ["throwWhoosh1", "throwWhoosh2", "throwWhoosh3"],
+        {
+          gain: 0.34 * scale,
+          playbackRate: 0.94 + Math.random() * 0.12,
+        },
+      ),
+      trackImpact: () => playRandomSample(
+        ["impactSoft1", "impactSoft2"],
+        {
+          gain: 0.42 * scale,
+          playbackRate: 0.9 + Math.random() * 0.16,
+        },
+      ),
+      glassImpact: () => playSample("impactSoft2", {
+        gain: 0.34 * scale,
+        playbackRate: 1.28,
       }),
-      trackImpact: () => impact(96, 0.075 * scale),
-      horseHit: () => impact(145, 0.09 * scale),
-      raceStart: () => raceStartFanfare(),
-      finish: () => finishFanfare(),
-      sabotage: () => twoTone(155, 116, 0.18, 0.06 * scale),
+      horseHit: () => playRandomSample(
+        ["impactSoft1", "impactSoft2", "impactHeavy"],
+        {
+          gain: 0.5 * scale,
+          playbackRate: 0.9 + Math.random() * 0.13,
+        },
+      ),
+      raceStart: () => playSample("uiConfirm", { bus: "music", gain: 0.28 }),
+      finish: () => playSample("uiConfirm", { bus: "music", gain: 0.32, playbackRate: 1.12 }),
+      sabotage: () => playSample("impactSoft1", { gain: 0.22, playbackRate: 0.7 }),
     };
 
     cues[name]?.();
   }
 
-  function twoTone(first, second, duration, gain) {
-    tone(first, duration, { gain, type: "sine" });
-    tone(second, duration * 1.2, {
-      gain,
-      delay: duration * 0.72,
-      type: "sine",
-    });
+  function playRandomSample(names, options) {
+    if (!names.length) return null;
+    const name = names[Math.floor(Math.random() * names.length)];
+    return playSample(name, options);
   }
 
-  function coinCascade(descending) {
-    const frequencies = descending ? [820, 650, 520] : [520, 650, 820];
-    frequencies.forEach((frequency, index) => {
-      tone(frequency, 0.055, {
-        gain: 0.033,
-        delay: index * 0.055,
-        type: "square",
-      });
-    });
-  }
-
-  function impact(frequency, gain) {
-    tone(frequency, 0.13, {
-      gain,
-      type: "sine",
-      release: 0.12,
-    });
-    noise(0.1, {
-      gain: gain * 0.72,
-      frequency: frequency * 5,
-    });
-  }
-
-  function raceStartFanfare() {
-    [392, 523.25, 659.25].forEach((frequency, index) => {
-      tone(frequency, 0.16, {
-        bus: "commentator",
-        gain: 0.055,
-        delay: index * 0.115,
-        type: "sawtooth",
-      });
-    });
-  }
-
-  function finishFanfare() {
-    [523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => {
-      tone(frequency, 0.23, {
-        bus: "music",
-        gain: 0.045,
-        delay: index * 0.13,
-        type: "triangle",
-      });
-    });
+  function crowdReaction() {
+    // Stadium crowd beds were intentionally replaced with music.
   }
 
   function tone(frequency, duration, options = {}) {
@@ -365,29 +402,6 @@ HD.Audio = (() => {
     oscillator.stop(start + duration + release + 0.02);
   }
 
-  function noise(duration, options = {}) {
-    if (!context || !noiseBuffer) return;
-
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const envelope = context.createGain();
-    const destination = buses[options.bus || "effects"] || buses.effects;
-    const start = context.currentTime + (options.delay || 0);
-    const gain = Math.max(0.0001, options.gain || 0.035);
-
-    source.buffer = noiseBuffer;
-    filter.type = options.filterType || "lowpass";
-    filter.frequency.value = options.frequency || 900;
-    envelope.gain.setValueAtTime(0.0001, start);
-    envelope.gain.exponentialRampToValueAtTime(gain, start + 0.006);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-    source.connect(filter);
-    filter.connect(envelope);
-    envelope.connect(destination);
-    source.start(start, Math.random() * 1.5, duration + 0.02);
-  }
-
   function throwItem(type, ambient = false) {
     const scale = ambient ? 0.42 : 1;
     cue("throw", { scale });
@@ -397,164 +411,647 @@ HD.Audio = (() => {
         gain: 0.045 * scale,
         type: "sawtooth",
       });
-    } else if (type === "soda") {
-      noise(0.16, {
-        gain: 0.035 * scale,
-        frequency: 2400,
-        filterType: "highpass",
-      });
     } else if (type === "chair") {
-      tone(88, 0.1, { gain: 0.045 * scale, type: "triangle" });
+      playSample("impactHeavy", {
+        gain: 0.08 * scale,
+        playbackRate: 0.72,
+      });
     }
   }
 
   function trackImpact(type, ambient = false) {
-    const heavy = type === "chair" || type === "horseshoe";
-    cue("trackImpact", { scale: (ambient ? 0.36 : 0.72) * (heavy ? 1.25 : 1) });
+    const heavy = type === "chair" || type === "horseshoe" || type === "hurdle";
+    const names = heavy
+      ? ["impactHeavy", "impactSoft2"]
+      : ["impactSoft1", "impactSoft2"];
+    playRandomSample(names, {
+      gain: (ambient ? 0.18 : 0.4) * (heavy ? 1.16 : 1),
+      playbackRate: 0.88 + Math.random() * 0.18,
+    });
   }
 
-  function horseImpact(type, horseName, ambient = false) {
+  function horseImpact(type, horseName, ambient = false, options = {}) {
     cue("horseHit", { scale: ambient ? 0.42 : 1 });
-    if (!ambient && Math.random() < 0.3) {
-      tone(420, 0.18, {
-        gain: 0.025,
-        type: "sawtooth",
-      });
-    }
+    crowdReaction("groan", ambient ? 0.22 : 0.52);
 
-    if (!ambient && type === "airHorn") {
-      commentate(`${horseName} shies away from the horn!`, "leader");
-    }
+    const hitCount = (repeatedHits.get(horseName) || 0) + 1;
+    repeatedHits.set(horseName, hitCount);
+    if (ambient && Math.random() > 0.58) return;
+
+    const itemName = C.items[type]?.name || "flying object";
+    const contextData = commentaryContext({
+      horseName,
+      itemName,
+      hitCount,
+      impactEffect: C.items[type]?.effect || "chaos",
+    });
+    const category = options.wasLeader
+      ? "leaderHit"
+      : "interference";
+
+    commentateCategory(
+      category,
+      options.wasLeader ? "lap" : "leader",
+      contextData,
+    );
   }
+
+  function notifyMiss(type) {
+    if (Math.random() > 0.58) return;
+
+    commentateCategory(
+      "miss",
+      "ambient",
+      commentaryContext({
+        itemName: C.items[type]?.name || "projectile",
+      }),
+    );
+  }
+
+  const COMMENTARY_LINES = {
+    intro: [
+      (race) => `The gates are open, and ${race.leader.name} breaks sharply!`,
+      () => "They're racing at Hotdog Downs, and already the grandstand is restless!",
+      (race) => `${race.favorite.name} is the favorite, but six horses have a chance as they get underway.`,
+      () => "The field is away cleanly. Keep one eye on the track and one eye on the crowd!",
+    ],
+    betting: [
+      (race) => `${race.favorite.name} is the ${race.favorite.startingOdds} to one favorite on the fixed board.`,
+      (race) => `${race.longshot.name} offers ${race.longshot.startingOdds} to one for anyone feeling brave.`,
+      (race) => `The next field is taking shape, with ${race.favorite.name} attracting most of the early money.`,
+      (race) => `${race.longshot.name} is the outsider in this group, but stranger things happen here every day.`,
+      () => "Forty-five seconds between races: plenty of time to bet, shop, or make a very questionable deal.",
+      () => "The fixed book is posted. Live prices will move only after the race begins.",
+    ],
+    progress: [
+      (race) => `${race.leader.name} shows the way through the ${race.section}, with ${race.runner.name} tracking closely.`,
+      (race) => `${race.leader.name} leads, ${race.runner.name} is second, and ${race.third.name} holds third.`,
+      (race) => `They remain tightly grouped on lap ${race.lap}, and nobody has settled this yet.`,
+      (race) => `${race.runner.name} continues to shadow ${race.leader.name} as they sweep around the oval.`,
+      (race) => `${race.leader.name} has the advantage for now, but the chasing pack is still well within range.`,
+      (race) => `Down the ${race.section} they go, with ${race.leader.name} setting the tempo.`,
+    ],
+    closeRace: [
+      (race) => `${race.runner.name} is right on ${race.leader.name}'s shoulder!`,
+      (race) => `Almost nothing separates ${race.leader.name} and ${race.runner.name} at the front.`,
+      (race) => `${race.leader.name} clings to a narrow lead, and ${race.runner.name} is asking the question.`,
+      (race) => `This is developing into a duel between ${race.leader.name} and ${race.runner.name}.`,
+      () => "The leaders could fit beneath one blanket. This is still anybody's race.",
+    ],
+    leaderChange: [
+      (race) => `${race.leader.name} sweeps past and takes command!`,
+      (race) => `New leader! ${race.leader.name} finds another gear.`,
+      (race) => `${race.leader.name} has gone to the front, and the crowd responds!`,
+      (race) => `The lead changes hands as ${race.leader.name} surges through!`,
+      (race) => `${race.leader.name} claims the advantage from ${race.runner.name}.`,
+    ],
+    overtake: [
+      (race) => `${race.mover.name} threads through traffic and gains two places!`,
+      (race) => `A sharp move from ${race.mover.name}, climbing rapidly through the order.`,
+      (race) => `${race.mover.name} is picking them off and moving into contention.`,
+      (race) => `Watch ${race.mover.name}; that lane change has opened the door.`,
+    ],
+    longshot: [
+      (race) => `The outsider ${race.leader.name} is in front at ${race.leader.startingOdds} to one!`,
+      (race) => `${race.leader.name} is trying to turn the odds board upside down.`,
+      (race) => `A longshot leads Hotdog Downs, and the betting slips are trembling.`,
+      (race) => `${race.leader.name} was overlooked before the start, but cannot be ignored now.`,
+    ],
+    favorite: [
+      (race) => `The favorite ${race.favorite.name} is back in ${race.favoriteRankText}, with work to do.`,
+      (race) => `${race.favorite.name} is not finding the expected pace so far.`,
+      (race) => `Backers of ${race.favorite.name} are getting nervous; the favorite is losing ground.`,
+      (race) => `${race.favorite.name} needs a response, and needs it soon.`,
+    ],
+    falling: [
+      (race) => `${race.faller.name} is fading and has dropped through the field.`,
+      (race) => `Trouble for ${race.faller.name}, who suddenly loses two positions.`,
+      (race) => `${race.faller.name} cannot hold the pace and slips backward.`,
+    ],
+    surge: [
+      (race) => `${race.mover.name} is flying now, producing the fastest burst on the track!`,
+      (race) => `Here comes ${race.mover.name} with a powerful run!`,
+      (race) => `${race.mover.name} has found another gear and is closing quickly.`,
+      (race) => `A serious turn of speed from ${race.mover.name}; the leaders had better respond.`,
+    ],
+    interference: [
+      (race) => `WHERE did that ${race.itemName.toLowerCase()} come from? And what are the odds it actually hit ${race.horseName}!`,
+      (race) => `A flying ${race.itemName.toLowerCase()} has just found ${race.horseName}! I have called races for years, and I have absolutely no explanation for that!`,
+      (race) => `That was airborne concession food! ${race.horseName} never saw it coming, and frankly, neither did I!`,
+      (race) => `SOMEBODY has launched a ${race.itemName.toLowerCase()} onto the course, and it has hit ${race.horseName}! This place has lost its mind!`,
+      (race) => `${race.horseName} has been hit again! Again! At this point the grandstand may be the seventh horse in the race!`,
+      (race) => `A direct hit on ${race.horseName} with a ${race.itemName.toLowerCase()}! The stewards are staring at one another in complete disbelief!`,
+      (race) => `I cannot believe what I am seeing! A ${race.itemName.toLowerCase()} flew out of nowhere and clobbered ${race.horseName}!`,
+    ],
+    leaderHit: [
+      (race) => `THE LEADER HAS BEEN HIT! A ${race.itemName.toLowerCase()} has come sailing out of the seats and struck ${race.horseName} in full stride!`,
+      (race) => `Oh, this is unbelievable! ${race.horseName} was leading the race, and now a ${race.itemName.toLowerCase()} may have changed everything!`,
+      (race) => `A direct hit on the leader! ${race.horseName} is trying to recover while the entire stadium erupts!`,
+      (race) => `Where did they even GET that ${race.itemName.toLowerCase()}? ${race.horseName} takes the hit, and this race has been turned upside down!`,
+      (race) => `CHAOS at the front! ${race.horseName} is struck from the grandstand, and the chasing field is suddenly right there!`,
+    ],
+    miss: [
+      (race) => `A ${race.itemName.toLowerCase()} lands harmlessly in the dirt.`,
+      () => "That throw misses every horse. The track crew will enjoy cleaning that up.",
+      () => "Wide of the target, and another piece of stadium food joins the racing surface.",
+      () => "A hopeful throw from the seats, but no contact this time.",
+    ],
+    sabotage: [
+      (race) => race.sabotageText,
+      () => "There has been a paddock incident before the start. Officials are investigating, rather slowly.",
+      () => "Sabotage has been reported. This meeting has taken a deeply unusual turn.",
+    ],
+    lap: [
+      (race) => `${race.leader.name} leads the field onto lap ${race.lap}.`,
+      (race) => `One circuit complete, and ${race.leader.name} remains the horse to catch.`,
+      (race) => `They cross the line for lap ${race.lap}, led by ${race.leader.name}.`,
+      (race) => `${race.leader.name} begins lap ${race.lap} with ${race.runner.name} in pursuit.`,
+    ],
+    finalLap: [
+      (race) => `The bell lap begins! ${race.leader.name} leads, but the field is closing.`,
+      (race) => `Final lap at Hotdog Downs, with ${race.leader.name} narrowly in front!`,
+      (race) => `One circuit remains. ${race.runner.name} is hunting down ${race.leader.name}.`,
+    ],
+    finalStretch: [
+      (race) => `They turn for home! ${race.leader.name} leads, and ${race.runner.name} is coming!`,
+      (race) => `Into the final stretch, ${race.leader.name} by the smallest of margins!`,
+      (race) => `Here comes the field! ${race.leader.name} has to find the line.`,
+      (race) => `${race.leader.name} in front, ${race.runner.name} driving hard, and the crowd is on its feet!`,
+    ],
+    result: [
+      (race) => `${race.winnerName} wins at Hotdog Downs!`,
+      (race) => `${race.winnerName} gets there first after an extraordinary race!`,
+      (race) => `Victory for ${race.winnerName}, surviving both the field and the grandstand!`,
+    ],
+    photo: [
+      (race) => `${race.winnerName} wins a photo finish! That was desperately close.`,
+      (race) => `A photo at the line, and ${race.winnerName} has it by the narrowest margin!`,
+      (race) => `${race.winnerName} gets the verdict in a breathtaking photo finish!`,
+    ],
+  };
 
   function raceStart(announcement) {
     previousLeader = -1;
+    previousRanks = new Map();
+    previousSpeeds = new Map();
+    repeatedHits = new Map();
     announcedLap = 0;
     announcedFinalStretch = false;
-    commentaryTimer = 8 + Math.random() * 4;
+    commentaryQueue = [];
+    commentaryTimer = 3.5;
     cue("raceStart");
+    crowdReaction("cheer", 0.7);
 
+    const race = commentaryContext();
     if (announcement?.startsWith("PADDOCK ALERT")) {
       cue("sabotage");
-      commentate(announcement.split(" Live betting")[0], "critical");
+      const sabotageText = announcement
+        .split(" Live betting")[0]
+        .replace("PADDOCK ALERT:", "Paddock alert:");
+      commentateCategory(
+        "sabotage",
+        "critical",
+        { ...race, sabotageText },
+        true,
+      );
+      queueCategory("intro", "leader", race);
     } else {
-      commentate("They're off at Hotdog Downs!", "critical");
+      commentateCategory("intro", "critical", race, true);
     }
   }
 
   function raceFinish(winner, closeFinish = false) {
     cue("finish");
-    const result = closeFinish
-      ? `${winner.name} wins it in a photo finish!`
-      : `${winner.name} crosses the line first!`;
-    commentate(result, "critical");
+    crowdReaction("cheer", 1);
+    commentaryQueue = [];
+    commentateCategory(
+      closeFinish ? "photo" : "result",
+      "critical",
+      commentaryContext({ winnerName: winner.name }),
+      true,
+    );
   }
 
   function updateCommentary(dt) {
     if (previousPhase !== S.phase) {
       previousPhase = S.phase;
-      if (S.phase !== "racing") previousLeader = -1;
+      commentaryTimer = S.phase === "betting" ? 3 + Math.random() * 2 : 2.5;
+      if (S.phase !== "racing") {
+        previousLeader = -1;
+        previousRanks = new Map();
+        previousSpeeds = new Map();
+      }
     }
-    if (S.phase !== "racing" || !S.horses?.length) return;
+
+    if (!S.horses?.length) return;
 
     commentaryTimer -= dt;
+
+    if (S.phase === "betting") {
+      if (S.matchStarted && commentaryTimer <= 0) {
+        commentateCategory("betting", "ambient", commentaryContext());
+        commentaryTimer = 7 + Math.random() * 3;
+      }
+      return;
+    }
+
+    if (S.phase !== "racing") return;
+
     const ordered = [...S.horses].sort(
       (a, b) => b.userData.data.progress - a.userData.data.progress,
     );
     const leader = ordered[0].userData.data;
-    const runnerUp = ordered[1]?.userData.data;
+    const contextData = commentaryContext();
     const leaderLap = Math.min(C.raceLaps, Math.floor(leader.progress) + 1);
+    const currentRanks = new Map(
+      ordered.map((horse, index) => [horse.userData.data.id, index]),
+    );
 
     if (leader.index !== previousLeader && S.raceTime > 4) {
       previousLeader = leader.index;
-      commentate(`${leader.name} takes the lead!`, "leader");
-      commentaryTimer = 7 + Math.random() * 5;
+      crowdReaction("cheer", 0.68);
+      commentateCategory("leaderChange", "lap", contextData);
+      commentaryTimer = 3 + Math.random() * 2;
     } else if (previousLeader < 0) {
       previousLeader = leader.index;
     }
 
     if (leaderLap > announcedLap && leaderLap > 1 && leaderLap <= C.raceLaps) {
       announcedLap = leaderLap;
-      const phrase = leaderLap === C.raceLaps
-        ? `The field begins the final lap with ${leader.name} in front.`
-        : `${leader.name} leads them onto lap ${leaderLap}.`;
-      commentate(phrase, "lap");
+      const category = leaderLap === C.raceLaps ? "finalLap" : "lap";
+      crowdReaction("rise", leaderLap === C.raceLaps ? 0.7 : 0.42);
+      commentateCategory(category, "lap", contextData, true);
     }
 
     if (!announcedFinalStretch && leader.progress > C.raceLaps - 0.28) {
       announcedFinalStretch = true;
-      commentate(`${leader.name} turns for home. Here comes the field!`, "critical");
+      crowdReaction("cheer", 0.9);
+      commentateCategory("finalStretch", "critical", contextData, true);
     }
 
+    if (S.raceTime > 5 && previousRanks.size) {
+      const movement = ordered.map((horse, rank) => {
+        const data = horse.userData.data;
+        const previousRank = previousRanks.get(data.id) ?? rank;
+        return {
+          data,
+          gained: previousRank - rank,
+          lost: rank - previousRank,
+        };
+      });
+      const mover = movement.sort((a, b) => b.gained - a.gained)[0];
+      const faller = movement.sort((a, b) => b.lost - a.lost)[0];
+
+      if (mover?.gained >= 2) {
+        commentateCategory(
+          "overtake",
+          "leader",
+          { ...contextData, mover: mover.data },
+        );
+      } else if (faller?.lost >= 2) {
+        commentateCategory(
+          "falling",
+          "leader",
+          { ...contextData, faller: faller.data },
+        );
+      }
+    }
+
+    const fastestSurge = ordered
+      .map((horse) => horse.userData.data)
+      .find((data) => {
+        const previousSpeed = previousSpeeds.get(data.id) || data.motionSpeed;
+        const surging = data.motionSpeed > data.baseSpeed * 1.16 &&
+          data.motionSpeed > previousSpeed * 1.03;
+        return surging;
+      });
+    if (fastestSurge) {
+      commentateCategory(
+        "surge",
+        "leader",
+        { ...contextData, mover: fastestSurge },
+      );
+    }
+
+    previousRanks = currentRanks;
+    previousSpeeds = new Map(
+      ordered.map((horse) => {
+        const data = horse.userData.data;
+        return [data.id, data.motionSpeed || 0];
+      }),
+    );
+
     if (commentaryTimer > 0) return;
-    commentaryTimer = 10 + Math.random() * 7;
-    const gap = runnerUp ? leader.progress - runnerUp.progress : 1;
-    const phrase = gap < 0.025 && runnerUp
-      ? `${runnerUp.name} is right at ${leader.name}'s shoulder.`
-      : `${leader.name} controls the pace, but there is still plenty of racing left.`;
-    commentate(phrase, "ambient");
+
+    const category = chooseProgressCategory(contextData);
+    const spoken = commentateCategory(category, "ambient", contextData);
+    commentaryTimer = spoken ? 4 + Math.random() * 2.5 : 1;
   }
 
-  function commentate(text, priorityName = "ambient") {
+  function chooseProgressCategory(race) {
+    if (race.gap < 0.022) return "closeRace";
+    if (race.leader.startingOdds >= 10) return "longshot";
+    if (race.favoriteRank >= 3) return "favorite";
+    return "progress";
+  }
+
+  function commentaryContext(extra = {}) {
+    const ordered = [...(S.horses || [])]
+      .map((horse) => horse.userData.data)
+      .sort((a, b) => b.progress - a.progress);
+    const fallback = {
+      name: "the field",
+      progress: 0,
+      startingOdds: 1,
+    };
+    const leader = ordered[0] || fallback;
+    const runner = ordered[1] || leader;
+    const third = ordered[2] || runner;
+    const favorite = [...ordered].sort((a, b) => {
+      return a.startingOdds - b.startingOdds;
+    })[0] || leader;
+    const longshot = [...ordered].sort((a, b) => {
+      return b.startingOdds - a.startingOdds;
+    })[0] || leader;
+    const favoriteRank = Math.max(0, ordered.indexOf(favorite));
+    const favoriteRankNames = [
+      "first",
+      "second",
+      "third",
+      "fourth",
+      "fifth",
+      "sixth",
+    ];
+    const sections = [
+      "home straight",
+      "first turn",
+      "backstretch",
+      "far turn",
+    ];
+    const lapFraction = ((leader.progress % 1) + 1) % 1;
+    const section = sections[Math.min(3, Math.floor(lapFraction * 4))];
+
+    return {
+      ordered,
+      leader,
+      runner,
+      third,
+      favorite,
+      longshot,
+      favoriteRank,
+      favoriteRankText: favoriteRankNames[favoriteRank] || "the rear",
+      gap: Math.max(0, leader.progress - runner.progress),
+      lap: Math.min(C.raceLaps, Math.floor(leader.progress) + 1),
+      section,
+      ...extra,
+    };
+  }
+
+  function commentateCategory(category, priorityName, race, force = false) {
+    const now = clockSeconds();
+    const cooldown = CATEGORY_COOLDOWNS[category] || 0;
+    const previousTime = lastCategoryTimes.get(category) ?? -Infinity;
+
+    if (!force && now - previousTime < cooldown) return false;
+
+    const text = pickCommentaryLine(category, race || commentaryContext());
+    if (!text) return false;
+
+    const accepted = commentate(text, priorityName, category);
+    if (accepted) lastCategoryTimes.set(category, now);
+    return accepted;
+  }
+
+  function queueCategory(category, priorityName, race) {
+    const text = pickCommentaryLine(category, race || commentaryContext());
+    if (!text) return;
+    enqueueCommentary(text, priorityName, category);
+  }
+
+  function pickCommentaryLine(category, race) {
+    const lines = COMMENTARY_LINES[category];
+    if (!lines?.length) return "";
+
+    const candidates = lines
+      .map((line) => line(race))
+      .filter((line) => line && !recentCommentary.includes(line));
+    const available = candidates.length
+      ? candidates
+      : lines.map((line) => line(race)).filter(Boolean);
+    const text = available[Math.floor(Math.random() * available.length)] || "";
+
+    recentCommentary.push(text);
+    recentCommentary = recentCommentary.slice(-10);
+    return text;
+  }
+
+  function commentate(text, priorityName = "ambient", category = "progress") {
     if (!text || !context || !unlocked) return false;
 
     const settings = HD.Settings.audioSettings();
     if (settings.muted || settings.commentator <= 0) return false;
 
-    const priorities = { ambient: 0, leader: 1, lap: 2, critical: 3 };
-    const priority = priorities[priorityName] ?? 0;
-    const elapsed = performance.now() / 1000 - lastCommentaryAt;
-    if (elapsed < commentaryCooldowns[priorityName] && priority < 3) return false;
-    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-      paChime();
-      return false;
+    const priority = COMMENTARY_PRIORITIES[priorityName] ?? 0;
+    if (!commentatorReady) {
+      if (!commentatorFailed) enqueueCommentary(text, priorityName, category);
+      return !commentatorFailed;
+    }
+    if (commentarySpeaking) {
+      enqueueCommentary(text, priorityName, category);
+      return true;
     }
 
-    const speech = window.speechSynthesis;
-    if (speech.speaking && priority <= commentaryPriority) return false;
-
-    if (speech.speaking) speech.cancel();
-    const utterance = new window.SpeechSynthesisUtterance(text);
-    utterance.rate = 1.08;
-    utterance.pitch = 0.84;
-    utterance.volume = Math.min(1, settings.master * settings.commentator);
-    const voice = preferredVoice();
-    if (voice) utterance.voice = voice;
-
+    const token = ++commentaryToken;
+    commentarySpeaking = true;
     commentaryPriority = priority;
-    lastCommentaryAt = performance.now() / 1000;
-    setDucked(true);
-    paChime();
-    utterance.onend = finishCommentary;
-    utterance.onerror = finishCommentary;
-    speech.speak(utterance);
+    pendingSpeechToken = token;
+    commentatorWorker.postMessage({
+      type: "speak",
+      id: token,
+      text,
+      urgent: category === "finalStretch" || category === "photo",
+    });
     return true;
   }
 
-  function preferredVoice() {
-    const voices = window.speechSynthesis.getVoices();
-    return voices.find((voice) =>
-      /^en(-|_)/i.test(voice.lang) && /male|daniel|david|mark|guy/i.test(voice.name),
-    ) || voices.find((voice) => /^en(-|_)/i.test(voice.lang));
+  function startCommentatorWorker() {
+    if (commentatorWorker || commentatorFailed) return;
+
+    try {
+      document.documentElement.dataset.commentator = "loading";
+      commentatorWorker = new Worker(
+        new URL("src/commentator-worker.js", document.baseURI),
+        { type: "module", name: "hotdog-downs-commentator" },
+      );
+      commentatorWorker.addEventListener("message", handleCommentatorMessage);
+      commentatorWorker.addEventListener("error", (event) => {
+        failCommentator(event.message || "The speech worker stopped unexpectedly.");
+      });
+    } catch (error) {
+      failCommentator(error?.message || String(error));
+    }
   }
 
-  function paChime() {
-    tone(740, 0.065, {
-      bus: "commentator",
-      gain: 0.035,
-      type: "sine",
+  function handleCommentatorMessage(event) {
+    const message = event.data || {};
+
+    if (message.type === "ready") {
+      commentatorReady = true;
+      commentatorFailed = false;
+      document.documentElement.dataset.commentator = "ready";
+      pumpCommentaryQueue();
+      return;
+    }
+    if (message.type === "load-error") {
+      failCommentator(message.message);
+      return;
+    }
+    if (message.type === "speech-error") {
+      if (message.id === pendingSpeechToken) finishCommentary(message.id);
+      console.error("Commentator generation failed:", message.message);
+      return;
+    }
+    if (message.type !== "speech" || message.id !== pendingSpeechToken) return;
+
+    playCommentatorAudio(
+      new Float32Array(message.samples),
+      message.sampleRate,
+      message.id,
+    );
+  }
+
+  function failCommentator(message) {
+    commentatorFailed = true;
+    commentatorReady = false;
+    document.documentElement.dataset.commentator = "error";
+    commentaryQueue = [];
+    if (commentarySpeaking) finishCommentary(pendingSpeechToken);
+    console.error("Kokoro commentator unavailable:", message);
+  }
+
+  function playCommentatorAudio(samplesData, sampleRate, token) {
+    if (token !== commentaryToken || !commentarySpeaking) return;
+
+    const buffer = context.createBuffer(1, samplesData.length, sampleRate);
+    buffer.copyToChannel(samplesData, 0);
+
+    const source = context.createBufferSource();
+    const highPass = context.createBiquadFilter();
+    const lowPass = context.createBiquadFilter();
+    const presence = context.createBiquadFilter();
+    const megaphoneDrive = context.createWaveShaper();
+    const paCompressor = context.createDynamicsCompressor();
+    const gain = context.createGain();
+    const stadiumDelay = context.createDelay(0.4);
+    const stadiumReturn = context.createGain();
+
+    source.buffer = buffer;
+    highPass.type = "highpass";
+    highPass.frequency.value = 190;
+    lowPass.type = "lowpass";
+    lowPass.frequency.value = 4300;
+    presence.type = "peaking";
+    presence.frequency.value = 1850;
+    presence.Q.value = 0.9;
+    presence.gain.value = 5;
+    megaphoneDrive.curve = makeMegaphoneCurve(1.45);
+    megaphoneDrive.oversample = "2x";
+    paCompressor.threshold.value = -24;
+    paCompressor.knee.value = 8;
+    paCompressor.ratio.value = 5;
+    paCompressor.attack.value = 0.004;
+    paCompressor.release.value = 0.12;
+    gain.gain.value = 0.9;
+    stadiumDelay.delayTime.value = 0.095;
+    stadiumReturn.gain.value = 0.13;
+
+    source.connect(highPass);
+    highPass.connect(lowPass);
+    lowPass.connect(presence);
+    presence.connect(megaphoneDrive);
+    megaphoneDrive.connect(paCompressor);
+    paCompressor.connect(gain);
+    gain.connect(buses.commentator);
+    paCompressor.connect(stadiumDelay);
+    stadiumDelay.connect(stadiumReturn);
+    stadiumReturn.connect(buses.commentator);
+
+    setDucked(true);
+    paTransmissionStart();
+    activeCommentarySource = source;
+    source.onended = () => finishCommentary(token);
+    source.start();
+  }
+
+  function makeMegaphoneCurve(amount) {
+    const curve = new Float32Array(256);
+    for (let index = 0; index < curve.length; index++) {
+      const value = index * 2 / (curve.length - 1) - 1;
+      curve[index] = Math.tanh(value * amount) / Math.tanh(amount);
+    }
+    return curve;
+  }
+
+  function enqueueCommentary(text, priorityName, category) {
+    if (commentaryQueue.some((entry) => entry.text === text)) return;
+
+    commentaryQueue.push({
+      text,
+      priorityName,
+      category,
+      priority: COMMENTARY_PRIORITIES[priorityName] ?? 0,
+      expiresAt: clockSeconds() + 25,
     });
-    tone(930, 0.08, {
+    commentaryQueue.sort((a, b) => b.priority - a.priority);
+    commentaryQueue = commentaryQueue.slice(0, 8);
+  }
+
+  function pumpCommentaryQueue() {
+    const now = clockSeconds();
+    commentaryQueue = commentaryQueue.filter((entry) => {
+      return entry.expiresAt > now;
+    });
+    if (
+      !commentaryQueue.length ||
+      commentarySpeaking ||
+      !commentatorReady
+    ) return;
+
+    const next = commentaryQueue.shift();
+    commentate(next.text, next.priorityName, next.category);
+  }
+
+  function paTransmissionStart() {
+    playSample("uiClick", {
       bus: "commentator",
-      delay: 0.07,
-      gain: 0.03,
-      type: "sine",
+      gain: 0.045,
+      playbackRate: 0.78,
     });
   }
 
-  function finishCommentary() {
+  function finishCommentary(token) {
+    if (token !== commentaryToken) return;
+
+    commentarySpeaking = false;
     commentaryPriority = -1;
+    pendingSpeechToken = 0;
+    activeCommentarySource = null;
     setDucked(false);
+
+    const urgent = S.phase === "racing" &&
+      leadingProgress() > C.raceLaps - 0.35;
+    const pause = urgent
+      ? 0.75 + Math.random() * 0.8
+      : 1.8 + Math.random() * 1.8;
+    commentaryTimer = pause;
+
+    window.setTimeout(pumpCommentaryQueue, pause * 1000);
+  }
+
+  function clockSeconds() {
+    return typeof performance !== "undefined"
+      ? performance.now() / 1000
+      : Date.now() / 1000;
   }
 
   function setDucked(value) {
@@ -575,6 +1072,7 @@ HD.Audio = (() => {
     throwItem,
     trackImpact,
     horseImpact,
+    notifyMiss,
     raceStart,
     raceFinish,
     commentate,

@@ -84,6 +84,21 @@ async function run() {
     HD.world.crowdThrowers.every((thrower) => thrower.userData.ambientThrower),
     "A featured crowd thrower is missing its race-only behavior marker",
   );
+  assert.ok(
+    HD.world.crowdThrowers.every((thrower) => thrower.children.length === 0),
+    "Crowd throw origins should not replace lightweight spectators with player models",
+  );
+  assert.ok(
+    HD.world.projectileBarriers.length >= 9,
+    "The commentator booth and stair glass need complete projectile collision panels",
+  );
+  assert.ok(
+    HD.world.projectileBarriers.every((barrier) => {
+      return barrier.top > barrier.bottom && barrier.start.length === 2 &&
+        barrier.end.length === 2;
+    }),
+    "A commentator glass collision panel has invalid dimensions",
+  );
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
   assert.equal(
     HD.world.commentators.length,

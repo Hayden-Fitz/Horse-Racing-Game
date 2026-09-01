@@ -29,6 +29,8 @@ HD.Stadium = (() => {
   // ---------------------------------------------------------------------------
 
   function build(scene) {
+    HD.world.projectileBarriers = [];
+
     const ground = mesh(new THREE.CircleGeometry(190, 72), 0x4b8a45, scene, [0, -0.6, 0]);
     ground.rotation.x = -Math.PI / 2;
     createExteriorTerrain(scene);
@@ -289,14 +291,10 @@ HD.Stadium = (() => {
         );
         const inCommentatorCutout = row >= 4 &&
           angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE;
-        const crowdThrowerSeat = throwerSeats.some((seat) => {
-          return seat.row === row && seat.column === column;
-        });
         if (
           detailedPlayerSeat ||
           inStairAisle ||
-          inCommentatorCutout ||
-          crowdThrowerSeat
+          inCommentatorCutout
         ) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
@@ -360,26 +358,21 @@ HD.Stadium = (() => {
     HD.world.crowdThrowers = [];
     seats.forEach((seat, index) => {
       const placement = grandstandSeat(seat.row, seat.column);
-      const color = colors[(seat.column + seat.row) % colors.length];
-      const spectator = HD.Models.character(color, {
-        activity: "watch",
-        skin: [0xf1c7a5, 0xc88962, 0x8d593d][index],
-        hat: color,
-      });
-      spectator.scale.setScalar(0.58);
-      spectator.position.copy(placement.avatar);
-      spectator.rotation.y = placement.yaw;
-      spectator.userData.ambientThrower = true;
-      spectator.userData.throwerIndex = index;
-      spectator.traverse((object) => {
-        if (!object.isMesh) return;
-        object.castShadow = false;
-        object.receiveShadow = true;
-      });
-      scene.add(spectator);
-      createChair(scene, placement, color);
-      HD.world.crowd.push(spectator);
-      HD.world.crowdThrowers.push(spectator);
+      const launchPoint = new THREE.Group();
+
+      launchPoint.position.set(
+        placement.avatar.x,
+        placement.avatar.y,
+        placement.avatar.z,
+      );
+      launchPoint.rotation.y = placement.yaw;
+      launchPoint.userData.ambientThrower = true;
+      launchPoint.userData.throwerIndex = index;
+      launchPoint.userData.crowdColor =
+        colors[(seat.column + seat.row) % colors.length];
+
+      scene.add(launchPoint);
+      HD.world.crowdThrowers.push(launchPoint);
     });
   }
 
@@ -917,6 +910,8 @@ HD.Stadium = (() => {
   ) {
     const frameColor = 0x53696d;
 
+    registerProjectileBarrier(start, end, bottom, top, 0.13);
+
     for (let panel = 0; panel < panelCount; panel++) {
       const startProgress = panel / panelCount + 0.006;
       const endProgress = (panel + 1) / panelCount - 0.006;
@@ -937,6 +932,21 @@ HD.Stadium = (() => {
         8,
       );
     }
+  }
+
+  function registerProjectileBarrier(start, end, bottom, top, thickness = 0.12) {
+    if (!HD.world.projectileBarriers) {
+      HD.world.projectileBarriers = [];
+    }
+
+    HD.world.projectileBarriers.push({
+      start: [start.x, start.z],
+      end: [end.x, end.z],
+      bottom,
+      top,
+      thickness,
+      material: "glass",
+    });
   }
 
   function createBoothSideTriangle(
@@ -2204,8 +2214,8 @@ HD.Stadium = (() => {
       scene,
       120,
       83,
-      110.85,
-      75.85,
+      110.55,
+      75.55,
       13.5,
       color,
       cutStart,
@@ -2217,8 +2227,8 @@ HD.Stadium = (() => {
       scene,
       120,
       83,
-      110.85,
-      75.85,
+      110.55,
+      75.55,
       13.5,
       color,
       stairOpeningEnd,
@@ -2239,6 +2249,48 @@ HD.Stadium = (() => {
       6,
       12.48,
     );
+
+    createCommentatorVoidFascia(
+      scene,
+      cutStart,
+      stairOpeningStart,
+      0x29483f,
+    );
+    createCommentatorVoidFascia(
+      scene,
+      stairOpeningEnd,
+      cutEnd,
+      0x29483f,
+    );
+  }
+
+  function createCommentatorVoidFascia(scene, startAngle, endAngle, color) {
+    const segments = 4;
+
+    for (let index = 0; index < segments; index++) {
+      const angleA = THREE.MathUtils.lerp(
+        startAngle,
+        endAngle,
+        index / segments,
+      );
+      const angleB = THREE.MathUtils.lerp(
+        startAngle,
+        endAngle,
+        (index + 1) / segments,
+      );
+      const start = oval(110.55, 75.55, angleA);
+      const end = oval(110.55, 75.55, angleB);
+
+      createBoothWall(
+        scene,
+        start,
+        end,
+        7.72,
+        UPPER_CONCOURSE_Y,
+        color,
+        0.32,
+      );
+    }
   }
 
   function createCommentatorBarriers() {
@@ -2637,33 +2689,40 @@ HD.Stadium = (() => {
     for (const side of [-1, 1]) {
       const angle = COMMENTATOR_ANGLE +
         side * COMMENTATOR_STAIR_HALF_ANGLE;
-      const inner = oval(110.85, 75.85, angle);
+      const inner = oval(103.25, 69.75, angle);
       const outer = oval(114.15, 78.05, angle);
-      addGuardRun(inner, outer, 2);
+      addGuardRun(inner, outer, 4);
+    }
+
+    for (const side of [-1, 1]) {
+      const angle = COMMENTATOR_ANGLE + side * COMMENTATOR_HALF_ANGLE;
+      const inner = oval(103.25, 69.75, angle);
+      const outer = oval(110.55, 75.55, angle);
+      addGuardRun(inner, outer, 3);
     }
 
     addGuardRun(
       oval(
-        110.85,
-        75.85,
+        110.55,
+        75.55,
         COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
       ),
       oval(
-        110.85,
-        75.85,
+        110.55,
+        75.55,
         COMMENTATOR_ANGLE - COMMENTATOR_STAIR_HALF_ANGLE,
       ),
       2,
     );
     addGuardRun(
       oval(
-        110.85,
-        75.85,
+        110.55,
+        75.55,
         COMMENTATOR_ANGLE + COMMENTATOR_STAIR_HALF_ANGLE,
       ),
       oval(
-        110.85,
-        75.85,
+        110.55,
+        75.55,
         COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
       ),
       2,

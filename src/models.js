@@ -476,10 +476,10 @@ HD.Models = (() => {
     const root = new THREE.Group(),
       body = new THREE.Group();
     const poolIndex = HD.CONFIG.horses.findIndex((horseData) => horseData.id === data.id);
-    const earlyPaces = [1.035, 0.99, 1.015, 0.975, 1.025, 1, 0.985, 1.02];
-    const staminaRatings = [0.98, 1.01, 1.04, 1.02, 0.97, 1, 1.035, 0.99];
-    const finishingKicks = [0.02, 0.035, 0.055, 0.04, 0.025, 0.045, 0.05, 0.03];
-    const accelerationRatings = [1.45, 1.2, 1.3, 1.15, 1.4, 1.25, 1.18, 1.35];
+    const speedRating = data.speed || 75;
+    const staminaRating = data.stamina || 75;
+    const accelerationRating = data.acceleration || 75;
+    const resistanceRating = data.resistance || 75;
     root.add(body);
     root.userData.body = body;
     const torso = mesh(new THREE.CapsuleGeometry(1.15, 2.4, 5, 10), data.coat, body, [0, 2, 0]);
@@ -595,14 +595,20 @@ HD.Models = (() => {
         progress: 0,
         speed: 0,
         momentum: 0,
-        baseSpeed: 0.0435 * (0.65 + data.ability * 0.35) * (0.992 + Math.random() * 0.016),
+        baseSpeed:
+          (0.0412 + speedRating * 0.00004) *
+          (0.992 + Math.random() * 0.016),
+        speedRating,
+        staminaRating,
+        accelerationRating,
+        resistanceRating,
         lane: index,
         targetLane: index,
-        earlyPace: earlyPaces[poolIndex % earlyPaces.length],
-        stamina: staminaRatings[poolIndex % staminaRatings.length],
-        finishKick: finishingKicks[poolIndex % finishingKicks.length],
-        acceleration: accelerationRatings[poolIndex % accelerationRatings.length],
-        deceleration: 1.05 + (poolIndex % 3) * 0.12,
+        earlyPace: 0.94 + accelerationRating * 0.0012,
+        stamina: 0.95 + staminaRating * 0.001,
+        finishKick: Math.max(0.012, (accelerationRating - 62) * 0.0015),
+        acceleration: 0.9 + accelerationRating * 0.006,
+        deceleration: 1 + resistanceRating * 0.003,
         slow: 0,
         finished: false,
         place: 0,
