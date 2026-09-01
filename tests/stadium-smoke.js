@@ -128,9 +128,14 @@ async function run() {
     "The upper floor was also removed from the booth's opposite side",
   );
   assert.ok(
-    upperFloorHitsAt(targetAngle - 0.082) > 0 &&
-      upperFloorHitsAt(targetAngle + 0.082) > 0,
-    "The upper floor beside the rectangular stair opening was not restored",
+    upperFloorHitsAt(targetAngle - 0.082) === 0 &&
+      upperFloorHitsAt(targetAngle + 0.082) === 0,
+    "The upper floor is clipping through the broadcast booth",
+  );
+  assert.ok(
+    upperFloorHitsAt(targetAngle - 0.082, 116, 80) > 0 &&
+      upperFloorHitsAt(targetAngle + 0.082, 116, 80) > 0,
+    "The outer concourse beside the broadcast booth was not restored",
   );
   const seatBases = HD.world.scene.children
     .flatMap((child) => child.children || [])
@@ -160,6 +165,17 @@ async function run() {
     true,
     "Commentators should be seated at the broadcast desk",
   );
+  const commentatorYaw = -HD.world.commentatorBox.angle + Math.PI / 2;
+  assert.ok(
+    HD.world.commentators.every((commentator) => {
+      const difference = Math.atan2(
+        Math.sin(commentator.rotation.y - commentatorYaw),
+        Math.cos(commentator.rotation.y - commentatorYaw),
+      );
+      return Math.abs(difference) < 0.001;
+    }),
+    "The commentators should face the racetrack",
+  );
   assert.ok(
     HD.CONFIG.stairs.startZ < 50.5,
     "The left/right stair entrances must overlap the lower walking ring",
@@ -171,9 +187,9 @@ async function run() {
 
   console.log("Stadium geometry and rotating six-horse field checks passed.");
 
-  function upperFloorHitsAt(angle) {
+  function upperFloorHitsAt(angle, radiusX = 106, radiusZ = 72) {
     HD.world.scene.updateMatrixWorld(true);
-    const point = HD.Stadium.oval(106, 72, angle);
+    const point = HD.Stadium.oval(radiusX, radiusZ, angle);
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(point.x, 18, point.z),
       new THREE.Vector3(0, -1, 0),

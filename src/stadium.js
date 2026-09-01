@@ -1089,7 +1089,7 @@ HD.Stadium = (() => {
       const commentator = HD.Models.playerCharacter(options.color, options);
       HD.Models.setPlayerStanding(commentator, false);
       commentator.position.set(seatPosition.x, floorY + 0.45, seatPosition.z);
-      commentator.rotation.y = -COMMENTATOR_ANGLE - Math.PI / 2;
+      commentator.rotation.y = -COMMENTATOR_ANGLE + Math.PI / 2;
       commentator.scale.setScalar(0.68);
       commentator.userData.activity = "watch";
       root.add(commentator);
@@ -2026,8 +2026,8 @@ HD.Stadium = (() => {
       scene,
       120,
       83,
-      103.25,
-      69.75,
+      110.85,
+      75.85,
       13.5,
       color,
       cutStart,
@@ -2039,8 +2039,8 @@ HD.Stadium = (() => {
       scene,
       120,
       83,
-      103.25,
-      69.75,
+      110.85,
+      75.85,
       13.5,
       color,
       stairOpeningEnd,
@@ -2419,26 +2419,20 @@ HD.Stadium = (() => {
     });
     const bottomY = 13.5;
     const topY = 15.7;
-
-    for (const side of [-1, 1]) {
-      const angle = COMMENTATOR_ANGLE +
-        side * COMMENTATOR_STAIR_HALF_ANGLE;
-      const inner = oval(103.25, 69.75, angle);
-      const outer = oval(114.15, 78.05, angle);
-
+    const addGuardRun = (start, end, panelCount) => {
       addBoothWindowRun(
         scene,
-        inner,
-        outer,
+        start,
+        end,
         bottomY,
         topY,
-        4,
+        panelCount,
         glass,
       );
       createBoothWall(
         scene,
-        inner,
-        outer,
+        start,
+        end,
         bottomY,
         bottomY + 0.1,
         0x526970,
@@ -2446,14 +2440,49 @@ HD.Stadium = (() => {
       );
       createBoothWall(
         scene,
-        inner,
-        outer,
+        start,
+        end,
         topY - 0.1,
         topY,
         0x526970,
         0.14,
       );
+    };
+
+    for (const side of [-1, 1]) {
+      const angle = COMMENTATOR_ANGLE +
+        side * COMMENTATOR_STAIR_HALF_ANGLE;
+      const inner = oval(110.85, 75.85, angle);
+      const outer = oval(114.15, 78.05, angle);
+      addGuardRun(inner, outer, 2);
     }
+
+    addGuardRun(
+      oval(
+        110.85,
+        75.85,
+        COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
+      ),
+      oval(
+        110.85,
+        75.85,
+        COMMENTATOR_ANGLE - COMMENTATOR_STAIR_HALF_ANGLE,
+      ),
+      2,
+    );
+    addGuardRun(
+      oval(
+        110.85,
+        75.85,
+        COMMENTATOR_ANGLE + COMMENTATOR_STAIR_HALF_ANGLE,
+      ),
+      oval(
+        110.85,
+        75.85,
+        COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
+      ),
+      2,
+    );
   }
 
   function createCurvedGlassRail(scene, radiusX, radiusZ, baseY, height, segments) {
@@ -2474,9 +2503,9 @@ HD.Stadium = (() => {
 
       if (height <= 3) {
         const openingStart = COMMENTATOR_ANGLE -
-          COMMENTATOR_STAIR_HALF_ANGLE;
+          COMMENTATOR_HALF_ANGLE;
         const openingEnd = COMMENTATOR_ANGLE +
-          COMMENTATOR_STAIR_HALF_ANGLE;
+          COMMENTATOR_HALF_ANGLE;
         visibleSpans = [];
 
         if (angleA < openingStart) {
