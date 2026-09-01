@@ -11,6 +11,8 @@ HD.Stadium = (() => {
   const COMMENTATOR_ANGLE = Math.PI * 2 - 0.18;
   const COMMENTATOR_HALF_ANGLE = 0.118;
   const COMMENTATOR_STAIR_HALF_ANGLE = 0.047;
+  const UPPER_CONCOURSE_Y = 13.5;
+  const STAIR_SURFACE_INSET = 0.055;
   const DETAILED_SEATS = [
     { row: 1, column: 30, local: true, activity: "watch" },
     { row: 1, column: 29, activity: "phone" },
@@ -316,6 +318,7 @@ HD.Stadium = (() => {
     const floorColor = 0xcab98d;
 
     createBoothSurface(root, footprint, floorY, floorColor);
+    createBoothSurface(root, footprint, supportBottomY, wallColor);
     addCommentatorFoundation(
       root,
       innerLeft,
@@ -329,6 +332,17 @@ HD.Stadium = (() => {
     createBoothWall(root, innerLeft, outerLeft, floorY - 0.34, floorY, wallColor);
     createBoothWall(root, innerRight, outerRight, floorY - 0.34, floorY, wallColor);
     createBoothWall(root, outerLeft, outerRight, floorY - 0.34, floorY, wallColor);
+
+    addCommentatorSideClosures(
+      root,
+      innerLeft,
+      innerRight,
+      outerLeft,
+      outerRight,
+      supportBottomY,
+      floorY,
+      wallColor,
+    );
 
     const backLeftEnd = outerLeft.clone().lerp(outerRight, 0.3);
     const backRightStart = outerLeft.clone().lerp(outerRight, 0.7);
@@ -702,6 +716,68 @@ HD.Stadium = (() => {
     );
     broadcastBoard.scale.set(4.8, 0.62, 1);
     root.add(broadcastBoard);
+  }
+
+  function addCommentatorSideClosures(
+    root,
+    innerLeft,
+    innerRight,
+    outerLeft,
+    outerRight,
+    bottomY,
+    floorY,
+    color,
+  ) {
+    const outerConcourseLeft = oval(
+      110.85,
+      75.85,
+      COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
+    );
+    const outerConcourseRight = oval(
+      110.85,
+      75.85,
+      COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
+    );
+
+    createBoothWall(
+      root,
+      outerLeft,
+      outerConcourseLeft,
+      bottomY,
+      UPPER_CONCOURSE_Y - 0.08,
+      color,
+      0.42,
+    );
+    createBoothWall(
+      root,
+      outerRight,
+      outerConcourseRight,
+      bottomY,
+      UPPER_CONCOURSE_Y - 0.08,
+      color,
+      0.42,
+    );
+
+    const innerApronLeft = innerLeft.clone().lerp(outerLeft, 0.82);
+    const innerApronRight = innerRight.clone().lerp(outerRight, 0.82);
+    createBoothWall(
+      root,
+      innerApronLeft,
+      outerLeft,
+      bottomY,
+      floorY - 0.05,
+      color,
+      0.48,
+    );
+    createBoothWall(
+      root,
+      innerApronRight,
+      outerRight,
+      bottomY,
+      floorY - 0.05,
+      color,
+      0.48,
+    );
   }
 
   function addCommentatorDeskDetails(root, left, right, floorY) {
@@ -1100,7 +1176,7 @@ HD.Stadium = (() => {
   function addCommentatorEntrance(root, floorY) {
     const stepCount = 16;
     const stairWidth = 5.4;
-    const upperCenter = oval(114.25, 78.15, COMMENTATOR_ANGLE);
+    const upperCenter = oval(114.15, 78.05, COMMENTATOR_ANGLE);
     const lowerCenter = oval(102.2, 67.8, COMMENTATOR_ANGLE);
     const pathLength = upperCenter.distanceTo(lowerCenter);
     const stepDepth = pathLength / (stepCount - 1) + 0.16;
@@ -1113,7 +1189,11 @@ HD.Stadium = (() => {
     for (let step = 0; step < stepCount; step++) {
       const progress = step / (stepCount - 1);
       const center = upperCenter.clone().lerp(lowerCenter, progress);
-      const surfaceY = THREE.MathUtils.lerp(13.5, floorY + 0.1, progress);
+      const surfaceY = THREE.MathUtils.lerp(
+        UPPER_CONCOURSE_Y - STAIR_SURFACE_INSET,
+        floorY + 0.1,
+        progress,
+      );
       const height = Math.max(0.2, surfaceY - floorY);
       const accessStep = box(
         [stairWidth, height, stepDepth],
@@ -1138,7 +1218,11 @@ HD.Stadium = (() => {
       for (const progress of [0, 0.33, 0.66, 1]) {
         const post = upperCenter.clone().lerp(lowerCenter, progress);
         post.addScaledVector(tangent, side * stairWidth / 2);
-        const surfaceY = THREE.MathUtils.lerp(13.5, floorY + 0.1, progress);
+        const surfaceY = THREE.MathUtils.lerp(
+          UPPER_CONCOURSE_Y - STAIR_SURFACE_INSET,
+          floorY + 0.1,
+          progress,
+        );
         cylinder(
           0.065,
           0.075,
@@ -1151,13 +1235,77 @@ HD.Stadium = (() => {
       }
     }
 
+    addCommentatorStairSkirts(
+      root,
+      upperCenter,
+      lowerCenter,
+      tangent,
+      stairWidth,
+      floorY,
+    );
+
     return {
       top: [upperCenter.x, upperCenter.z],
       bottom: [lowerCenter.x, lowerCenter.z],
       width: stairWidth,
-      topY: 13.5,
+      topY: UPPER_CONCOURSE_Y - STAIR_SURFACE_INSET,
       bottomY: floorY + 0.1,
     };
+  }
+
+  function addCommentatorStairSkirts(
+    root,
+    upperCenter,
+    lowerCenter,
+    tangent,
+    width,
+    floorY,
+  ) {
+    const material = HD.util.material(0x29483f, {
+      side: THREE.DoubleSide,
+    });
+
+    for (const side of [-1, 1]) {
+      const upper = upperCenter
+        .clone()
+        .addScaledVector(tangent, side * width / 2);
+      const lower = lowerCenter
+        .clone()
+        .addScaledVector(tangent, side * width / 2);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute([
+          upper.x, floorY, upper.z,
+          upper.x, UPPER_CONCOURSE_Y - STAIR_SURFACE_INSET, upper.z,
+          lower.x, floorY + 0.1, lower.z,
+          lower.x, floorY, lower.z,
+        ], 3),
+      );
+      geometry.setIndex([0, 1, 2, 0, 2, 3]);
+      geometry.computeVertexNormals();
+
+      const skirt = new THREE.Mesh(geometry, material);
+      skirt.castShadow = true;
+      skirt.receiveShadow = true;
+      root.add(skirt);
+    }
+
+    const upperLeft = upperCenter
+      .clone()
+      .addScaledVector(tangent, -width / 2);
+    const upperRight = upperCenter
+      .clone()
+      .addScaledVector(tangent, width / 2);
+    createBoothWall(
+      root,
+      upperLeft,
+      upperRight,
+      floorY,
+      UPPER_CONCOURSE_Y - STAIR_SURFACE_INSET,
+      material,
+      0.18,
+    );
   }
 
   function createBoothRail(parent, start, end, color, radius) {
@@ -1965,6 +2113,7 @@ HD.Stadium = (() => {
     createUpperConcourse(scene);
     createConcourseGlassRails(scene);
 
+    HD.world.staircases = [];
     STAIR_ANGLES.forEach((angle) => createStaircase(scene, angle));
 
     HD.world.shopPositions = [];
@@ -2222,7 +2371,15 @@ HD.Stadium = (() => {
     const stepDepth = radialStep + 0.12;
     root.position.copy(start);
     root.rotation.y = Math.atan2(path.x, path.z);
+    root.userData.staircase = {
+      angle,
+      start: start.toArray(),
+      end: end.toArray(),
+      visualTopY: stairs.topHeight - STAIR_SURFACE_INSET,
+      concourseY: UPPER_CONCOURSE_Y,
+    };
     scene.add(root);
+    HD.world.staircases.push(root);
 
     const lightSteps = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -2241,7 +2398,12 @@ HD.Stadium = (() => {
     for (let step = 0; step < stepCount; step++) {
       const progress = (step + 1) / stepCount;
       const distance = (step + 0.5) * radialStep;
-      const top = stairHeightForProgress(progress);
+      const topInset = STAIR_SURFACE_INSET * THREE.MathUtils.smoothstep(
+        progress,
+        0.62,
+        1,
+      );
+      const top = stairHeightForProgress(progress) - topInset;
       const foundation = 1.25;
       const height = top - foundation;
       const centerY = foundation + height / 2;
@@ -2265,12 +2427,6 @@ HD.Stadium = (() => {
       0xcab78f,
       root,
       [0, stairs.bottomHeight - 0.14, 0],
-    );
-    box(
-      [stairs.width, 0.28, 2.8],
-      0xcab78f,
-      root,
-      [0, stairs.topHeight - 0.14, pathLength + 1],
     );
     addStairRails(root, pathLength);
   }
@@ -2502,37 +2658,18 @@ HD.Stadium = (() => {
       let visibleSpans = [[angleA, angleB]];
 
       if (height <= 3) {
-        const openingStart = COMMENTATOR_ANGLE -
-          COMMENTATOR_HALF_ANGLE;
-        const openingEnd = COMMENTATOR_ANGLE +
-          COMMENTATOR_HALF_ANGLE;
-        visibleSpans = [];
-
-        if (angleA < openingStart) {
-          visibleSpans.push([
-            angleA,
-            Math.min(angleB, openingStart),
-          ]);
-        }
-        if (angleB > openingEnd) {
-          visibleSpans.push([
-            Math.max(angleA, openingEnd),
-            angleB,
-          ]);
-        }
+        const openings = glassRailOpenings(radiusX, radiusZ);
+        openings.forEach(([openingStart, openingEnd]) => {
+          visibleSpans = subtractAngleOpening(
+            visibleSpans,
+            openingStart,
+            openingEnd,
+          );
+        });
       }
 
       visibleSpans.forEach(([spanStart, spanEnd]) => {
         if (spanEnd - spanStart < 0.002) return;
-        const midpoint = (spanStart + spanEnd) / 2;
-        const atStairs = height <= 3 && STAIR_ANGLES.some(
-          (stairAngle) => Math.abs(Math.atan2(
-            Math.sin(midpoint - stairAngle),
-            Math.cos(midpoint - stairAngle),
-          )) < 0.065,
-        );
-        if (atStairs) return;
-
         const start = oval(radiusX, radiusZ, spanStart);
         const end = oval(radiusX, radiusZ, spanEnd);
         panels.push({ start, end });
@@ -2547,7 +2684,7 @@ HD.Stadium = (() => {
     const frameBatch = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
       HD.util.material(0x526970),
-      panels.length,
+      panels.length * 2,
     );
     const railBatch = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -2565,11 +2702,13 @@ HD.Stadium = (() => {
       dummy.updateMatrix();
       glassBatch.setMatrixAt(index, dummy.matrix);
 
-      dummy.position.set(start.x, baseY + height / 2, start.z);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(0.08, height + 0.12, 0.12);
-      dummy.updateMatrix();
-      frameBatch.setMatrixAt(index, dummy.matrix);
+      [start, end].forEach((edge, edgeIndex) => {
+        dummy.position.set(edge.x, baseY + height / 2, edge.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(0.08, height + 0.12, 0.12);
+        dummy.updateMatrix();
+        frameBatch.setMatrixAt(index * 2 + edgeIndex, dummy.matrix);
+      });
 
       for (let edge = 0; edge < 2; edge++) {
         dummy.position.copy(start).add(end).multiplyScalar(0.5);
@@ -2582,10 +2721,55 @@ HD.Stadium = (() => {
     });
 
     glassBatch.renderOrder = 2;
+    glassBatch.userData.concourseGlass = true;
+    glassBatch.userData.panelCount = panels.length;
     glassBatch.instanceMatrix.needsUpdate = true;
     frameBatch.instanceMatrix.needsUpdate = true;
     railBatch.instanceMatrix.needsUpdate = true;
     scene.add(glassBatch, frameBatch, railBatch);
+  }
+
+  function glassRailOpenings(radiusX, radiusZ) {
+    const fullTurn = Math.PI * 2;
+    const openings = [[
+      COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
+      COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
+    ]];
+
+    STAIR_ANGLES.forEach((angle) => {
+      const halfAngle = stairHalfAngle(radiusX, radiusZ, angle);
+      let start = angle - halfAngle;
+      let end = angle + halfAngle;
+
+      if (start < 0) {
+        openings.push([0, end], [fullTurn + start, fullTurn]);
+        return;
+      }
+      if (end > fullTurn) {
+        openings.push([start, fullTurn], [0, end - fullTurn]);
+        return;
+      }
+      openings.push([start, end]);
+    });
+
+    return openings;
+  }
+
+  function subtractAngleOpening(spans, openingStart, openingEnd) {
+    const result = [];
+    spans.forEach(([spanStart, spanEnd]) => {
+      if (spanEnd <= openingStart || spanStart >= openingEnd) {
+        result.push([spanStart, spanEnd]);
+        return;
+      }
+      if (spanStart < openingStart) {
+        result.push([spanStart, openingStart]);
+      }
+      if (spanEnd > openingEnd) {
+        result.push([openingEnd, spanEnd]);
+      }
+    });
+    return result;
   }
 
   function addShopWorker(parent, color, position, scale) {

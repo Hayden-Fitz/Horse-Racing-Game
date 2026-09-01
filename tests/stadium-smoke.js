@@ -180,6 +180,32 @@ async function run() {
     HD.CONFIG.stairs.startZ < 50.5,
     "The left/right stair entrances must overlap the lower walking ring",
   );
+  assert.equal(
+    HD.world.staircases?.length,
+    4,
+    "The stadium should have exactly four aligned public staircases",
+  );
+  assert.ok(
+    HD.world.staircases.every((staircase) => {
+      const stair = staircase.userData.staircase;
+      return stair.visualTopY < stair.concourseY &&
+        stair.concourseY - stair.visualTopY <= 0.08;
+    }),
+    "A public staircase is coplanar with or too far below the upper concourse",
+  );
+  assert.ok(
+    HD.world.commentatorBox.entrance.topY < 13.5 &&
+      13.5 - HD.world.commentatorBox.entrance.topY <= 0.08,
+    "The commentator staircase is coplanar with or misaligned below the upper floor",
+  );
+  assert.ok(
+    HD.world.scene.children.some((object) => {
+      return object.isInstancedMesh &&
+        object.userData.concourseGlass &&
+        object.userData.panelCount > 60;
+    }),
+    "The upper-concourse glass fence is incomplete",
+  );
   assert.ok(
     HD.world.scene.children.some((object) => object.isInstancedMesh && object.count === 120),
     "The instanced infield grass detail is missing",
