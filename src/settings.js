@@ -113,9 +113,9 @@ HD.Settings = (() => {
       panel.hidden = true;
       card.classList.remove("settings-active");
     });
-    document.querySelector("#exit-game").addEventListener("click", () => {
-      const leave = confirm("Exit Hotdog Downs and close this game page?");
-      if (leave) location.replace("about:blank");
+    document.querySelector("#exit-game").addEventListener("click", async () => {
+      const leave = confirm("Quit this match and return to the lobby?");
+      if (leave) await HD.Network.quitToLobby();
     });
   }
 
@@ -439,4 +439,3 @@ HD.Settings = (() => {
     winnerCoins,
   };
 })();
-  

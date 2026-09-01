@@ -42,7 +42,12 @@ vm.runInContext(read("src/config.js"), sandbox);
 assert.equal(Object.keys(sandbox.HD.CONFIG.items).length, 10, "The hotbar requires ten items");
 assert.equal(sandbox.HD.CONFIG.raceLaps, 3, "Races should run for three laps");
 assert.equal(sandbox.HD.CONFIG.horses.length, 24, "The rotating horse pool requires 24 horses");
-assert.equal(sandbox.HD.CONFIG.raceHorseCount, 8, "Each race should contain eight horses");
+assert.equal(sandbox.HD.CONFIG.raceHorseCount, 6, "Each race should contain six horses");
+assert.equal(
+  sandbox.HD.CONFIG.trackLanes.centerX,
+  53.35,
+  "The innermost horse lane should be removed and replaced outside",
+);
 assert.equal(sandbox.HD.CONFIG.horseFieldRaces, 2, "Each horse field should remain for two races");
 assert.equal(
   sandbox.HD.CONFIG.sabotageOptions.looseShoe.startDelay,
@@ -64,8 +69,12 @@ assert.ok(ids.includes("lobby-private"), "The private lobby button is missing");
 assert.ok(ids.includes("winner-coins"), "The Winner Coins balance is missing");
 assert.ok(ids.includes("avatar-unlock"), "The cosmetic unlock control is missing");
 assert.ok(
-  sandbox.HD.CONFIG.items.bananaPeel.weaveDuration > 0,
-  "The banana peel needs its lane-weaving effect",
+  sandbox.HD.CONFIG.items.performanceOats.maxSpeedBonus === 0.01,
+  "Champion Oats should add one percent maximum speed",
+);
+assert.ok(
+  sandbox.HD.CONFIG.items.performanceOats.maxSpeedBonusCap === 0.05,
+  "Champion Oats should stop stacking at five percent",
 );
 assert.ok(
   sandbox.HD.CONFIG.items.airHorn.panicDuration > 0,

@@ -28,6 +28,7 @@ HD.Race = (() => {
     S.horses = field.map(HD.Models.horse);
     S.horses.forEach((horse) => {
       const data = horse.userData.data;
+      data.maxSpeedBonus = S.horseSpeedBonuses?.[data.id] || 0;
       const oldProgress = previousProgress.get(data.id);
       if (!Number.isFinite(oldProgress)) return;
       data.progress = oldProgress;
@@ -65,8 +66,8 @@ HD.Race = (() => {
   function trackPoint(progress, lane = 0) {
     const lapProgress = progress % 1;
     const a = lapProgress * Math.PI * 2,
-      rx = 50.5 + lane * 2.85,
-      rz = 23 + lane * 2.68;
+      rx = C.trackLanes.centerX + lane * C.trackLanes.spacingX,
+      rz = C.trackLanes.centerZ + lane * C.trackLanes.spacingZ;
     return {
       position: new THREE.Vector3(Math.cos(a) * rx, 0.75, Math.sin(a) * rz),
       angle: Math.atan2(-Math.cos(a) * rz, -Math.sin(a) * rx),
@@ -76,8 +77,8 @@ HD.Race = (() => {
     S.horses.forEach((horse, i) => {
       const d = horse.userData.data;
       const angle = (d.progress % 1) * Math.PI * 2;
-      const radiusX = 50.5 + d.lane * 2.85;
-      const radiusZ = 23 + d.lane * 2.68;
+      const radiusX = C.trackLanes.centerX + d.lane * C.trackLanes.spacingX;
+      const radiusZ = C.trackLanes.centerZ + d.lane * C.trackLanes.spacingZ;
       horse.position.set(
         Math.cos(angle) * radiusX,
         0.75,
@@ -271,6 +272,7 @@ HD.Race = (() => {
         : 1;
       const targetSpeed =
         d.baseSpeed *
+          (1 + (d.maxSpeedBonus || 0)) *
           gateAcceleration *
           earlyPace *
           stamina *
@@ -374,18 +376,9 @@ HD.Race = (() => {
         if (Math.abs(data.lane - data.targetLane) < 0.08) {
           data.passing = false;
         }
-        const currentLane = Math.round(data.lane);
-        const innerLane = Math.max(data.preferredLane, currentLane - 1);
-        if (
-          data.laneDecisionTime <= 0 &&
-          laneIsClear(innerLane, horse, runners)
-        ) {
-          const tacticalLane = Math.floor(Math.random() * 3);
-          data.targetLane = laneIsClear(tacticalLane, horse, runners)
-            ? tacticalLane
-            : innerLane;
-          data.passing = true;
-          data.laneDecisionTime = 0.55 + Math.random() * 0.8;
+        if (data.laneDecisionTime <= 0) {
+          chooseRandomLane(horse, runners);
+          data.laneDecisionTime = 2.2 + Math.random() * 3.2;
         }
         return;
       }
@@ -398,8 +391,11 @@ HD.Race = (() => {
         return;
       }
 
-      const leaderStopped = leaderData.motionSpeed < data.baseSpeed * 0.18;
-      if (leaderStopped && gap < 0.09 && choosePassingLane(horse, runners)) {
+      const leaderImpaired =
+        leaderData.slow > 0 ||
+        leaderData.ragdoll > 0 ||
+        leaderData.motionSpeed < leaderData.baseSpeed * 0.62;
+      if (leaderImpaired && gap < 0.09 && choosePassingLane(horse, runners)) {
         data.motionSpeed = Math.min(data.motionSpeed, data.momentum);
         data.blockedTime = 0;
         return;
@@ -446,7 +442,7 @@ HD.Race = (() => {
   function choosePassingLane(horse, runners) {
     const data = horse.userData.data;
     const roundedLane = Math.round(data.lane);
-    const directions = [-1, 1];
+    const directions = Math.random() < 0.5 ? [-1, 1] : [1, -1];
 
     for (const direction of directions) {
       const candidateLane = roundedLane + direction;
@@ -459,6 +455,25 @@ HD.Race = (() => {
       data.blockedTime = 0;
       return true;
     }
+    return false;
+  }
+
+  function chooseRandomLane(horse, runners) {
+    const data = horse.userData.data;
+    const roundedLane = Math.round(data.lane);
+    const firstDirection = Math.random() < 0.5 ? -1 : 1;
+    const directions = [firstDirection, -firstDirection];
+
+    for (const direction of directions) {
+      const candidateLane = roundedLane + direction;
+      if (candidateLane < 0 || candidateLane >= C.raceHorseCount) continue;
+      if (!laneIsClear(candidateLane, horse, runners)) continue;
+
+      data.targetLane = candidateLane;
+      data.passing = true;
+      return true;
+    }
+
     return false;
   }
 
@@ -647,6 +662,7 @@ HD.Race = (() => {
       activeHorseIds: [],
       horseFieldRacesRemaining: 0,
       horseBag: C.horses.map((horse) => horse.id),
+      horseSpeedBonuses: {},
     });
     clearProjectiles();
     resetHorses();
@@ -708,8 +724,10 @@ HD.Race = (() => {
       if (!p.grounded) p.velocity.y -= p.config.gravity * dt;
       p.position.addScaledVector(p.velocity, dt);
       p.mesh.position.copy(p.position);
-      p.mesh.rotation.x += dt * (4 + Math.abs(p.velocity.z) * 0.35);
-      p.mesh.rotation.z += dt * (4 + Math.abs(p.velocity.x) * 0.35);
+      if (!p.grounded) {
+        p.mesh.rotation.x += dt * (4 + Math.abs(p.velocity.z) * 0.35);
+        p.mesh.rotation.z += dt * (4 + Math.abs(p.velocity.x) * 0.35);
+      }
 
       let closest;
       let distance = Infinity;
@@ -782,8 +800,8 @@ HD.Race = (() => {
   function snapTrapToLane(projectile) {
     let best = null;
     for (let lane = 0; lane < C.raceHorseCount; lane++) {
-      const radiusX = 50.5 + lane * 2.85;
-      const radiusZ = 23 + lane * 2.68;
+      const radiusX = C.trackLanes.centerX + lane * C.trackLanes.spacingX;
+      const radiusZ = C.trackLanes.centerZ + lane * C.trackLanes.spacingZ;
       const angle = Math.atan2(projectile.position.z / radiusZ, projectile.position.x / radiusX);
       const x = Math.cos(angle) * radiusX;
       const z = Math.sin(angle) * radiusZ;
@@ -821,6 +839,19 @@ HD.Race = (() => {
   function applyItemEffect(horse, projectile) {
     const data = horse.userData.data;
     const item = projectile.config;
+
+    if (item.maxSpeedBonus) {
+      const previousBonus = data.maxSpeedBonus || 0;
+      data.maxSpeedBonus = Math.min(
+        item.maxSpeedBonusCap,
+        previousBonus + item.maxSpeedBonus,
+      );
+      S.horseSpeedBonuses = S.horseSpeedBonuses || {};
+      S.horseSpeedBonuses[data.id] = data.maxSpeedBonus;
+      const percent = Math.round(data.maxSpeedBonus * 100);
+      HD.UI.announce(`${data.name}'s maximum speed permanently rises to +${percent}%!`);
+      return;
+    }
 
     if (item.forceLaneChange) {
       const currentLane = Math.round(data.lane);
@@ -911,6 +942,7 @@ HD.Race = (() => {
           weave: data.weave,
           panic: data.panic,
           sabotagePenalty: data.sabotagePenalty,
+          maxSpeedBonus: data.maxSpeedBonus || 0,
           startDelay: data.startDelay,
           odds: data.odds,
           finished: data.finished,
@@ -993,6 +1025,7 @@ HD.Race = (() => {
         "weave",
         "panic",
         "sabotagePenalty",
+        "maxSpeedBonus",
         "startDelay",
         "odds",
         "finished",

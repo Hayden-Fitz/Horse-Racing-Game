@@ -336,6 +336,10 @@ HD.Network = (() => {
         if (!HD.world.remotePlayers.has(playerId)) {
           createRemotePlayer({ ...player, id: playerId });
         }
+        const currentAvatar = HD.world.remotePlayers.get(playerId);
+        if (currentAvatar) {
+          HD.Models.setPlayerNameTag(currentAvatar, player.name);
+        }
         applyCachedPlayerState(playerId, player);
       }
       if (!initial && !known) HD.UI.announce(`${player.name} joined the lobby.`);
@@ -629,6 +633,7 @@ HD.Network = (() => {
       object.castShadow = false;
       object.receiveShadow = true;
     });
+    HD.Models.setPlayerNameTag(avatar, player.name);
 
     HD.world.scene.add(avatar);
     HD.world.remotePlayers.set(player.id, avatar);
@@ -799,7 +804,7 @@ HD.Network = (() => {
     const initial = escapeHtml(player.name.trim().charAt(0).toUpperCase() || "P");
 
     return `
-      <span class="${classes.join(" ")}">
+      <span class="${classes.join(" ")}" style="--player-color:#${color}">
         <i class="lobby-player-icon" style="--player-color:#${color}">${initial}</i>
         <span>
           <strong>${escapeHtml(player.name)}</strong>
@@ -871,6 +876,16 @@ HD.Network = (() => {
     } catch {
       setMessage("The lobby will remove this player after its presence timeout.");
     }
+  }
+
+  async function quitToLobby() {
+    await leaveOnlineSession();
+    HD.Race.restart();
+    S.matchStarted = false;
+    S.paused = true;
+    HD.Controls.setMode("look");
+    HD.UI.menu(true, false);
+    setMessage("Choose a lobby or start a new single-player match.");
   }
 
   function resetLobbyState() {
@@ -1131,5 +1146,6 @@ HD.Network = (() => {
     isPlaying,
     rankingPlayers,
     claimMatchWinReward,
+    quitToLobby,
   };
 })();

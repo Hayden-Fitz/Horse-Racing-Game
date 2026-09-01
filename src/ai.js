@@ -51,6 +51,9 @@ HD.AI = (() => {
     activeRaceKey = "";
     settledRaceKey = "";
     S.aiPlayers = players;
+    players.forEach((player, index) => {
+      HD.Models.setPlayerNameTag(HD.world.players?.[index], player.name);
+    });
     prepareRace();
   }
 
@@ -259,10 +262,23 @@ HD.AI = (() => {
 
   function visitShop(player) {
     player.shopVisited = true;
+    const reserve = Math.max(25, Math.floor(player.money * 0.35));
     const options = Object.entries(C.items)
-      .filter(([, item]) => player.money >= Math.ceil(item.price * (1 - C.vendorDiscount)));
+      .filter(([, item]) => {
+        const price = Math.ceil(item.price * (1 - C.vendorDiscount));
+        return player.money - price >= reserve;
+      });
     if (!options.length) return;
-    const [itemId, item] = options[(player.name.length + S.round) % options.length];
+
+    const preferredItems = player.personality === "favorite"
+      ? ["performanceOats", "carrot", "hurdle"]
+      : player.personality === "value"
+        ? ["soda", "hotdog", "hurdle"]
+        : ["airHorn", "horseshoe", "hurdle"];
+    const preferred = preferredItems
+      .map((itemId) => options.find(([candidateId]) => candidateId === itemId))
+      .find(Boolean);
+    const [itemId, item] = preferred || options[(player.name.length + S.round) % options.length];
     const price = Math.ceil(item.price * (1 - C.vendorDiscount));
     player.money -= price;
     player.inventory[itemId] += 1;
@@ -319,20 +335,25 @@ HD.AI = (() => {
     const targetIndex = supportFavorite
       ? backedHorse
       : raceOrder.find((entry) => entry.index !== backedHorse)?.index ?? backedHorse;
-    const ownedItems = Object.keys(player.inventory).filter((type) => player.inventory[type] > 0);
-    const totalOwned = ownedItems.reduce((total, type) => total + player.inventory[type], 0);
+    const ownedItems = Object.keys(player.inventory)
+      .filter((type) => player.inventory[type] > 0);
+    const helpfulItems = new Set(["carrot", "performanceOats"]);
+    const suitableItems = supportFavorite
+      ? ownedItems
+      : ownedItems.filter((type) => !helpfulItems.has(type));
+    const totalOwned = ownedItems.reduce(
+      (total, type) => total + player.inventory[type],
+      0,
+    );
     const shouldSave = S.race < C.totalRaces &&
       totalOwned <= 2 &&
       (playerIndex + S.race) % 3 !== 0;
-    if (shouldSave || !ownedItems.length) return;
-    const itemTypes = ownedItems.length
-      ? ownedItems
-      : supportFavorite
-      ? ["carrot", "carrot", "hurdle"]
-      : ["hotdog", "soda", "bananaPeel", "airHorn"];
-    const itemType = supportFavorite && player.inventory.carrot > 0
-      ? "carrot"
-      : itemTypes[(playerIndex + S.race) % itemTypes.length];
+    if (shouldSave || !suitableItems.length) return;
+    const itemType = supportFavorite && player.inventory.performanceOats > 0
+      ? "performanceOats"
+      : supportFavorite && player.inventory.carrot > 0
+        ? "carrot"
+        : suitableItems[(playerIndex + S.race) % suitableItems.length];
     const target = S.horses[targetIndex];
     if (!target) return;
 

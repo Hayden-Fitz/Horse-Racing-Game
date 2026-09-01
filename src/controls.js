@@ -379,13 +379,9 @@ HD.Controls = (() => {
     const insideFence = Math.sqrt((S.playerPosition.x / 73.2) ** 2 + (S.playerPosition.z / 43.2) ** 2);
     const blocked = collidesWithBarrier(S.playerPosition.x, S.playerPosition.z);
     const nextZone = walkZoneAt(S.playerPosition.x, S.playerPosition.z);
-    const connectedUpperSurface = [previousZone, nextZone].every((zone) =>
-      ["upper-concourse", "commentator-roof"].includes(zone),
-    );
     const skippedStairs = previousZone !== nextZone &&
       previousZone !== "stairs" &&
-      nextZone !== "stairs" &&
-      !connectedUpperSurface;
+      nextZone !== "stairs";
     if (
       insideFence < 1.03 ||
       blocked ||
@@ -417,31 +413,53 @@ HD.Controls = (() => {
   }
 
   function walkZoneAt(x, z) {
-    if (onCommentatorRoof(x, z)) return "commentator-roof";
-    if (staircaseProgress(x, z) !== null) return "stairs";
+    if (
+      staircaseProgress(x, z) !== null ||
+      commentatorEntranceProgress(x, z) !== null
+    ) {
+      return "stairs";
+    }
+    if (insideCommentatorBooth(x, z)) return "commentator-booth";
     const row = grandstandRowAt(x, z);
     if (row !== null) return `row-${row}`;
 
     const trackWalk = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
     if (trackWalk >= 0.92 && trackWalk <= 1.08) return "track-walk";
 
-    const upper = Math.sqrt((x / 110.6) ** 2 + (z / 75.4) ** 2);
-    if (upper >= 0.9 && upper <= 1.1) return "upper-concourse";
+    if (onUpperConcourseSurface(x, z)) return "upper-concourse";
     return null;
   }
   function isWalkable(x, z) {
-    const onStairs = staircaseProgress(x, z) !== null;
+    const onStairs = staircaseProgress(x, z) !== null ||
+      commentatorEntranceProgress(x, z) !== null;
     const grandstandRow = grandstandRowAt(x, z);
     const trackWalk = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
     const onTrackWalk = trackWalk >= 0.92 && trackWalk <= 1.08;
-    const upperConcourse = Math.sqrt((x / 110.6) ** 2 + (z / 75.4) ** 2);
-    const onUpperConcourse = upperConcourse >= 0.9 && upperConcourse <= 1.1;
+    const onUpperConcourse = onUpperConcourseSurface(x, z);
     return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse ||
-      onCommentatorRoof(x, z);
+      insideCommentatorBooth(x, z);
   }
   function walkingEyeHeight(x, z) {
     const stairProgress = staircaseProgress(x, z);
     if (stairProgress !== null) return stairHeightForProgress(stairProgress) + HD.CONFIG.eyeHeight;
+
+    const boothStairProgress = commentatorEntranceProgress(x, z);
+    if (boothStairProgress !== null) {
+      const entrance = HD.world.commentatorBox.entrance;
+      const stairFloor = THREE.MathUtils.lerp(
+        entrance.topY,
+        entrance.bottomY,
+        boothStairProgress,
+      );
+      return stairFloor + HD.CONFIG.eyeHeight;
+    }
+
+    if (insideCommentatorBooth(x, z)) {
+      const boothFloor = Number.isFinite(HD.world.commentatorBox.floorY)
+        ? HD.world.commentatorBox.floorY
+        : 7.75;
+      return boothFloor + HD.CONFIG.eyeHeight;
+    }
 
     const grandstandRow = grandstandRowAt(x, z);
     if (grandstandRow !== null) {
@@ -450,32 +468,12 @@ HD.Controls = (() => {
         HD.CONFIG.eyeHeight;
     }
 
-    if (onCommentatorRoof(x, z)) {
-      const distance = Math.hypot(x, z);
-      const innerDistance = Math.hypot(
-        Math.cos(0.15) * 93,
-        Math.sin(0.15) * 60,
-      );
-      const outerDistance = Math.hypot(
-        Math.cos(0.15) * 109,
-        Math.sin(0.15) * 74,
-      );
-      const inward = THREE.MathUtils.clamp(
-        (outerDistance - distance) / Math.max(0.01, outerDistance - innerDistance),
-        0,
-        1,
-      );
-      const accessBlend = THREE.MathUtils.smoothstep(inward, 0, 0.38);
-      const floor = THREE.MathUtils.lerp(13.5, HD.world.commentatorBox.floorY || 10.25, accessBlend);
-      return floor + HD.CONFIG.eyeHeight;
-    }
-
     const ovalDistance = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
     if (ovalDistance <= 1.08) return 1.65 + HD.CONFIG.eyeHeight;
     return 13.5 + HD.CONFIG.eyeHeight;
   }
 
-  function onCommentatorRoof(x, z) {
+  function insideCommentatorBooth(x, z) {
     const booth = HD.world.commentatorBox;
     if (!booth?.polygon) return false;
     let inside = false;
@@ -487,6 +485,61 @@ HD.Controls = (() => {
       if (crosses) inside = !inside;
     }
     return inside;
+  }
+
+  function commentatorEntranceProgress(x, z) {
+    const entrance = HD.world.commentatorBox?.entrance;
+    if (!entrance?.top || !entrance?.bottom) return null;
+
+    const [topX, topZ] = entrance.top;
+    const [bottomX, bottomZ] = entrance.bottom;
+    const pathX = bottomX - topX;
+    const pathZ = bottomZ - topZ;
+    const pathLengthSquared = pathX * pathX + pathZ * pathZ;
+    if (pathLengthSquared < 0.01) return null;
+
+    const progress = (
+      (x - topX) * pathX +
+      (z - topZ) * pathZ
+    ) / pathLengthSquared;
+    if (progress < -0.04 || progress > 1.04) return null;
+
+    const clampedProgress = THREE.MathUtils.clamp(progress, 0, 1);
+    const closestX = topX + pathX * clampedProgress;
+    const closestZ = topZ + pathZ * clampedProgress;
+    const distanceFromCenter = Math.hypot(x - closestX, z - closestZ);
+    if (distanceFromCenter > entrance.width / 2) return null;
+
+    return clampedProgress;
+  }
+
+  function onUpperConcourseSurface(x, z) {
+    const upperDistance = Math.sqrt(
+      (x / 110.6) ** 2 +
+      (z / 75.4) ** 2
+    );
+    if (upperDistance < 0.9 || upperDistance > 1.1) return false;
+
+    const booth = HD.world.commentatorBox;
+    if (!Number.isFinite(booth?.angle)) return true;
+
+    const angle = Math.atan2(z, x);
+    const normalizedAngle = angle < 0 ? angle + Math.PI * 2 : angle;
+    const angularDistance = Math.abs(Math.atan2(
+      Math.sin(normalizedAngle - booth.angle),
+      Math.cos(normalizedAngle - booth.angle),
+    ));
+    const stairHalfAngle = Number.isFinite(booth.stairHalfAngle)
+      ? booth.stairHalfAngle
+      : 0.047;
+    const inStairOpening = angularDistance < stairHalfAngle;
+    if (!inStairOpening) return true;
+
+    const behindOpening = Math.sqrt(
+      (x / 114.15) ** 2 +
+      (z / 78.05) ** 2
+    ) >= 1;
+    return behindOpening;
   }
 
   function grandstandRowAt(x, z) {
@@ -513,8 +566,8 @@ HD.Controls = (() => {
       const perpendicular =
         Math.abs(deltaX * offsetZ - deltaZ * offsetX) / Math.sqrt(lengthSquared);
 
-      if (perpendicular <= stairs.width / 2 && progress >= 0 && progress <= 1) {
-        return progress;
+      if (perpendicular <= stairs.width / 2 && progress >= 0 && progress <= 1.12) {
+        return THREE.MathUtils.clamp(progress, 0, 1);
       }
     }
 

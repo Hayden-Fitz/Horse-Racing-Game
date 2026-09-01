@@ -577,8 +577,8 @@ HD.Models = (() => {
     jockey.rotation.y = -Math.PI / 2;
     body.add(jockey);
     const label = numberSprite(index + 1);
-    label.position.set(0, 3.35, -1.05);
-    body.add(label);
+    label.position.set(0, 6.15, 0);
+    root.add(label);
     root.userData = {
       body,
       legs,
@@ -587,6 +587,7 @@ HD.Models = (() => {
       ears,
       tail,
       jockey,
+      numberLabel: label,
       data: {
         ...data,
         index,
@@ -615,7 +616,7 @@ HD.Models = (() => {
         sabotagePenalty: 0,
         startDelay: 0,
         blockedTime: 0,
-        preferredLane: poolIndex % 3,
+        maxSpeedBonus: 0,
         passing: false,
         clearTime: 0,
         laneDecisionTime: 0.8 + Math.random() * 1.4,
@@ -647,11 +648,77 @@ HD.Models = (() => {
     c.textAlign = "center";
     c.textBaseline = "middle";
     c.fillText(number, 64, 68);
-    const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }),
-    );
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    }));
     sprite.scale.set(2.3, 2.3, 1);
+    sprite.renderOrder = 10000;
     return sprite;
+  }
+
+  function setPlayerNameTag(player, name) {
+    if (!player || player.userData.isLocalPlayer) return;
+
+    const safeName = String(name || "Player").trim().slice(0, 28) || "Player";
+    if (player.userData.nameTag?.userData.label === safeName) return;
+    if (player.userData.nameTag) player.remove(player.userData.nameTag);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+    context.font = "900 54px sans-serif";
+    const measuredWidth = context.measureText(safeName).width;
+    const fontSize = Math.min(54, Math.max(30, 54 * (390 / Math.max(1, measuredWidth))));
+
+    drawRoundedNameplate(context, 8, 10, 496, 108, 34);
+    context.font = `900 ${fontSize}px sans-serif`;
+    context.fillStyle = "#fff7d6";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(safeName, 256, 65);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const tag = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    }));
+    tag.position.set(0, 4.75, 0);
+    tag.scale.set(4.2, 1.05, 1);
+    tag.renderOrder = 10001;
+    tag.userData.label = safeName;
+    player.add(tag);
+    player.userData.name = safeName;
+    player.userData.nameTag = tag;
+  }
+
+  function drawRoundedNameplate(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.lineTo(x + width - radius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    context.lineTo(x + width, y + height - radius);
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + radius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    context.lineTo(x, y + radius);
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+    context.fillStyle = "rgba(15, 31, 24, 0.88)";
+    context.fill();
+    context.lineWidth = 5;
+    context.strokeStyle = "rgba(255, 222, 116, 0.95)";
+    context.stroke();
   }
   function hotdog() {
     const root = new THREE.Group();
@@ -817,16 +884,20 @@ HD.Models = (() => {
     return root;
   }
 
-  function bananaPeel() {
+  function performanceOats() {
     const root = new THREE.Group();
-    for (let index = 0; index < 4; index++) {
-      const angle = (index / 4) * Math.PI * 2;
-      const peel = mesh(new THREE.ConeGeometry(0.12, 0.85, 7), 0xf3d13b, root);
-      peel.position.set(Math.cos(angle) * 0.2, -0.12, Math.sin(angle) * 0.2);
-      peel.rotation.z = Math.cos(angle) * 1.05;
-      peel.rotation.x = Math.sin(angle) * 1.05;
+    const sack = mesh(new THREE.CapsuleGeometry(0.32, 0.55, 4, 10), 0xd9bd78, root);
+    sack.scale.set(0.9, 1.1, 0.72);
+    sack.rotation.z = 0.12;
+    cylinder(0.3, 0.24, 0.18, 0x8c6134, root, [0, 0.42, 0], 10);
+    for (let index = 0; index < 5; index++) {
+      const grain = cylinder(0.025, 0.04, 0.42, 0xe9c94f, root, [
+        -0.22 + index * 0.1,
+        0.72 + (index % 2) * 0.06,
+        0,
+      ], 6);
+      grain.rotation.z = -0.24 + index * 0.1;
     }
-    sphere(0.18, 0xe0b82e, root, [0, 0.1, 0]);
     return root;
   }
 
@@ -854,7 +925,7 @@ HD.Models = (() => {
     if (type === "tennisBall") return tennisBall();
     if (type === "iceCream") return iceCream();
     if (type === "foamFinger") return foamFinger();
-    if (type === "bananaPeel") return bananaPeel();
+    if (type === "performanceOats") return performanceOats();
     if (type === "airHorn") return airHorn();
     return hotdog();
   }
@@ -1082,12 +1153,13 @@ HD.Models = (() => {
     tennisBall,
     iceCream,
     foamFinger,
-    bananaPeel,
+    performanceOats,
     airHorn,
     throwable,
     equipPlayer,
     playPlayerThrow,
     animateCharacter,
     setPlayerColor,
+    setPlayerNameTag,
   };
 })();

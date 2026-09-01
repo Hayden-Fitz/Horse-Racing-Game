@@ -101,8 +101,8 @@
   box-shadow: 0 35px 100px #000d, inset 0 0 0 2px #87958c;
   opacity: 1;
   transform: translateY(0) scale(1);
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   padding: 12px 13px 9px;
   transition:
@@ -148,11 +148,56 @@
 
 .phone:not(.app-open) .apps {
   display: grid;
-  grid-row: 3;
-  align-self: end;
   width: 100%;
   margin: auto 0 10px;
   overflow: visible;
+}
+
+.phone-widget {
+  position: relative;
+  min-height: 205px;
+  margin: 10px 0;
+  overflow: hidden;
+  border: 1px solid #ffffff2e;
+  border-radius: 20px;
+  background-image:
+    linear-gradient(180deg, #07120c18 15%, #07120cdd 100%),
+    url("assets/phone-apps/stadium-widget.png");
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 1px #ffffff32, 0 8px 22px #0007;
+}
+
+.phone-widget > div {
+  position: absolute;
+  right: 14px;
+  bottom: 13px;
+  left: 14px;
+  display: grid;
+}
+
+.phone-widget strong {
+  color: white;
+  font-size: 38px;
+  line-height: 1;
+  text-shadow: 0 3px 12px #000;
+}
+
+.phone-widget span,
+.phone-widget small {
+  color: #eef6ef;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-shadow: 0 2px 6px #000;
+}
+
+.phone.app-open .phone-widget {
+  display: none;
+}
+
+.phone-open .app-panel.active {
+  flex: 1;
 }
 
 .phone.app-open .apps {
@@ -2067,6 +2112,351 @@
 #keybind-list kbd {
   min-width: 48px;
   text-align: center;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hotdog Downs visual identity: trackside kit and vintage clubhouse          */
+/* -------------------------------------------------------------------------- */
+
+.hotbar {
+  bottom: 18px;
+  gap: 10px;
+  padding-top: 19px;
+  filter: drop-shadow(0 13px 20px #0009);
+}
+
+.hotbar::before {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 16px;
+  padding: 3px 13px 4px;
+  border: 1px solid #f0cb6c;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #9c3828;
+  color: #fff0bc;
+  content: "TRACKSIDE THROW KIT  •  HOTDOG DOWNS";
+  font-family: var(--display-font);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px #52180f;
+}
+
+.hotbar-items {
+  position: relative;
+  grid-template-columns: repeat(10, 58px);
+  gap: 5px;
+  padding: 8px 8px 9px;
+  border: 2px solid #dcb75d;
+  border-radius: 4px 13px 16px 16px;
+  background:
+    linear-gradient(180deg, #754327 0 5px, transparent 5px),
+    repeating-linear-gradient(135deg, #162d21 0 16px, #11251b 16px 32px);
+  box-shadow:
+    inset 0 0 0 2px #0b1711,
+    inset 0 7px #ffffff0d,
+    0 9px 0 #4c281a;
+}
+
+.hotbar-items::after {
+  position: absolute;
+  right: 14px;
+  bottom: -7px;
+  left: 14px;
+  height: 3px;
+  border-radius: 99px;
+  background: repeating-linear-gradient(90deg, #e9ca78 0 12px, #7d4328 12px 17px);
+  content: "";
+  pointer-events: none;
+}
+
+.hotbar-slot {
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid #d8c08057;
+  border-radius: 5px 5px 11px 11px;
+  background:
+    linear-gradient(150deg, #fff1bf16 0 18%, transparent 18%),
+    linear-gradient(180deg, #315a40, #173122 66%, #101f17);
+  box-shadow: inset 0 1px #fff3c436, inset 0 -5px #07120c66;
+  transition: transform 130ms ease, border-color 130ms ease, filter 130ms ease;
+}
+
+.hotbar-slot:hover:not(.empty) {
+  filter: brightness(1.15);
+  transform: translateY(-3px);
+}
+
+.hotbar-slot.selected {
+  border-color: #ffe17a;
+  background:
+    linear-gradient(150deg, #fff3c63b 0 19%, transparent 19%),
+    linear-gradient(180deg, #b94c31, #712d24 68%, #3e1b17);
+  box-shadow: inset 0 0 0 2px #ffe17a, 0 0 18px #ffd45f70;
+  transform: translateY(-7px) rotate(-1deg);
+}
+
+.hotbar-slot > kbd {
+  top: 4px;
+  left: 4px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #f1d47b;
+  border-radius: 50%;
+  background: #0a1710;
+  color: #ffe493;
+}
+
+.hotbar-slot > span {
+  font-size: 26px;
+  filter: drop-shadow(0 3px 2px #0007);
+}
+
+.hotbar-slot > strong {
+  top: 4px;
+  right: 5px;
+  min-width: 16px;
+  padding: 1px 3px;
+  border-radius: 7px;
+  background: #f0ca5e;
+  color: #251a0c;
+}
+
+.hotbar-slot > small {
+  position: absolute;
+  right: 3px;
+  bottom: 4px;
+  left: 3px;
+  width: auto;
+  color: #f4e7c4;
+  font-weight: 850;
+  letter-spacing: 0.025em;
+}
+
+.best-bet {
+  position: relative;
+  width: 188px;
+  border: 2px solid #e0be72;
+  border-radius: 4px 12px 12px 4px;
+  background:
+    radial-gradient(circle at 0 50%, transparent 0 7px, #f3e4bd 8px),
+    repeating-linear-gradient(0deg, transparent 0 19px, #7b5c3430 19px 20px),
+    #f3e4bd;
+  box-shadow: inset 8px 0 #b4432e, 0 9px 0 #58331f;
+  color: #243526;
+}
+
+.best-bet small {
+  color: #9c3828;
+  font-family: var(--display-font);
+  letter-spacing: 0.13em;
+}
+
+.best-bet strong,
+.best-bet span {
+  color: #243526;
+}
+
+.game-menu {
+  background:
+    radial-gradient(ellipse at 50% 115%, #d6a94d38 0 18%, transparent 50%),
+    linear-gradient(90deg, transparent 49.7%, #e1bd6140 50%, transparent 50.3%),
+    repeating-radial-gradient(ellipse at 50% 115%, #163726 0 34px, #102b1d 35px 68px);
+}
+
+.game-menu::before {
+  border-color: #e3b94b35;
+  box-shadow:
+    0 0 0 62px #091a1238,
+    0 0 0 65px #e3b94b28,
+    0 0 0 134px #07140d75,
+    0 0 0 137px #e3b94b1f;
+}
+
+.menu-card {
+  border: 4px double #e7c66c;
+  border-radius: 9px 28px 9px 28px;
+  background:
+    radial-gradient(circle at 14px 14px, #e6c76a 0 3px, transparent 4px),
+    radial-gradient(circle at calc(100% - 14px) 14px, #e6c76a 0 3px, transparent 4px),
+    linear-gradient(145deg, #214b35, #0d2117 68%);
+  box-shadow: 0 30px 90px #000c, inset 0 0 40px #0004, 9px 9px 0 #7d3b29;
+}
+
+.menu-intro {
+  position: relative;
+  min-height: 92px;
+  padding-left: 112px;
+  text-align: left;
+}
+
+.clubhouse-crest {
+  position: absolute;
+  top: -12px;
+  left: 0;
+  display: grid;
+  width: 86px;
+  height: 86px;
+  place-items: center;
+  border: 3px double #f0d477;
+  border-radius: 50% 50% 44% 44%;
+  background: radial-gradient(circle, #b74630 0 48%, #79291f 49% 64%, #173b29 65%);
+  box-shadow: 0 7px 0 #07150e, 0 10px 20px #0007;
+  color: #fff0b8;
+  transform: rotate(-4deg);
+}
+
+.clubhouse-crest b {
+  margin-top: 7px;
+  font-family: var(--display-font);
+  font-size: 34px;
+  line-height: 0.7;
+}
+
+.clubhouse-crest span {
+  margin-top: -17px;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.menu-intro h1 {
+  color: #fff0b8;
+  text-shadow: 3px 3px 0 #9d3829, 6px 6px 0 #08150e;
+}
+
+.menu-intro p {
+  margin: 13px 0 20px;
+}
+
+.lobby-title {
+  border: 2px solid #dfbc60;
+  border-left: 9px solid #ba4630;
+  border-radius: 3px 15px 3px 15px;
+  background:
+    radial-gradient(circle, #d7bd6760 0 1px, transparent 1.5px) 0 0 / 8px 8px,
+    linear-gradient(100deg, #173f2b, #091a12);
+  box-shadow: inset 0 0 18px #0008, 4px 5px 0 #07140e;
+}
+
+.lobby-title em {
+  padding: 5px 8px;
+  border: 1px solid #6ced91;
+  background: #06130dcf;
+  box-shadow: 0 0 12px #57dc7d2b;
+  font-family: monospace;
+}
+
+.lobby-connect-grid section {
+  position: relative;
+  border: 1px dashed #dfc372;
+  border-radius: 3px 13px 3px 13px;
+  background:
+    linear-gradient(90deg, #a13b2b 0 5px, transparent 5px),
+    repeating-linear-gradient(0deg, #173426 0 22px, #142e22 22px 23px);
+  box-shadow: 4px 5px 0 #07140e;
+}
+
+.lobby-actions button {
+  border: 1px solid #d9c16e38;
+  border-radius: 3px 10px 3px 10px;
+  box-shadow: inset 0 -3px #07140e66, 2px 3px 0 #07140e;
+  letter-spacing: 0.055em;
+  transition: translate 120ms ease, filter 120ms ease;
+}
+
+.lobby-actions button:hover:not(:disabled) {
+  filter: brightness(1.13);
+  translate: 0 -2px;
+}
+
+.lobby-browser {
+  padding: 5px;
+  border: 1px solid #c9ac5a30;
+  background: #06140dc0;
+}
+
+.lobby-browser button {
+  border-left: 5px solid #b74630;
+  border-radius: 2px 9px 2px 9px;
+  background:
+    radial-gradient(circle, #dbc56b42 0 1px, transparent 1.4px) 0 0 / 7px 7px,
+    linear-gradient(90deg, #204832, #10271b);
+}
+
+.lobby-room {
+  border: 3px double #d6ba68;
+  border-radius: 5px 18px 5px 18px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 27px, #ffffff08 27px 28px),
+    #0a2116;
+  box-shadow: inset 0 0 25px #0008, 4px 5px 0 #07140e;
+}
+
+.lobby-seat {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px 9px 15px 15px;
+  background: linear-gradient(180deg, #284d37 0 8px, #13291d 8px);
+  box-shadow: inset 0 -4px #07140e55;
+}
+
+.lobby-seat.occupied {
+  border-top: 4px solid var(--player-color, #d0b65f);
+}
+
+.lobby-seat.ready {
+  background: linear-gradient(180deg, #53c873 0 8px, #1b402a 8px);
+}
+
+.lobby-avatar-card {
+  border: 4px double #e8c965;
+  border-radius: 28px 8px 28px 8px;
+  background:
+    linear-gradient(180deg, #b74630 0 9px, transparent 9px),
+    radial-gradient(circle at 50% 33%, #3e725033, transparent 45%),
+    linear-gradient(160deg, #193b2a, #081710);
+  box-shadow: 10px 10px 0 #773322, 0 25px 75px #000b;
+}
+
+@media (max-width: 900px) {
+  .hotbar-items {
+    grid-template-columns: repeat(10, 48px);
+  }
+
+  .hotbar-slot {
+    height: 57px;
+  }
+
+  .best-bet {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .hotbar-items {
+    grid-template-columns: repeat(5, 48px);
+  }
+
+  .hotbar::before {
+    font-size: 7px;
+  }
+
+  .menu-intro {
+    min-height: 0;
+    padding-left: 0;
+    text-align: center;
+  }
+
+  .clubhouse-crest {
+    display: none;
+  }
 }
 
 .high-contrast .phone,

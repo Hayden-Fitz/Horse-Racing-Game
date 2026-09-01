@@ -57,6 +57,9 @@ HD.UI = (() => {
     transferStatus: $("#transfer-status"),
     phoneHome: $("#phone-home"),
     phoneTime: $("#phone-time"),
+    phoneHomeClock: $("#phone-home-clock"),
+    phoneHomeDate: $("#phone-home-date"),
+    phoneHomeOwner: $("#phone-home-owner"),
     flappyStage: $("#flappy-stage"),
     flappyHorse: $("#flappy-horse"),
     flappyScore: $("#flappy-score"),
@@ -558,6 +561,17 @@ HD.UI = (() => {
         hour: "numeric",
         minute: "2-digit",
       });
+      el.phoneHomeClock.textContent = now.toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      el.phoneHomeDate.textContent = now.toLocaleDateString([], {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      }).toUpperCase();
+      const owner = document.querySelector("#player-name")?.value.trim() || "TRACK FAN";
+      el.phoneHomeOwner.textContent = `${owner.toUpperCase()}'S DAY AT THE DOWNS`;
       showPhoneHome();
     }
   }

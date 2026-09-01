@@ -38,8 +38,28 @@ async function run() {
   HD.Stadium.build(HD.world.scene);
   HD.Race.resetHorses();
 
-  assert.equal(HD.state.horses.length, 8, "The race did not build an eight-horse field");
-  assert.equal(new Set(HD.state.activeHorseIds).size, 8, "The race field contains duplicates");
+  assert.equal(HD.state.horses.length, 6, "The race did not build a six-horse field");
+  const horseNumber = HD.state.horses[0].userData.numberLabel;
+  assert.ok(horseNumber.position.y > 6, "Horse numbers should float above the jockey");
+  assert.equal(
+    horseNumber.material.depthTest,
+    false,
+    "Horse numbers should remain visible through stadium geometry",
+  );
+  HD.Models.setPlayerNameTag(HD.world.players[0], "Maya");
+  assert.equal(HD.world.players[0].userData.nameTag.userData.label, "Maya");
+  assert.equal(
+    HD.world.players[0].userData.nameTag.material.depthTest,
+    false,
+    "Player tags should remain visible through stadium geometry",
+  );
+  HD.Models.setPlayerNameTag(HD.world.localPlayer, "Do not show this");
+  assert.equal(
+    HD.world.localPlayer.userData.nameTag,
+    undefined,
+    "The local player should not see their own name tag",
+  );
+  assert.equal(new Set(HD.state.activeHorseIds).size, 6, "The race field contains duplicates");
   assert.equal(HD.state.horseFieldRacesRemaining, 2, "The new field should last two races");
   const firstField = [...HD.state.activeHorseIds];
   HD.state.horseFieldRacesRemaining = 1;
@@ -51,6 +71,95 @@ async function run() {
   );
   assert.equal(HD.world.shopPositions.length, 4, "The upper concourse shops did not build");
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
+  assert.equal(
+    HD.world.commentators.length,
+    2,
+    "The broadcast booth should contain a two-person commentary team",
+  );
+  assert.ok(
+    HD.world.commentatorBox?.polygon?.length === 4,
+    "The broadcast booth walkable footprint is missing",
+  );
+  assert.ok(
+    HD.world.commentatorBox?.desk,
+    "The broadcast desk collision metadata is missing",
+  );
+  assert.ok(
+    HD.world.commentatorBox.angle > Math.PI,
+    "The broadcast booth should sit on the intended side of its staircase",
+  );
+  assert.ok(
+    HD.world.commentatorBox.roofY > HD.world.commentatorBox.rearRoofY,
+    "The broadcast booth roof should slope downward toward the concourse",
+  );
+  assert.ok(
+    HD.world.commentatorBox.roofY - HD.world.commentatorBox.floorY > 6,
+    "The track-side broadcast ceiling is too low for a standing player",
+  );
+  assert.ok(
+    HD.world.commentatorBox.rearRoofY - HD.world.commentatorBox.floorY >
+      HD.CONFIG.eyeHeight + 0.25,
+    "The low end of the broadcast roof clips through the player camera",
+  );
+  assert.ok(
+    HD.world.commentatorBox.entrance?.topY >
+      HD.world.commentatorBox.entrance?.bottomY,
+    "The broadcast booth needs a descending entrance from the upper concourse",
+  );
+  assert.ok(
+    HD.world.commentatorBox.entrance?.width >= 5,
+    "The broadcast booth staircase is too narrow for a player character",
+  );
+  assert.ok(
+    HD.world.commentatorBox.supportBottomY < HD.world.commentatorBox.floorY,
+    "The broadcast booth needs a finished support beneath its floor",
+  );
+  const targetAngle = HD.world.commentatorBox.angle;
+  const mirroredAngle = Math.PI * 2 - targetAngle;
+  const targetFloorHits = upperFloorHitsAt(targetAngle);
+  const mirroredFloorHits = upperFloorHitsAt(mirroredAngle);
+  assert.equal(
+    targetFloorHits,
+    0,
+    "The upper-floor cutout is not on the same side as the broadcast booth",
+  );
+  assert.ok(
+    mirroredFloorHits > 0,
+    "The upper floor was also removed from the booth's opposite side",
+  );
+  assert.ok(
+    upperFloorHitsAt(targetAngle - 0.082) > 0 &&
+      upperFloorHitsAt(targetAngle + 0.082) > 0,
+    "The upper floor beside the rectangular stair opening was not restored",
+  );
+  const seatBases = HD.world.scene.children
+    .flatMap((child) => child.children || [])
+    .find((object) =>
+      object.isInstancedMesh &&
+      object.geometry?.parameters?.width === 1.35 &&
+      object.geometry?.parameters?.height === 0.22,
+    );
+  assert.ok(seatBases, "The stadium seat batch is missing");
+  const boothColumn = Math.round(
+    targetAngle / (Math.PI * 2) * 128,
+  ) % 128;
+  const restoredSeatMatrix = new THREE.Matrix4();
+  const removedSeatMatrix = new THREE.Matrix4();
+  seatBases.getMatrixAt(3 * 128 + boothColumn, restoredSeatMatrix);
+  seatBases.getMatrixAt(4 * 128 + boothColumn, removedSeatMatrix);
+  assert.ok(
+    Math.abs(restoredSeatMatrix.determinant()) > 0.01,
+    "The complete seating row in front of the broadcast booth was not restored",
+  );
+  assert.ok(
+    Math.abs(removedSeatMatrix.determinant()) < 0.001,
+    "Seats are clipping through the broadcast booth interior",
+  );
+  assert.equal(
+    HD.world.commentators.every((commentator) => !commentator.userData.standing),
+    true,
+    "Commentators should be seated at the broadcast desk",
+  );
   assert.ok(
     HD.CONFIG.stairs.startZ < 50.5,
     "The left/right stair entrances must overlap the lower walking ring",
@@ -60,7 +169,30 @@ async function run() {
     "The instanced infield grass detail is missing",
   );
 
-  console.log("Stadium geometry and rotating eight-horse field checks passed.");
+  console.log("Stadium geometry and rotating six-horse field checks passed.");
+
+  function upperFloorHitsAt(angle) {
+    HD.world.scene.updateMatrixWorld(true);
+    const point = HD.Stadium.oval(106, 72, angle);
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(point.x, 18, point.z),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      10,
+    );
+    const geometry = [];
+    HD.world.scene.traverse((object) => {
+      if (object.isMesh && !object.isSprite) geometry.push(object);
+    });
+    const hits = raycaster
+      .intersectObjects(geometry, false)
+      .filter((hit) =>
+        Math.abs(hit.point.y - 13.5) < 0.08 &&
+        hit.object.geometry?.type === "ExtrudeGeometry" &&
+        hit.object.material?.color?.getHex() === 0xb7a47f,
+      );
+    return hits.length;
+  }
 }
 
 function createCanvasContext() {

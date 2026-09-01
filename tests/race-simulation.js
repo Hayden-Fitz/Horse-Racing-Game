@@ -42,6 +42,49 @@ async function run() {
   });
   assert.deepEqual(openingOdds, configuredOdds, "Opening prices must match each horse's fixed odds");
 
+  const boostedHorse = HD.state.horses[0];
+  const boostedHorseId = boostedHorse.userData.data.id;
+  const oatsPosition = boostedHorse.position.clone().add(new THREE.Vector3(0, 2.2, 0));
+  HD.Race.launch(
+    "performanceOats",
+    oatsPosition,
+    new THREE.Vector3(),
+    { consume: false },
+  );
+  HD.Race.updateProjectiles(0.016);
+  assert.equal(
+    boostedHorse.userData.data.maxSpeedBonus,
+    0.01,
+    "Champion Oats did not add one percent maximum speed",
+  );
+  HD.Race.resetHorses();
+  const persistentHorse = HD.state.horses.find((horse) => {
+    return horse.userData.data.id === boostedHorseId;
+  });
+  assert.equal(
+    persistentHorse.userData.data.maxSpeedBonus,
+    0.01,
+    "Champion Oats did not persist between races",
+  );
+
+  HD.Race.launch(
+    "hurdle",
+    new THREE.Vector3(0, 0.4, 0),
+    new THREE.Vector3(),
+    { consume: false },
+  );
+  HD.Race.updateProjectiles(0.016);
+  const hurdle = HD.state.projectiles.at(-1);
+  const landedRotation = hurdle.mesh.rotation.clone();
+  HD.Race.updateProjectiles(0.25);
+  assert.ok(hurdle.grounded, "The hurdle did not lock to a track lane");
+  assert.ok(
+    Math.abs(hurdle.mesh.rotation.x - landedRotation.x) < 0.0001 &&
+      Math.abs(hurdle.mesh.rotation.y - landedRotation.y) < 0.0001 &&
+      Math.abs(hurdle.mesh.rotation.z - landedRotation.z) < 0.0001,
+    "The placed hurdle continued rotating",
+  );
+
   HD.Race.begin();
   let frames = 0;
   while (HD.Race.liveBettingOpen() && frames < 1_500) {
