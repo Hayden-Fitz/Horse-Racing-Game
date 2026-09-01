@@ -14,7 +14,7 @@ const gameScripts = [
   "firebase.js",
   "network.js",
   "controls.js",
-  "main.js",
+  "main.js", 
 ];
 
 for (const file of gameScripts) {
