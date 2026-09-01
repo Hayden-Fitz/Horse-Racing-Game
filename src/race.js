@@ -6,12 +6,14 @@ HD.Race = (() => {
   const MIN_PROGRESS_GAP = 0.018;
   let networkSettlement = "";
   let lastNetworkUi = -1;
+  let ambientThrowTimer = 8;
 
   // ---------------------------------------------------------------------------
   // Horse lifecycle and three-lap simulation
   // ---------------------------------------------------------------------------
 
-  function resetHorses() {
+  function resetHorses(options = {}) {
+    const forceStart = Boolean(options.forceStart);
     const previousProgress = new Map(
       S.horses.map((horse) => [horse.userData.data.id, horse.userData.data.progress]),
     );
@@ -29,7 +31,7 @@ HD.Race = (() => {
     S.horses.forEach((horse) => {
       const data = horse.userData.data;
       data.maxSpeedBonus = S.horseSpeedBonuses?.[data.id] || 0;
-      const oldProgress = previousProgress.get(data.id);
+      const oldProgress = forceStart ? undefined : previousProgress.get(data.id);
       if (!Number.isFinite(oldProgress)) return;
       data.progress = oldProgress;
       data.stagingStart = oldProgress;
@@ -135,6 +137,7 @@ HD.Race = (() => {
     if (S.phase !== "betting") return;
     S.phase = "racing";
     S.raceTime = 0;
+    ambientThrowTimer = 6 + Math.random() * 7;
     S.horses.forEach((horse) => {
       const data = horse.userData.data;
       data.progress = 0;
@@ -232,6 +235,7 @@ HD.Race = (() => {
     if (S.phase !== "racing") return;
     const bookWasOpen = liveBettingOpen();
     S.raceTime += dt;
+    updateAmbientCrowdThrows(dt);
     const leaderProgress = Math.max(...S.horses.map((horse) => horse.userData.data.progress));
 
     S.horses.forEach((horse, i) => {
@@ -574,7 +578,7 @@ HD.Race = (() => {
     prepareRace();
     HD.UI.announce("Forty-five seconds until the next race. Study the field!");
   }
-  function prepareRace() {
+  function prepareRace(options = {}) {
     Object.assign(S, {
       selected: 0,
       bets: [],
@@ -586,7 +590,7 @@ HD.Race = (() => {
       raceAnnouncement: "",
     });
     clearProjectiles();
-    resetHorses();
+    resetHorses({ forceStart: options.forceStart });
     HD.AI?.prepareRace?.();
     HD.UI.countdown(String(C.preparationDuration));
     HD.UI.progress(0);
@@ -619,7 +623,7 @@ HD.Race = (() => {
       const bonus = C.roundBonuses[nextRound - 1];
       S.money += bonus;
       HD.UI.addLedger(`Day ${nextRound} bankroll`, bonus);
-      prepareRace();
+      prepareRace({ forceStart: true });
       HD.UI.announce(`Day ${nextRound} begins. $${bonus} added to your wallet.`);
     });
   }
@@ -691,6 +695,7 @@ HD.Race = (() => {
       velocity: velocity.clone(),
       age: 0,
       visualOnly: Boolean(options.visualOnly),
+      ambient: Boolean(options.ambient),
     });
     if (options.consume !== false) {
       S.inventory[type] = Math.max(0, S.inventory[type] - 1);
@@ -705,12 +710,107 @@ HD.Race = (() => {
       throwData.type,
       new THREE.Vector3().fromArray(throwData.start),
       new THREE.Vector3().fromArray(throwData.velocity),
-      { consume: false, visualOnly: !authoritative },
+      {
+        consume: false,
+        visualOnly: !authoritative,
+        ambient: Boolean(throwData.ambient),
+      },
     );
   }
 
   function validVector(value) {
     return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
+  }
+
+  function predictTrajectory(
+    type,
+    start,
+    velocity,
+    positions,
+    maxPoints = 42,
+    interval = 0.055,
+  ) {
+    const item = C.items[type];
+    if (!item || !positions || maxPoints < 2) return 0;
+
+    const groundY = 0.5;
+    const gravity = item.gravity;
+    const landingTime = projectileLandingTime(
+      start.y,
+      velocity.y,
+      gravity,
+      groundY,
+    );
+    const sampleInterval = Math.max(
+      interval,
+      landingTime / (maxPoints - 1),
+    );
+    const regularPoints = Math.min(
+      maxPoints - 1,
+      Math.max(1, Math.floor(landingTime / sampleInterval)),
+    );
+
+    for (let index = 0; index < regularPoints; index++) {
+      writeTrajectoryPoint(
+        positions,
+        index,
+        index * sampleInterval,
+        start,
+        velocity,
+        gravity,
+      );
+    }
+
+    writeTrajectoryPoint(positions, regularPoints, landingTime, start, velocity, gravity);
+    positions[regularPoints * 3 + 1] = Math.max(groundY, positions[regularPoints * 3 + 1]);
+    return regularPoints + 1;
+  }
+
+  function writeTrajectoryPoint(positions, index, time, start, velocity, gravity) {
+    const offset = index * 3;
+    positions[offset] = start.x + velocity.x * time;
+    positions[offset + 1] = start.y + velocity.y * time - gravity * 0.5 * time * time;
+    positions[offset + 2] = start.z + velocity.z * time;
+  }
+
+  function projectileLandingTime(startY, velocityY, gravity, groundY = 0.5) {
+    const discriminant = Math.max(
+      0,
+      velocityY * velocityY + 2 * gravity * Math.max(0, startY - groundY),
+    );
+    return (velocityY + Math.sqrt(discriminant)) / gravity;
+  }
+
+  function updateAmbientCrowdThrows(dt) {
+    ambientThrowTimer -= dt;
+    if (ambientThrowTimer > 0 || !S.horses.length) return;
+    ambientThrowTimer = 12 + Math.random() * 10;
+
+    const row = 1 + Math.floor(Math.random() * 6);
+    const angle = Math.random() * Math.PI * 2;
+    const start = new THREE.Vector3(
+      Math.cos(angle) * (82.1 + row * 3.25),
+      C.grandstandBaseHeight + row * 1.5 + 2.15,
+      Math.sin(angle) * (51.85 + row * 2.75),
+    );
+    const aimedAtHorse = Math.random() < 0.72;
+    const horse = S.horses[Math.floor(Math.random() * S.horses.length)];
+    const target = aimedAtHorse
+      ? horse.position.clone().add(new THREE.Vector3(0, 1.4, 0))
+      : trackPoint(Math.random(), Math.floor(Math.random() * C.raceHorseCount)).position;
+    const type = ["hotdog", "soda", "pretzel", "pillow", "chair"][
+      Math.floor(Math.random() * 5)
+    ];
+    const flightTime = 1.35 + Math.random() * 0.65;
+    const velocity = target.clone().sub(start).divideScalar(flightTime);
+    velocity.y += C.items[type].gravity * flightTime * 0.5;
+
+    launch(type, start, velocity, {
+      consume: false,
+      visualOnly: false,
+      ambient: true,
+    });
+    HD.Network?.sendAmbientThrow?.(type, start, velocity);
   }
 
   // ---------------------------------------------------------------------------
@@ -721,8 +821,13 @@ HD.Race = (() => {
     S.projectiles.forEach((p) => {
       p.age += dt;
       if (p.landed) p.landedAge = (p.landedAge || 0) + dt;
-      if (!p.grounded) p.velocity.y -= p.config.gravity * dt;
+      const stepStartX = p.position.x;
+      const stepStartY = p.position.y;
+      const stepStartZ = p.position.z;
+      const stepVelocityY = p.velocity.y;
+      if (!p.grounded) p.position.y -= p.config.gravity * 0.5 * dt * dt;
       p.position.addScaledVector(p.velocity, dt);
+      if (!p.grounded) p.velocity.y -= p.config.gravity * dt;
       p.mesh.position.copy(p.position);
       if (!p.grounded) {
         p.mesh.rotation.x += dt * (4 + Math.abs(p.velocity.z) * 0.35);
@@ -757,9 +862,22 @@ HD.Race = (() => {
           p.velocity.y = Math.max(1.2, p.velocity.y * -0.2);
         }
       } else if (p.position.y <= 0.5) {
+        if (!p.landed && stepStartY > 0.5) {
+          const impactTime = Math.min(
+            dt,
+            projectileLandingTime(
+              stepStartY,
+              stepVelocityY,
+              p.config.gravity,
+            ),
+          );
+          p.position.x = stepStartX + p.velocity.x * impactTime;
+          p.position.z = stepStartZ + p.velocity.z * impactTime;
+          p.velocity.y = stepVelocityY - p.config.gravity * impactTime;
+        }
         p.position.y = 0.5;
         p.mesh.position.y = 0.5;
-        if (!p.visualOnly && !p.landed && !p.impacted) {
+        if (!p.visualOnly && !p.ambient && !p.landed && !p.impacted) {
           HD.UI.announce(`Miss! The ${p.config.name.toLowerCase()} lands in the dirt.`);
         }
         if (!p.landed) {
@@ -1123,6 +1241,7 @@ HD.Race = (() => {
     restart,
     launch,
     launchNetwork,
+    predictTrajectory,
     updateProjectiles,
     networkSnapshot,
     applyNetworkSnapshot,

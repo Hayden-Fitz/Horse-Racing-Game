@@ -402,6 +402,12 @@ HD.Network = (() => {
         if (thrower) HD.Models.playPlayerThrow(thrower, event.payload.type);
         HD.Race.launchNetwork(event.payload, isHost());
       }
+      if (event.type === "ambientThrow" && event.payload) {
+        HD.Race.launchNetwork(
+          { ...event.payload, ambient: true },
+          false,
+        );
+      }
       if (event.type === "sabotage" && event.payload && isHost()) {
         HD.Race.addNetworkSabotage(event.payload);
       }
@@ -555,6 +561,16 @@ HD.Network = (() => {
       start: start.toArray(),
       velocity: velocity.toArray(),
       power,
+    });
+  }
+
+  function sendAmbientThrow(type, start, velocity) {
+    if (!lobby || !isHost()) return;
+    postLobbyEvent("ambientThrow", {
+      type,
+      start: start.toArray(),
+      velocity: velocity.toArray(),
+      ambient: true,
     });
   }
 
@@ -1137,6 +1153,7 @@ HD.Network = (() => {
     init,
     update,
     sendThrow,
+    sendAmbientThrow,
     sendSabotage,
     sendTransfer,
     transferTargets,

@@ -67,6 +67,43 @@ async function run() {
     "Champion Oats did not persist between races",
   );
 
+  persistentHorse.userData.data.progress = 2.6;
+  HD.Race.resetHorses({ forceStart: true });
+  assert.ok(
+    HD.state.horses.every((horse) => horse.userData.data.progress === 0),
+    "A new day did not teleport every horse back to the starting line",
+  );
+
+  const trajectoryStart = new THREE.Vector3(8, 13, 60);
+  const trajectoryVelocity = new THREE.Vector3(4, 17, -32);
+  const trajectoryPositions = new Float32Array(42 * 3);
+  const trajectoryCount = HD.Race.predictTrajectory(
+    "hotdog",
+    trajectoryStart,
+    trajectoryVelocity,
+    trajectoryPositions,
+  );
+  const landingOffset = (trajectoryCount - 1) * 3;
+  assert.ok(
+    Math.abs(trajectoryPositions[landingOffset + 1] - 0.5) < 0.0001,
+    "The trajectory guide did not finish on the projectile ground plane",
+  );
+  HD.Race.launch(
+    "hotdog",
+    trajectoryStart,
+    trajectoryVelocity,
+    { consume: false, visualOnly: true },
+  );
+  const guidedProjectile = HD.state.projectiles.at(-1);
+  while (!guidedProjectile.landed && guidedProjectile.age < 10) {
+    HD.Race.updateProjectiles(0.037);
+  }
+  assert.ok(
+    Math.abs(guidedProjectile.position.x - trajectoryPositions[landingOffset]) < 0.0001 &&
+      Math.abs(guidedProjectile.position.z - trajectoryPositions[landingOffset + 2]) < 0.0001,
+    "The trajectory guide endpoint did not match the real unobstructed landing point",
+  );
+
   HD.Race.launch(
     "hurdle",
     new THREE.Vector3(0, 0.4, 0),

@@ -77,6 +77,7 @@ HD.UI = (() => {
     rankingsClose: $("#rankings-close"),
   };
   let deliveryRenderTimer = 0;
+  const rankingRowHeight = 44;
 
   // ---------------------------------------------------------------------------
   // Primary HUD and phone applications
@@ -197,10 +198,10 @@ HD.UI = (() => {
       row.dataset.rank = String(index + 1);
       row.style.zIndex = String(rankings.length - index);
       requestAnimationFrame(() => {
-        row.style.transform = `translate3d(0, ${index * 48}px, 0)`;
+        row.style.transform = `translate3d(0, ${index * rankingRowHeight}px, 0)`;
       });
     });
-    container.style.height = `${rankings.length * 48}px`;
+    container.style.height = `${rankings.length * rankingRowHeight}px`;
   }
 
   function renderHotbar() {

@@ -230,6 +230,25 @@
   opacity: 0.55;
 }
 
+/* Keep the home screen dense and intentional at every supported phone height. */
+.phone:not(.app-open) .phone-widget {
+  flex: 1 1 auto;
+  min-height: 230px;
+  margin: 10px 0 8px;
+}
+
+.phone:not(.app-open) .apps {
+  flex: 0 0 auto;
+  margin: 0 0 6px;
+  padding: 10px 8px;
+  border: 1px solid #ffffff18;
+  border-radius: 20px;
+}
+
+.phone:not(.app-open) .apps button {
+  min-width: 0;
+}
+
 .odds-watch {
   max-height: 520px;
   overflow-y: auto;
@@ -1811,7 +1830,7 @@
 .round-break {
   position: fixed;
   z-index: 8;
-  top: 20px;
+  top: 92px;
   left: 50%;
   display: grid;
   min-width: 360px;
@@ -1849,6 +1868,7 @@
   inset: 0;
   display: grid;
   place-content: center;
+  padding: 28px 18px;
   background: #030706;
   opacity: 0;
   text-align: center;
@@ -1869,7 +1889,9 @@
 }
 
 .day-transition > strong {
-  font-size: clamp(70px, 14vw, 150px);
+  margin: 4px 0 0;
+  font-size: clamp(54px, 10vw, 104px);
+  line-height: 0.9;
 }
 
 .day-transition .ranking-row strong {
@@ -1879,6 +1901,40 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.day-transition .animated-rankings {
+  width: min(560px, 86vw);
+  max-height: min(352px, 52vh);
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid #e7c65c66;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #0b1913, #050c09);
+  box-shadow: 0 24px 70px #000b, inset 0 1px #ffffff10;
+}
+
+.day-transition .ranking-row {
+  right: 14px;
+  left: 14px;
+  height: 40px;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(64px, auto);
+  padding: 6px 10px;
+}
+
+.day-transition > span {
+  margin: 10px 0 12px;
+}
+
+@media (max-height: 720px) {
+  .phone:not(.app-open) .phone-widget {
+    min-height: 175px;
+  }
+
+  .day-transition .animated-rankings {
+    transform: scale(0.9);
+    transform-origin: top center;
+  }
 }
 
 .day-transition .ranking-row span {

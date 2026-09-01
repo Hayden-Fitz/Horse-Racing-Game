@@ -14,6 +14,7 @@ HD.Controls = (() => {
   const walkInput = new THREE.Vector3();
   const trajectoryStart = new THREE.Vector3();
   const trajectoryVelocity = new THREE.Vector3();
+  const throwOffset = new THREE.Vector3();
   let trajectoryPositions;
   let phoneRequested = false;
   let phoneBlend = 0;
@@ -126,8 +127,7 @@ HD.Controls = (() => {
     HD.world.heldItem.visible = throwing;
     phoneRequested = phoning;
     if (phoning) HD.world.phoneModel.visible = true;
-    trajectory.visible = throwing;
-    if (HD.world.trajectoryGlow) HD.world.trajectoryGlow.visible = throwing;
+    setTrajectoryVisible(false);
     S.charging = false;
     S.throwPower = 0;
     chargeSource = null;
@@ -166,13 +166,8 @@ HD.Controls = (() => {
     const thrownType = S.selectedItem;
     const item = HD.CONFIG.items[thrownType];
     const start = new THREE.Vector3();
-    camera.getWorldPosition(start);
-    start.add(new THREE.Vector3(0.55, -0.35, -1).applyQuaternion(camera.quaternion));
-    const velocity = new THREE.Vector3(0, 0, -1)
-      .applyQuaternion(camera.quaternion)
-      .normalize()
-      .multiplyScalar(item.speed * S.throwPower * HD.CONFIG.throwVelocityMultiplier);
-    velocity.y += item.lift * S.throwPower * HD.CONFIG.throwVelocityMultiplier;
+    const velocity = new THREE.Vector3();
+    calculateThrowLaunch(item, S.throwPower, start, velocity);
     const visualOnly = HD.Network.isConnected() && !HD.Network.isHost();
     HD.Models.playPlayerThrow(HD.world.localPlayer, thrownType);
     throwAnimation = 0.55;
@@ -183,6 +178,7 @@ HD.Controls = (() => {
     chargeSource = null;
     chargeTime = 0;
     S.throwPower = 0;
+    setTrajectoryVisible(false);
     autoSwapAfterThrow(thrownType);
   }
   function beginCharge(event) {
@@ -200,6 +196,7 @@ HD.Controls = (() => {
     chargeSource = source;
     chargeTime = 0;
     S.throwPower = 0;
+    setTrajectoryVisible(false);
   }
   function endCharge(event) {
     if (event.button !== 0 || !S.charging || chargeSource !== "pointer") return;
@@ -211,6 +208,7 @@ HD.Controls = (() => {
     chargeSource = null;
     chargeTime = 0;
     S.throwPower = 0;
+    setTrajectoryVisible(false);
   }
   function update(dt) {
     if (S.standing) {
@@ -227,10 +225,12 @@ HD.Controls = (() => {
       chargeTime += dt;
       S.throwPower = Math.min(1, chargeTime / 1.35);
     }
-    if (S.mode === "throw") {
+    const showTrajectory = S.mode === "throw" && S.charging && S.throwPower > 0.01;
+    setTrajectoryVisible(showTrajectory);
+    if (showTrajectory) {
       updateTrajectory();
-      HD.UI.power(S.throwPower, true);
     }
+    HD.UI.power(S.throwPower, S.mode === "throw");
     updatePhoneAnimation(dt);
     updateHeldAnimation(dt);
     syncLocalPlayer();
@@ -661,32 +661,38 @@ HD.Controls = (() => {
     HD.UI.setMode("look");
   }
   function updateTrajectory() {
-    camera.getWorldPosition(trajectoryStart);
-    trajectoryVelocity.set(0.55, -0.35, -1).applyQuaternion(camera.quaternion);
-    trajectoryStart.add(trajectoryVelocity);
     const item = HD.CONFIG.items[S.selectedItem];
-    trajectoryVelocity
+    calculateThrowLaunch(item, S.throwPower, trajectoryStart, trajectoryVelocity);
+    const pointCount = HD.Race.predictTrajectory(
+      S.selectedItem,
+      trajectoryStart,
+      trajectoryVelocity,
+      trajectoryPositions,
+      42,
+      0.055,
+    );
+    trajectory.geometry.attributes.position.needsUpdate = true;
+    trajectory.geometry.setDrawRange(0, pointCount);
+  }
+
+  function calculateThrowLaunch(item, power, start, velocity) {
+    camera.getWorldPosition(start);
+    throwOffset
+      .set(0.55, -0.35, -1)
+      .applyQuaternion(camera.quaternion);
+    start.add(throwOffset);
+
+    velocity
       .set(0, 0, -1)
       .applyQuaternion(camera.quaternion)
       .normalize()
-      .multiplyScalar(item.speed * S.throwPower * HD.CONFIG.throwVelocityMultiplier);
-    trajectoryVelocity.y += item.lift * S.throwPower * HD.CONFIG.throwVelocityMultiplier;
-    let pointCount = 0;
-    for (let i = 0; i < 42; i++) {
-      const t = i * 0.055;
-      const offset = i * 3;
-      const x = trajectoryStart.x + trajectoryVelocity.x * t;
-      const y =
-        trajectoryStart.y + trajectoryVelocity.y * t - item.gravity * 0.5 * t * t;
-      const z = trajectoryStart.z + trajectoryVelocity.z * t;
-      trajectoryPositions[offset] = x;
-      trajectoryPositions[offset + 1] = y;
-      trajectoryPositions[offset + 2] = z;
-      pointCount++;
-      if (y <= 0.35) break;
-    }
-    trajectory.geometry.attributes.position.needsUpdate = true;
-    trajectory.geometry.setDrawRange(0, pointCount);
+      .multiplyScalar(item.speed * power * HD.CONFIG.throwVelocityMultiplier);
+    velocity.y += item.lift * power * HD.CONFIG.throwVelocityMultiplier;
+  }
+
+  function setTrajectoryVisible(visible) {
+    if (trajectory) trajectory.visible = visible;
+    if (HD.world.trajectoryGlow) HD.world.trajectoryGlow.visible = visible;
   }
 
   // ---------------------------------------------------------------------------
