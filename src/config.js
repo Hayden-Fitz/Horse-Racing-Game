@@ -4,7 +4,7 @@ HD.CONFIG = {
   // ---------------------------------------------------------------------------
   // Race and match rules
   // ---------------------------------------------------------------------------
-
+ 
   horses: [
     { id: "hoof-hearted", name: "Hoof Hearted", color: 0xef476f, odds: 3, ability: 1.05, coat: 0x6b3824 },
     { id: "mayo-neighs", name: "Mayo Neighs", color: 0x3a86ff, odds: 5, ability: 1.01, coat: 0x3e2921 },
