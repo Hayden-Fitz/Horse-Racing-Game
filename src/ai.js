@@ -186,49 +186,67 @@ HD.AI = (() => {
       82.1 + row * 3.25,
       51.85 + row * 2.75,
       stairAngle,
-      C.grandstandBaseHeight + row * 1.5,
+      standingRootY(C.grandstandBaseHeight + row * 1.5),
     );
-    const lower = ovalPoint(78.5, 48, stairAngle, 1.85);
-    const upper = ovalPoint(104.5, 70.5, stairAngle, 13.7);
-    const approach = ovalPoint(78.5, 48, seatAngle, 1.85);
+    const lower = ovalPoint(78.5, 48, stairAngle, standingRootY(1.65));
+    const upper = ovalPoint(104.5, 70.5, stairAngle, standingRootY(13.5));
+    const rowHeight = standingRootY(C.grandstandBaseHeight + row * 1.5);
+    const walkwayHeight = standingRootY(1.65);
+    const upperHeight = standingRootY(13.5);
     if (mode === "seat") {
       return startOnUpperFloor
-        ? [upper, lower, ...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, stairAngle, seatAngle), seat.clone()]
+        ? [upper, lower, ...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, rowHeight, stairAngle, seatAngle), seat.clone()]
         : startOnWalkway
-          ? [...ovalArc(78.5, 48, 1.85, Math.atan2(start.z, start.x), stairAngle), lower, rowAtStairs, ...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, stairAngle, seatAngle), seat.clone()]
-          : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, Math.atan2(start.z, start.x), seatAngle), seat.clone()];
+          ? [...ovalArc(78.5, 48, walkwayHeight, Math.atan2(start.z, start.x), stairAngle), lower, rowAtStairs, ...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, rowHeight, stairAngle, seatAngle), seat.clone()]
+          : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, rowHeight, Math.atan2(start.z, start.x), seatAngle), seat.clone()];
     }
     if (mode === "walkway") {
       return startOnUpperFloor
-        ? [upper, lower, ...ovalArc(78.5, 48, 1.85, stairAngle, seatAngle)]
-        : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, seatAngle, stairAngle), rowAtStairs, lower, ...ovalArc(78.5, 48, 1.85, stairAngle, seatAngle)];
+        ? [upper, lower, ...ovalArc(78.5, 48, walkwayHeight, stairAngle, seatAngle)]
+        : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, rowHeight, seatAngle, stairAngle), rowAtStairs, lower, ...ovalArc(78.5, 48, walkwayHeight, stairAngle, seatAngle)];
     }
 
     const shops = HD.world.shopPositions || [];
     const shop = shops[index % Math.max(1, shops.length)];
     const shopPoint = shop
-      ? new THREE.Vector3(shop.x, 13.7, shop.z)
-      : ovalPoint(110, 74, stairAngle + Math.PI / 4, 13.7);
+      ? new THREE.Vector3(shop.x, upperHeight, shop.z)
+      : ovalPoint(110, 74, stairAngle + Math.PI / 4, upperHeight);
     const shopAngle = Math.atan2(shopPoint.z, shopPoint.x);
     return startOnUpperFloor
-      ? [...ovalArc(110, 74, 13.7, Math.atan2(start.z, start.x), shopAngle), shopPoint]
+      ? [...ovalArc(110, 74, upperHeight, Math.atan2(start.z, start.x), shopAngle), shopPoint]
       : startOnWalkway
-        ? [...ovalArc(78.5, 48, 1.85, Math.atan2(start.z, start.x), stairAngle), lower, upper, ...ovalArc(110, 74, 13.7, stairAngle, shopAngle), shopPoint]
-        : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, C.grandstandBaseHeight + row * 1.5, seatAngle, stairAngle), rowAtStairs, lower, upper, ...ovalArc(110, 74, 13.7, stairAngle, shopAngle), shopPoint];
+        ? [...ovalArc(78.5, 48, walkwayHeight, Math.atan2(start.z, start.x), stairAngle), lower, upper, ...ovalArc(110, 74, upperHeight, stairAngle, shopAngle), shopPoint]
+        : [...ovalArc(82.1 + row * 3.25, 51.85 + row * 2.75, rowHeight, seatAngle, stairAngle), rowAtStairs, lower, upper, ...ovalArc(110, 74, upperHeight, stairAngle, shopAngle), shopPoint];
+  }
+
+  function standingRootY(surfaceY) {
+    return surfaceY + C.eyeHeight - C.characterEyeOffset;
   }
 
   function upperPatrolRoute(index, player) {
     player.patrolStep++;
     const angle = ((index * 0.72 + player.patrolStep * 0.38) % (Math.PI * 2));
     const avatar = HD.world.players?.[index];
-    return ovalArc(110, 74, 13.7, Math.atan2(avatar.position.z, avatar.position.x), angle);
+    return ovalArc(
+      110,
+      74,
+      standingRootY(13.5),
+      Math.atan2(avatar.position.z, avatar.position.x),
+      angle,
+    );
   }
 
   function walkwayPatrolRoute(index, player) {
     player.patrolStep++;
     const angle = ((index * 0.78 + player.patrolStep * 0.25) % (Math.PI * 2));
     const avatar = HD.world.players?.[index];
-    return ovalArc(78.5, 48, 1.85, Math.atan2(avatar.position.z, avatar.position.x), angle);
+    return ovalArc(
+      78.5,
+      48,
+      standingRootY(1.65),
+      Math.atan2(avatar.position.z, avatar.position.x),
+      angle,
+    );
   }
 
   function ovalArc(radiusX, radiusZ, y, fromAngle, toAngle) {

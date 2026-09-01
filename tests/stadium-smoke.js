@@ -70,6 +70,20 @@ async function run() {
     "The selected horse field changed before completing its second race",
   );
   assert.equal(HD.world.shopPositions.length, 4, "The upper concourse shops did not build");
+  assert.equal(
+    HD.world.crowdThrowers.length,
+    3,
+    "The crowd should contain exactly three featured throwers",
+  );
+  assert.equal(
+    new Set(HD.world.crowdThrowers.map((thrower) => thrower.userData.throwerIndex)).size,
+    3,
+    "The featured crowd throwers need unique stagger slots",
+  );
+  assert.ok(
+    HD.world.crowdThrowers.every((thrower) => thrower.userData.ambientThrower),
+    "A featured crowd thrower is missing its race-only behavior marker",
+  );
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
   assert.equal(
     HD.world.commentators.length,

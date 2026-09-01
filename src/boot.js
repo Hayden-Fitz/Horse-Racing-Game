@@ -10,6 +10,7 @@ const gameScripts = [
   "ai.js",
   "ui.js",  
   "settings.js",
+  "audio.js",
   "firebase.js",
   "network.js",
   "controls.js",

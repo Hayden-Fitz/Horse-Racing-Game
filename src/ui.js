@@ -60,10 +60,11 @@ HD.UI = (() => {
     phoneHomeClock: $("#phone-home-clock"),
     phoneHomeDate: $("#phone-home-date"),
     phoneHomeOwner: $("#phone-home-owner"),
-    flappyStage: $("#flappy-stage"),
-    flappyHorse: $("#flappy-horse"),
-    flappyScore: $("#flappy-score"),
-    flappyJump: $("#flappy-jump"),
+    messageThread: $("#message-thread"),
+    messageHistory: $("#message-history"),
+    messageCompose: $("#message-compose"),
+    messageText: $("#message-text"),
+    messageStatus: $("#message-status"),
     deliveries: $("#deliveries"),
     menu: $("#game-menu"),
     menuPlay: $("#menu-play"),
@@ -105,6 +106,7 @@ HD.UI = (() => {
     renderHotbar();
     renderSabotage();
     renderTransfer();
+    renderChat();
   }
 
   function renderOddsWatch() {
@@ -341,8 +343,14 @@ HD.UI = (() => {
     const target = el.transferPlayer.value;
     const money = Math.max(0, Math.floor(Number(el.transferMoney.value) || 0));
     const itemId = el.transferItem.value;
-    if (money > S.money) return announce("You do not have that much money.");
-    if (!money && !itemId) return announce("Choose money or an item to send.");
+    if (money > S.money) {
+      HD.Audio?.cue?.("error");
+      return announce("You do not have that much money.");
+    }
+    if (!money && !itemId) {
+      HD.Audio?.cue?.("error");
+      return announce("Choose money or an item to send.");
+    }
 
     let sent = false;
     if (HD.Network.isConnected()) {
@@ -354,12 +362,98 @@ HD.UI = (() => {
         if (itemId) S.inventory[itemId]--;
       }
     }
-    if (!sent) return announce("That transfer could not be completed.");
+    if (!sent) {
+      HD.Audio?.cue?.("error");
+      return announce("That transfer could not be completed.");
+    }
     el.transferMoney.value = 0;
     el.transferStatus.textContent = `Sent ${money ? `$${money}` : C.items[itemId].name}.`;
     addLedger(`TrackPay transfer`, -money);
     announce("TrackPay transfer sent.");
+    HD.Audio?.cue?.("moneySpend");
     render();
+  }
+
+  function renderChat() {
+    if (!el.messageThread || !HD.Network?.chatTargets) return;
+    const previousThread = el.messageThread.value || "group";
+    const targets = HD.Network.chatTargets();
+    el.messageThread.innerHTML = [
+      '<option value="group">Everyone · Group Chat</option>',
+      ...targets.map((target) => {
+        return `<option value="${escapeMarkup(target.id)}">${escapeMarkup(target.name)} · Private</option>`;
+      }),
+    ].join("");
+    el.messageThread.value = targets.some((target) => target.id === previousThread)
+      ? previousThread
+      : "group";
+
+    const thread = el.messageThread.value;
+    const messages = HD.Network.chatHistory(thread);
+    if (!messages.length) {
+      el.messageHistory.innerHTML = `
+        <div class="message-empty">
+          <strong>START A CONVERSATION</strong>
+          <span>${thread === "group"
+            ? "Everyone in the room can read messages sent here."
+            : "This conversation is private between the two of you."}</span>
+        </div>
+      `;
+    } else {
+      el.messageHistory.innerHTML = messages.map((message) => {
+        const time = new Date(message.createdAt).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        return `
+          <article class="chat-message ${message.mine ? "mine" : ""}">
+            <strong>${escapeMarkup(message.mine ? "YOU" : message.fromName)}</strong>
+            <span>${escapeMarkup(message.text)}</span>
+            <time>${escapeMarkup(time)}</time>
+          </article>
+        `;
+      }).join("");
+    }
+    el.messageStatus.textContent = thread === "group"
+      ? "Group messages are visible to everyone in this room."
+      : `Private conversation with ${targets.find((target) => target.id === thread)?.name || "player"}.`;
+    requestAnimationFrame(() => {
+      el.messageHistory.scrollTop = el.messageHistory.scrollHeight;
+    });
+  }
+
+  function receiveChatMessage(message, notify) {
+    renderChat();
+    if (!notify) return;
+    const messagesButton = document.querySelector('[data-app="messages"]');
+    const messagesOpen = el.phone.classList.contains("app-open") &&
+      messagesButton?.classList.contains("active");
+    messagesButton?.classList.toggle("has-notification", !messagesOpen);
+    HD.Audio?.cue?.("message");
+  }
+
+  function sendChatMessage(event) {
+    event.preventDefault();
+    const text = el.messageText.value.trim();
+    if (!text) return;
+    const sent = HD.Network.sendChatMessage(el.messageThread.value, text);
+    if (!sent) {
+      el.messageStatus.textContent = "That message could not be sent.";
+      HD.Audio?.cue?.("error");
+      return;
+    }
+    el.messageText.value = "";
+    renderChat();
+    HD.Audio?.cue?.("messageSent");
+  }
+
+  function escapeMarkup(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
   }
 
   function horseStatus(data) {
@@ -500,8 +594,14 @@ HD.UI = (() => {
   }
 
   function submitBet(amount, fee, source) {
-    if (!isBettingOpen()) return announce("The betting book is closed.");
-    if (amount + fee > S.money) return announce("Not enough money for that ticket and fee.");
+    if (!isBettingOpen()) {
+      HD.Audio?.cue?.("error");
+      return announce("The betting book is closed.");
+    }
+    if (amount + fee > S.money) {
+      HD.Audio?.cue?.("error");
+      return announce("Not enough money for that ticket and fee.");
+    }
     const d = S.horses[S.selected].userData.data;
     if (d.finished) return announce("That horse has already finished.");
     S.money -= amount + fee;
@@ -510,16 +610,23 @@ HD.UI = (() => {
     if (fee) addLedger("RaceBet service fee", -fee);
     const feeMessage = fee ? ` plus a $${fee} online fee` : " with no counter fee";
     announce(`$${amount} on ${d.name} at ${d.odds}:1${feeMessage}.`);
+    HD.Audio?.cue?.("bet");
+    HD.Audio?.cue?.("moneySpend");
     render();
     if (S.counterOpen) renderBetCounter();
   }
   function buy(id) {
     const item = C.items[id];
-    if (S.money < item.price) return announce(`You need $${item.price}.`);
+    if (S.money < item.price) {
+      HD.Audio?.cue?.("error");
+      return announce(`You need $${item.price}.`);
+    }
     S.money -= item.price;
     S.deliveries.push({ id, remaining: C.phoneDeliveryDuration });
     addLedger(`TrackMart order: ${item.name}`, -item.price);
     announce(`${item.name} ordered. Delivery in ${C.phoneDeliveryDuration} seconds.`);
+    HD.Audio?.cue?.("purchase");
+    HD.Audio?.cue?.("moneySpend");
     render();
   }
 
@@ -532,6 +639,7 @@ HD.UI = (() => {
         S.inventory[delivery.id]++;
         HD.Controls.selectItem(delivery.id);
         announce(`${C.items[delivery.id].name} delivered to your seat!`);
+        HD.Audio?.cue?.("delivery");
         render();
       }
     });
@@ -556,6 +664,7 @@ HD.UI = (() => {
     el.phone.classList.toggle("closed", !show);
     el.toggle.setAttribute("aria-expanded", String(show));
     document.body.classList.toggle("phone-open", show);
+    HD.Audio?.cue?.(show ? "phoneOpen" : "phoneClose");
     if (show) {
       const now = new Date();
       el.phoneTime.textContent = now.toLocaleTimeString([], {
@@ -595,6 +704,11 @@ HD.UI = (() => {
     document.querySelectorAll("[data-panel]").forEach((panel) => {
       panel.classList.toggle("active", panel.dataset.panel === button.dataset.app);
     });
+    if (button.dataset.app === "messages") {
+      button.classList.remove("has-notification");
+      renderChat();
+    }
+    HD.Audio?.cue?.("appOpen");
   }
 
   // ---------------------------------------------------------------------------
@@ -744,12 +858,17 @@ HD.UI = (() => {
   function buyFromVendor(id) {
     const item = C.items[id];
     const price = Math.ceil(item.price * (1 - C.vendorDiscount));
-    if (S.money < price) return announce("Not enough money.");
+    if (S.money < price) {
+      HD.Audio?.cue?.("error");
+      return announce("Not enough money.");
+    }
     S.money -= price;
     S.inventory[id]++;
     HD.Controls.selectItem(id);
     addLedger(`Concourse pickup: ${item.name}`, -price);
     announce(`${item.name} picked up instantly.`);
+    HD.Audio?.cue?.("purchase");
+    HD.Audio?.cue?.("moneySpend");
     render();
     renderVendor();
   }
@@ -780,20 +899,15 @@ HD.UI = (() => {
     button.onclick = () => openPhoneApp(button);
   });
   el.phoneHome.onclick = showPhoneHome;
-  let flappyHeight = 28;
-  let flappyScore = 0;
-  el.flappyJump.onclick = () => {
-    flappyHeight = flappyHeight >= 66 ? 24 : flappyHeight + 14;
-    flappyScore++;
-    el.flappyHorse.style.bottom = `${flappyHeight}%`;
-    el.flappyHorse.style.rotate = flappyScore % 2 ? "-12deg" : "8deg";
-    el.flappyScore.textContent = String(flappyScore);
-  };
+  el.messageThread.onchange = renderChat;
+  el.messageCompose.onsubmit = sendChatMessage;
   return {
     render,
     renderCards,
     renderOddsWatch,
     renderLeaderboard,
+    renderChat,
+    receiveChatMessage,
     phone,
     announce,
     showRaceWinner,

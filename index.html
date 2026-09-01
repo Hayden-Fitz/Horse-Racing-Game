@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Hotdog Downs — 3D Party Racing</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="polish.css" />
   </head>
@@ -75,7 +76,7 @@
           <button data-app="leaders">Leaderboard</button>
           <button data-app="sabotage">Fixer</button>
           <button data-app="transfer">TrackPay</button>
-          <button data-app="flappy">Flappy Horse</button>
+          <button data-app="messages">Messages</button>
         </nav>
         <section class="app-panel" data-panel="bet">
           <div class="section-title">
@@ -146,15 +147,32 @@
           <button id="send-transfer" class="primary">SEND TRANSFER</button>
           <div id="transfer-status" class="deliveries">Choose a player and something to send.</div>
         </section>
-        <section class="app-panel flappy-app" data-panel="flappy">
-          <div class="section-title"><span>FLAPPY HORSE</span><em>ABSOLUTELY USELESS</em></div>
-          <div id="flappy-stage" class="flappy-stage">
-            <span id="flappy-score">0</span>
-            <div id="flappy-horse">🐴</div>
-            <i></i><i></i>
+        <section class="app-panel messages-app" data-panel="messages">
+          <div class="section-title"><span>MESSAGES</span><em>LOBBY CHAT</em></div>
+          <label class="message-recipient">
+            Conversation
+            <select id="message-thread">
+              <option value="group">Everyone · Group Chat</option>
+            </select>
+          </label>
+          <div id="message-history" class="message-history" aria-live="polite">
+            <div class="message-empty">
+              <strong>START A CONVERSATION</strong>
+              <span>Message everyone in the lobby or choose one player privately.</span>
+            </div>
           </div>
-          <button id="flappy-jump" class="primary">FLAP</button>
-          <p class="tip">Tap FLAP to bounce. This app has no effect on the race.</p>
+          <form id="message-compose" class="message-compose">
+            <input
+              id="message-text"
+              type="text"
+              maxlength="160"
+              autocomplete="off"
+              placeholder="Message the lobby…"
+              aria-label="Chat message"
+            />
+            <button id="message-send" class="primary" type="submit">SEND</button>
+          </form>
+          <p id="message-status" class="tip">Group messages are visible to everyone in this room.</p>
         </section>
         <button id="phone-home" class="phone-home" type="button" aria-label="Return to phone home screen">
           <span></span>
@@ -327,6 +345,37 @@
                 </label>
                 <label class="toggle-setting">
                   <input id="show-performance" type="checkbox" checked /> Show performance readout
+                </label>
+              </fieldset>
+              <fieldset class="audio-settings">
+                <legend>AUDIO MIX</legend>
+                <label>
+                  Master volume
+                  <input id="master-volume" type="range" min="0" max="100" value="80" />
+                  <output id="master-volume-value">80%</output>
+                </label>
+                <label>
+                  Music
+                  <input id="music-volume" type="range" min="0" max="100" value="52" />
+                  <output id="music-volume-value">52%</output>
+                </label>
+                <label>
+                  Crowd and stadium
+                  <input id="crowd-volume" type="range" min="0" max="100" value="62" />
+                  <output id="crowd-volume-value">62%</output>
+                </label>
+                <label>
+                  Sound effects
+                  <input id="effects-volume" type="range" min="0" max="100" value="82" />
+                  <output id="effects-volume-value">82%</output>
+                </label>
+                <label>
+                  Commentator
+                  <input id="commentator-volume" type="range" min="0" max="100" value="84" />
+                  <output id="commentator-volume-value">84%</output>
+                </label>
+                <label class="toggle-setting">
+                  <input id="mute-audio" type="checkbox" /> Mute all audio
                 </label>
               </fieldset>
             </div>

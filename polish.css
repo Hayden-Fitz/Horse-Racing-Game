@@ -1640,6 +1640,7 @@
 }
 
 .apps button {
+  position: relative;
   display: grid;
   aspect-ratio: 1;
   place-items: end center;
@@ -1667,7 +1668,20 @@
 .apps button[data-app="leaders"] { background-image: url("assets/phone-apps/leaderboard.png"); }
 .apps button[data-app="sabotage"] { background-image: url("assets/phone-apps/fixer.png"); }
 .apps button[data-app="transfer"] { background-image: url("assets/phone-apps/trackpay.png"); }
-.apps button[data-app="flappy"] { background-image: url("assets/phone-apps/flappy-horse.png"); }
+.apps button[data-app="messages"] { background-image: url("assets/phone-apps/messages.svg"); }
+
+.apps button[data-app="messages"].has-notification::after {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #f04b43;
+  box-shadow: 0 2px 7px #0008;
+  content: "";
+}
 
 .apps button.active {
   outline: 2px solid #ffe17c;
@@ -1690,50 +1704,132 @@
   margin: 10px 0;
 }
 
-.flappy-stage {
-  position: relative;
-  height: 330px;
-  overflow: hidden;
-  border: 2px solid #d5eff7;
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 25% 18%, #ffffff 0 5%, transparent 6%),
-    linear-gradient(#69c5e8 0 70%, #76b759 70% 82%, #6f4c2e 82%);
+.messages-app.active {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
 
-.flappy-stage > span {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  left: 50%;
-  translate: -50%;
-  color: white;
-  font-size: 34px;
+.message-recipient {
+  display: grid;
+  gap: 5px;
+  color: #b9cabd;
+  font-size: 9px;
   font-weight: 900;
-  text-shadow: 0 3px #24546b;
+  letter-spacing: 0.08em;
 }
 
-#flappy-horse {
-  position: absolute;
-  z-index: 2;
-  bottom: 28%;
-  left: 24%;
-  font-size: 42px;
-  transition: bottom 180ms ease, rotate 160ms ease;
+.message-recipient select {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #ffffff24;
+  border-radius: 9px;
+  background: #102219;
+  color: white;
 }
 
-.flappy-stage i {
-  position: absolute;
-  right: 20%;
-  width: 44px;
-  height: 35%;
-  border: 4px solid #2c7939;
-  background: #55b55b;
-  box-shadow: inset 4px 0 #8bd378;
+.message-history {
+  display: flex;
+  flex: 1 1 300px;
+  min-height: 260px;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #ffffff18;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 20% 10%, #4b8a6840, transparent 34%),
+    #0b1b14;
+  scrollbar-width: none;
 }
 
-.flappy-stage i:first-of-type { top: -5%; }
-.flappy-stage i:last-of-type { bottom: -5%; }
+.message-history::-webkit-scrollbar {
+  display: none;
+}
+
+.message-empty {
+  display: grid;
+  margin: auto;
+  gap: 6px;
+  color: #8fa89a;
+  text-align: center;
+}
+
+.message-empty strong {
+  color: #d9e7dc;
+  font-size: 11px;
+}
+
+.message-empty span {
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.chat-message {
+  display: grid;
+  max-width: 82%;
+  align-self: flex-start;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 5px 13px 13px;
+  background: #254334;
+  box-shadow: 0 4px 12px #0004;
+}
+
+.chat-message.mine {
+  align-self: flex-end;
+  border-radius: 13px 5px 13px 13px;
+  background: #2979c8;
+}
+
+.chat-message strong {
+  color: #ffe17c;
+  font-size: 8px;
+}
+
+.chat-message.mine strong {
+  color: #d8edff;
+}
+
+.chat-message span {
+  overflow-wrap: anywhere;
+  color: white;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.chat-message time {
+  color: #bdd0c3;
+  font-size: 7px;
+  text-align: right;
+}
+
+.message-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+.message-compose input {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #ffffff24;
+  border-radius: 12px;
+  outline: none;
+  background: #102219;
+  color: white;
+}
+
+.message-compose input:focus {
+  border-color: #69d493;
+  box-shadow: 0 0 0 2px #69d49325;
+}
+
+.message-compose button {
+  width: auto;
+  padding-inline: 14px;
+}
 
 .odds-watch,
 .leaderboard-list {
@@ -2089,6 +2185,15 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.settings-grid .audio-settings {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.audio-settings legend {
+  grid-column: 1 / -1;
 }
 
 .settings-panel fieldset {
@@ -2549,6 +2654,11 @@
   }
 
   .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid .audio-settings {
+    grid-column: auto;
     grid-template-columns: 1fr;
   }
 

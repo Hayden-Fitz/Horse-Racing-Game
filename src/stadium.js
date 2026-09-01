@@ -208,6 +208,7 @@ HD.Stadium = (() => {
     const count = rows * columns;
     const dummy = new THREE.Object3D();
     const colors = [0xd94f31, 0x447fc1, 0xf0bd3b, 0x7e59a4, 0x3d8951, 0xd97d35];
+    const throwerSeats = chooseCrowdThrowerSeats(rows, columns);
 
     const seatBases = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.35, 0.22, 1.25),
@@ -288,7 +289,15 @@ HD.Stadium = (() => {
         );
         const inCommentatorCutout = row >= 4 &&
           angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE;
-        if (detailedPlayerSeat || inStairAisle || inCommentatorCutout) {
+        const crowdThrowerSeat = throwerSeats.some((seat) => {
+          return seat.row === row && seat.column === column;
+        });
+        if (
+          detailedPlayerSeat ||
+          inStairAisle ||
+          inCommentatorCutout ||
+          crowdThrowerSeat
+        ) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
           });
@@ -298,8 +307,80 @@ HD.Stadium = (() => {
     }
 
     crowdBodies.instanceColor.needsUpdate = true;
+    createCrowdThrowers(scene, throwerSeats, colors);
     createOvalCanopy(root);
     createCommentatorBooth(root);
+  }
+
+  function chooseCrowdThrowerSeats(rows, columns) {
+    const candidates = [];
+    for (let row = 1; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        const angle = column / columns * Math.PI * 2;
+        const rx = 82.1 + row * 3.25;
+        const rz = 51.85 + row * 2.75;
+        const blockedByStairs = STAIR_ANGLES.some((stairAngle) => {
+          return angleDistance(angle, stairAngle) <
+            stairHalfAngle(rx, rz, stairAngle) + 0.025;
+        });
+        const blockedByBooth = row >= 4 &&
+          angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE + 0.025;
+        const playerSeat = DETAILED_SEATS.some((seat) => {
+          return seat.row === row && seat.column === column;
+        });
+        if (!blockedByStairs && !blockedByBooth && !playerSeat) {
+          candidates.push({ row, column });
+        }
+      }
+    }
+
+    for (let index = candidates.length - 1; index > 0; index--) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [candidates[index], candidates[swapIndex]] = [
+        candidates[swapIndex],
+        candidates[index],
+      ];
+    }
+
+    const selected = [];
+    for (const candidate of candidates) {
+      const angle = candidate.column / columns * Math.PI * 2;
+      const separated = selected.every((seat) => {
+        const otherAngle = seat.column / columns * Math.PI * 2;
+        return angleDistance(angle, otherAngle) > 0.65;
+      });
+      if (!separated) continue;
+      selected.push(candidate);
+      if (selected.length === 3) break;
+    }
+    return selected;
+  }
+
+  function createCrowdThrowers(scene, seats, colors) {
+    HD.world.crowdThrowers = [];
+    seats.forEach((seat, index) => {
+      const placement = grandstandSeat(seat.row, seat.column);
+      const color = colors[(seat.column + seat.row) % colors.length];
+      const spectator = HD.Models.character(color, {
+        activity: "watch",
+        skin: [0xf1c7a5, 0xc88962, 0x8d593d][index],
+        hat: color,
+      });
+      spectator.scale.setScalar(0.58);
+      spectator.position.copy(placement.avatar);
+      spectator.rotation.y = placement.yaw;
+      spectator.userData.ambientThrower = true;
+      spectator.userData.throwerIndex = index;
+      spectator.traverse((object) => {
+        if (!object.isMesh) return;
+        object.castShadow = false;
+        object.receiveShadow = true;
+      });
+      scene.add(spectator);
+      createChair(scene, placement, color);
+      HD.world.crowd.push(spectator);
+      HD.world.crowdThrowers.push(spectator);
+    });
   }
 
   function createCommentatorBooth(root) {
@@ -568,16 +649,6 @@ HD.Stadium = (() => {
       rearRoofY - 0.34,
       rearRoofY + 0.12,
       wallColor,
-    );
-
-    addBoothCeilingLights(
-      root,
-      innerLeft,
-      innerRight,
-      outerLeft,
-      outerRight,
-      frontRoofY,
-      rearRoofY,
     );
 
     const boothSign = createTextSign("HOTDOG DOWNS BROADCAST", 0xffdc69);
@@ -1055,48 +1126,6 @@ HD.Stadium = (() => {
       1,
     );
     return THREE.MathUtils.lerp(frontRoofY, rearRoofY, progress);
-  }
-
-  function addBoothCeilingLights(
-    root,
-    innerLeft,
-    innerRight,
-    outerLeft,
-    outerRight,
-    frontRoofY,
-    rearRoofY,
-  ) {
-    const innerCenter = innerLeft.clone().lerp(innerRight, 0.5);
-    const outerCenter = outerLeft.clone().lerp(outerRight, 0.5);
-    const tangent = innerRight.clone().sub(innerLeft).normalize();
-    const lightMaterial = HD.util.material(0xffe7a4, {
-      emissive: 0xffd36b,
-      emissiveIntensity: 1.15,
-    });
-
-    for (const depth of [0.34, 0.68]) {
-      const rowCenter = innerCenter.clone().lerp(outerCenter, depth);
-      for (const offset of [-2.55, 0, 2.55]) {
-        if (depth > 0.55 && Math.abs(offset) < 1) continue;
-        const lightPosition = rowCenter.clone().addScaledVector(tangent, offset);
-        const light = new THREE.Mesh(
-          new THREE.BoxGeometry(1.9, 0.08, 0.55),
-          lightMaterial,
-        );
-        const ceilingY = THREE.MathUtils.lerp(
-          frontRoofY,
-          rearRoofY,
-          depth,
-        );
-        light.position.set(
-          lightPosition.x,
-          ceilingY - 0.14,
-          lightPosition.z,
-        );
-        light.rotation.y = -COMMENTATOR_ANGLE + Math.PI / 2;
-        root.add(light);
-      }
-    }
   }
 
   function addCommentators(

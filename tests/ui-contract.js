@@ -12,6 +12,7 @@ const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 assert.equal(new Set(ids).size, ids.length, "index.html contains duplicate IDs");
 
 const sources = [
+  "src/audio.js",
   "src/main.js",
   "src/network.js",
   "src/settings.js",
@@ -82,8 +83,33 @@ assert.ok(
 );
 assert.ok(html.includes('value="640"'), "The 640p resolution option is missing");
 assert.ok(html.includes('value="2160"'), "The 2160p resolution option is missing");
+assert.ok(ids.includes("message-thread"), "The messaging conversation picker is missing");
+assert.ok(ids.includes("message-history"), "The messaging history is missing");
+assert.ok(ids.includes("message-compose"), "The messaging composer is missing");
+assert.ok(
+  html.includes('data-app="messages"'),
+  "The phone home screen is missing the Messages app",
+);
+assert.ok(
+  !html.toLowerCase().includes("flappy horse"),
+  "The retired Flappy Horse app is still present",
+);
+[
+  "master-volume",
+  "music-volume",
+  "crowd-volume",
+  "effects-volume",
+  "commentator-volume",
+  "mute-audio",
+].forEach((id) => {
+  assert.ok(ids.includes(id), `The audio setting #${id} is missing`);
+});
+assert.ok(
+  read("src/boot.js").includes('"audio.js"'),
+  "The event-driven audio system is not loaded by the game",
+);
 
-console.log("UI element, ten-item inventory, and resolution checks passed.");
+console.log("UI, messaging, audio, inventory, and resolution checks passed.");
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");

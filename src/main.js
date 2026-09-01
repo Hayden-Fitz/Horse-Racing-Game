@@ -15,6 +15,7 @@ HD.Game = (() => {
 
   function init() {
     HD.Settings.init();
+    HD.Audio.init();
     renderScale = desiredRenderScale();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x83cee8);
@@ -91,6 +92,7 @@ HD.Game = (() => {
       HD.Stadium.update(S.elapsed);
     }
     HD.Network.update(dt);
+    HD.Audio.update(realDt);
     const menuOpen = !document.querySelector("#game-menu").classList.contains("closed");
     if (menuOpen && !onlineSimulation) return;
     updateRenderScale(realDt);

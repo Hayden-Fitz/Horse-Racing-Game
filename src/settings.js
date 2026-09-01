@@ -57,6 +57,12 @@ HD.Settings = (() => {
       modelDetail: "low",
       renderResolution: "adaptive",
       hudOpacity: 92,
+      masterVolume: 80,
+      musicVolume: 52,
+      crowdVolume: 62,
+      effectsVolume: 82,
+      commentatorVolume: 84,
+      muteAudio: false,
       showControlHelp: true,
       showPerformance: true,
       avatar: {
@@ -137,6 +143,33 @@ HD.Settings = (() => {
     bindRange("#hud-opacity", "#hud-opacity-value", "hudOpacity", (value) => `${value}%`, () => {
       applyAccessibility();
     });
+    bindRange("#master-volume", "#master-volume-value", "masterVolume", percent, applyAudio);
+    bindRange("#music-volume", "#music-volume-value", "musicVolume", percent, applyAudio);
+    bindRange("#crowd-volume", "#crowd-volume-value", "crowdVolume", percent, applyAudio);
+    bindRange("#effects-volume", "#effects-volume-value", "effectsVolume", percent, applyAudio);
+    bindRange(
+      "#commentator-volume",
+      "#commentator-volume-value",
+      "commentatorVolume",
+      percent,
+      applyAudio,
+    );
+
+    const mute = document.querySelector("#mute-audio");
+    mute.checked = values.muteAudio;
+    mute.addEventListener("change", () => {
+      values.muteAudio = mute.checked;
+      applyAudio();
+      save();
+    });
+  }
+
+  function percent(value) {
+    return `${value}%`;
+  }
+
+  function applyAudio() {
+    HD.Audio?.applySettings?.();
   }
 
   function bindRange(inputSelector, outputSelector, key, format, onChange = () => {}) {
@@ -425,6 +458,17 @@ HD.Settings = (() => {
     return values.winnerCoins;
   }
 
+  function audioSettings() {
+    return {
+      muted: values.muteAudio,
+      master: values.masterVolume / 100,
+      music: values.musicVolume / 100,
+      crowd: values.crowdVolume / 100,
+      effects: values.effectsVolume / 100,
+      commentator: values.commentatorVolume / 100,
+    };
+  }
+
   return {
     init,
     binding,
@@ -437,5 +481,6 @@ HD.Settings = (() => {
     avatarOptions,
     awardWinnerCoins,
     winnerCoins,
+    audioSettings,
   };
 })();

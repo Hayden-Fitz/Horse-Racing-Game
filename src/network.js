@@ -12,6 +12,7 @@ HD.Network = (() => {
   const $ = (selector) => document.querySelector(selector);
   const members = new Map();
   const processedEvents = new Set();
+  const chatMessages = [];
   const remoteStateSequences = new Map();
   const elements = {};
 
@@ -215,6 +216,7 @@ HD.Network = (() => {
     removePlaceholderPlayers();
     members.clear();
     processedEvents.clear();
+    chatMessages.length = 0;
     remoteStateSequences.clear();
 
     joinedAt = Date.now();
@@ -397,6 +399,9 @@ HD.Network = (() => {
       processedEvents.add(eventId);
 
       if (!event || event.createdAt < joinedAt - 1_000 || event.from === selfId) return;
+      if (event.type === "chat" && event.payload) {
+        receiveChatEvent(eventId, event);
+      }
       if (event.type === "throw" && event.payload) {
         const thrower = HD.world.remotePlayers.get(event.from);
         if (thrower) HD.Models.playPlayerThrow(thrower, event.payload.type);
@@ -417,6 +422,7 @@ HD.Network = (() => {
         S.money += money;
         if (itemId && S.inventory[itemId] !== undefined) S.inventory[itemId]++;
         HD.UI.announce(`${event.payload.fromName || "A player"} sent you ${money ? `$${money}` : HD.CONFIG.items[itemId]?.name || "an item"}.`);
+        HD.Audio?.cue?.("moneyGain");
         HD.UI.render();
       }
     });
@@ -564,14 +570,119 @@ HD.Network = (() => {
     });
   }
 
-  function sendAmbientThrow(type, start, velocity) {
+  function sendAmbientThrow(type, start, velocity, throwerIndex) {
     if (!lobby || !isHost()) return;
     postLobbyEvent("ambientThrow", {
       type,
       start: start.toArray(),
       velocity: velocity.toArray(),
       ambient: true,
+      throwerIndex,
     });
+  }
+
+  function sendChatMessage(thread, rawText) {
+    const text = String(rawText || "").trim().slice(0, 160);
+    if (!text) return false;
+
+    const target = thread === "group" ? null : chatTargets()
+      .find((player) => player.id === thread);
+    if (thread !== "group" && !target) return false;
+
+    const fromName = currentPlayerName();
+    const message = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      thread,
+      fromId: selfId,
+      fromName,
+      text,
+      mine: true,
+      createdAt: Date.now(),
+    };
+    recordChatMessage(message, false);
+
+    if (lobby) {
+      postLobbyEvent("chat", {
+        scope: thread === "group" ? "group" : "direct",
+        to: target?.id || null,
+        toName: target?.name || null,
+        fromName,
+        text,
+      });
+    } else {
+      scheduleComputerReply(thread, target, text);
+    }
+    return true;
+  }
+
+  function receiveChatEvent(eventId, event) {
+    const payload = event.payload;
+    const scope = payload.scope === "direct" ? "direct" : "group";
+    if (scope === "direct" && payload.to !== selfId) return;
+
+    const sender = members.get(event.from);
+    const message = {
+      id: eventId,
+      thread: scope === "group" ? "group" : event.from,
+      fromId: event.from,
+      fromName: sender?.name || payload.fromName || "Track Fan",
+      text: String(payload.text || "").trim().slice(0, 160),
+      mine: false,
+      createdAt: Number(event.createdAt) || Date.now(),
+    };
+    if (!message.text) return;
+    recordChatMessage(message, true);
+  }
+
+  function recordChatMessage(message, notify) {
+    if (chatMessages.some((entry) => entry.id === message.id)) return;
+    chatMessages.push(message);
+    if (chatMessages.length > 120) chatMessages.splice(0, chatMessages.length - 120);
+    HD.UI?.receiveChatMessage?.(message, notify);
+  }
+
+  function scheduleComputerReply(thread, target, text) {
+    const candidates = HD.AI?.transferTargets?.() || [];
+    const responder = thread === "group"
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : target;
+    if (!responder) return;
+    const replies = [
+      "I saw that. The next lap is going to be chaos.",
+      "Saving my best item for the final stretch.",
+      "Those odds still look suspicious to me.",
+      "Meet you by the track after the gates open.",
+      "I am absolutely not admitting who I sabotaged.",
+    ];
+    const delay = 650 + Math.random() * 900;
+    setTimeout(() => {
+      recordChatMessage({
+        id: `ai-chat-${Date.now()}-${responder.id}`,
+        thread,
+        fromId: responder.id,
+        fromName: responder.name,
+        text: replies[(text.length + responder.name.length) % replies.length],
+        mine: false,
+        createdAt: Date.now(),
+      }, true);
+    }, delay);
+  }
+
+  function currentPlayerName() {
+    return members.get(selfId)?.name ||
+      elements.playerName?.value.trim() ||
+      "YOU";
+  }
+
+  function chatTargets() {
+    if (!lobby) return HD.AI?.transferTargets?.() || [];
+    return [...members.values()]
+      .filter((player) => player.id !== selfId)
+      .map((player) => ({ id: player.id, name: player.name }));
+  }
+
+  function chatHistory(thread = "group") {
+    return chatMessages.filter((message) => message.thread === thread);
   }
 
   function sendSabotage(horse, optionId) {
@@ -911,6 +1022,7 @@ HD.Network = (() => {
     playing = false;
     members.clear();
     processedEvents.clear();
+    chatMessages.length = 0;
     clearRemotePlayers();
     elements.room.hidden = true;
     setStatus("online", "FIREBASE ONLINE");
@@ -1154,6 +1266,9 @@ HD.Network = (() => {
     update,
     sendThrow,
     sendAmbientThrow,
+    sendChatMessage,
+    chatTargets,
+    chatHistory,
     sendSabotage,
     sendTransfer,
     transferTargets,

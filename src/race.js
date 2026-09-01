@@ -6,7 +6,9 @@ HD.Race = (() => {
   const MIN_PROGRESS_GAP = 0.018;
   let networkSettlement = "";
   let lastNetworkUi = -1;
-  let ambientThrowTimer = 8;
+  let ambientThrowTimers = [0.4, 0.9, 1.4];
+  let ambientThrowGap = 0;
+  let ambientThrowerIndex = 0;
 
   // ---------------------------------------------------------------------------
   // Horse lifecycle and three-lap simulation
@@ -137,7 +139,14 @@ HD.Race = (() => {
     if (S.phase !== "betting") return;
     S.phase = "racing";
     S.raceTime = 0;
-    ambientThrowTimer = 6 + Math.random() * 7;
+    const staggerStart = 0.28 + Math.random() * 0.18;
+    ambientThrowTimers = [0, 1, 2].map((index) => {
+      return staggerStart + index * 0.44 + Math.random() * 0.12;
+    });
+    ambientThrowGap = 0;
+    ambientThrowerIndex = Math.floor(
+      Math.random() * Math.max(1, HD.world.crowdThrowers?.length || 0),
+    );
     S.horses.forEach((horse) => {
       const data = horse.userData.data;
       data.progress = 0;
@@ -152,11 +161,15 @@ HD.Race = (() => {
     HD.UI.countdown("GO!");
     HD.UI.announce(S.raceAnnouncement);
     if (sabotageReport) HD.UI.showRaceNotice(sabotageReport.replace("PADDOCK ALERT: ", ""));
+    HD.Audio?.raceStart?.(S.raceAnnouncement);
     setTimeout(() => HD.UI.countdown(""), 700);
     HD.UI.render();
   }
   function purchaseSabotage(horseIndex, optionId) {
-    if (S.phase !== "betting") return HD.UI.announce("The fixer only works before the race.");
+    if (S.phase !== "betting") {
+      HD.Audio?.cue?.("error");
+      return HD.UI.announce("The fixer only works before the race.");
+    }
     if (S.sabotagePlans.some((plan) => !plan.ai && !plan.remote)) {
       return HD.UI.announce("You already hired a fixer this race.");
     }
@@ -165,13 +178,18 @@ HD.Race = (() => {
     const price = S.atSabotageCounter
       ? Math.ceil(option.price * (1 - C.vendorDiscount))
       : option.price;
-    if (S.money < price) return HD.UI.announce(`The fixer needs $${price}.`);
+    if (S.money < price) {
+      HD.Audio?.cue?.("error");
+      return HD.UI.announce(`The fixer needs $${price}.`);
+    }
 
     S.money -= price;
     S.sabotagePlans.push({ horse: horseIndex, optionId });
     HD.Network?.sendSabotage(horseIndex, optionId);
     HD.UI.addLedger(`Secret fixer: #${horseIndex + 1}`, -price);
     HD.UI.announce("The fixer accepted the job. The outcome remains sealed until race start.");
+    HD.Audio?.cue?.("sabotage");
+    HD.Audio?.cue?.("moneySpend");
     HD.UI.render();
   }
 
@@ -323,6 +341,7 @@ HD.Race = (() => {
         d.finished = true;
         d.coastSpeed = d.motionSpeed;
         d.place = S.finishOrder.length + 1;
+        d.finishTime = S.raceTime;
         S.finishOrder.push(d.index);
         if (d.place === 1) HD.UI.announce(`${d.name} crosses the line first!`);
       }
@@ -559,9 +578,15 @@ HD.Race = (() => {
     if (payout) {
       S.money += payout;
       HD.UI.addLedger(`Race ${S.race} payout`, payout);
+      HD.Audio?.cue?.("moneyGain");
     }
     HD.Controls.setMode("look");
     HD.UI.showRaceWinner(`#${winner + 1} ${winnerData.name} WINS!`);
+    const runnerUp = S.horses[S.finishOrder[1]]?.userData.data;
+    const closeFinish = runnerUp
+      ? Math.abs((runnerUp.finishTime || S.raceTime) - winnerData.finishTime) < 0.5
+      : false;
+    HD.Audio?.raceFinish?.(winnerData, closeFinish);
     HD.UI.render();
     setTimeout(next, 4300);
   }
@@ -697,6 +722,7 @@ HD.Race = (() => {
       visualOnly: Boolean(options.visualOnly),
       ambient: Boolean(options.ambient),
     });
+    HD.Audio?.throwItem?.(type, Boolean(options.ambient));
     if (options.consume !== false) {
       S.inventory[type] = Math.max(0, S.inventory[type] - 1);
       HD.UI.render();
@@ -716,6 +742,9 @@ HD.Race = (() => {
         ambient: Boolean(throwData.ambient),
       },
     );
+    if (throwData.ambient) {
+      animateAmbientThrower(throwData.throwerIndex, throwData.type);
+    }
   }
 
   function validVector(value) {
@@ -782,25 +811,34 @@ HD.Race = (() => {
   }
 
   function updateAmbientCrowdThrows(dt) {
-    ambientThrowTimer -= dt;
-    if (ambientThrowTimer > 0 || !S.horses.length) return;
-    ambientThrowTimer = 12 + Math.random() * 10;
+    const throwers = HD.world.crowdThrowers || [];
+    if (throwers.length !== 3) return;
+    ambientThrowTimers = ambientThrowTimers.map((timer) => timer - dt);
+    ambientThrowGap = Math.max(0, ambientThrowGap - dt);
+    if (ambientThrowGap > 0 || !S.horses.length) return;
 
-    const row = 1 + Math.floor(Math.random() * 6);
-    const angle = Math.random() * Math.PI * 2;
-    const start = new THREE.Vector3(
-      Math.cos(angle) * (82.1 + row * 3.25),
-      C.grandstandBaseHeight + row * 1.5 + 2.15,
-      Math.sin(angle) * (51.85 + row * 2.75),
-    );
+    let throwerIndex = -1;
+    for (let offset = 0; offset < throwers.length; offset++) {
+      const candidate = (ambientThrowerIndex + offset) % throwers.length;
+      if (ambientThrowTimers[candidate] <= 0) {
+        throwerIndex = candidate;
+        break;
+      }
+    }
+    if (throwerIndex < 0) return;
+
+    const thrower = throwers[throwerIndex];
+    ambientThrowerIndex = (throwerIndex + 1) % throwers.length;
+    ambientThrowTimers[throwerIndex] = 1 + Math.random();
+    ambientThrowGap = 0.26;
+    const start = thrower.position.clone().add(new THREE.Vector3(0, 2.45, 0));
     const aimedAtHorse = Math.random() < 0.72;
     const horse = S.horses[Math.floor(Math.random() * S.horses.length)];
     const target = aimedAtHorse
       ? horse.position.clone().add(new THREE.Vector3(0, 1.4, 0))
       : trackPoint(Math.random(), Math.floor(Math.random() * C.raceHorseCount)).position;
-    const type = ["hotdog", "soda", "pretzel", "pillow", "chair"][
-      Math.floor(Math.random() * 5)
-    ];
+    const itemTypes = Object.keys(C.items);
+    const type = itemTypes[Math.floor(Math.random() * itemTypes.length)];
     const flightTime = 1.35 + Math.random() * 0.65;
     const velocity = target.clone().sub(start).divideScalar(flightTime);
     velocity.y += C.items[type].gravity * flightTime * 0.5;
@@ -810,7 +848,14 @@ HD.Race = (() => {
       visualOnly: false,
       ambient: true,
     });
-    HD.Network?.sendAmbientThrow?.(type, start, velocity);
+    animateAmbientThrower(throwerIndex, type);
+    HD.Network?.sendAmbientThrow?.(type, start, velocity, throwerIndex);
+  }
+
+  function animateAmbientThrower(index, type) {
+    const thrower = HD.world.crowdThrowers?.[Number(index)];
+    if (!thrower) return;
+    HD.Models.playPlayerThrow(thrower, type);
   }
 
   // ---------------------------------------------------------------------------
@@ -881,6 +926,7 @@ HD.Race = (() => {
           HD.UI.announce(`Miss! The ${p.config.name.toLowerCase()} lands in the dirt.`);
         }
         if (!p.landed) {
+          HD.Audio?.trackImpact?.(p.type, p.ambient);
           createGroundEffect(p);
           if (p.config.trap) {
             p.velocity.set(0, 0, 0);
@@ -957,6 +1003,7 @@ HD.Race = (() => {
   function applyItemEffect(horse, projectile) {
     const data = horse.userData.data;
     const item = projectile.config;
+    HD.Audio?.horseImpact?.(projectile.type, data.name, projectile.ambient);
 
     if (item.maxSpeedBonus) {
       const previousBonus = data.maxSpeedBonus || 0;
