@@ -11,10 +11,28 @@ function makeHorseProfile(profile) {
   return {
     ...profile,
     ability: 0.84 + rating * 0.0024,
+    maxSpeed: profile.maxSpeed ?? profile.speed,
+    cornering: profile.cornering ?? Math.round(
+      profile.acceleration * 0.55 + profile.resistance * 0.45,
+    ),
+    recovery: profile.recovery ?? profile.resistance,
+    startingPerformance: profile.startingPerformance ?? profile.acceleration,
+    finalStretch: profile.finalStretch ?? profile.stamina,
+    consistency: profile.consistency ?? Math.round(
+      profile.stamina * 0.6 + profile.resistance * 0.4,
+    ),
   };
 }
 
 HD.CONFIG = {
+  // The retired broadcast experiment is deliberately kept in the source behind
+  // these switches. Turning both flags back on restores its construction and
+  // speech path without having to recover deleted code.
+  features: {
+    commentator: false,
+    commentatorBooth: false,
+  },
+
   // ---------------------------------------------------------------------------
   // Race and match rules
   // ---------------------------------------------------------------------------
@@ -22,7 +40,7 @@ HD.CONFIG = {
   horses: [
     makeHorseProfile({
       id: "midnight-sovereign",
-      name: "Midnight Sovereign",
+      name: "Monarch",
       color: 0xef476f,
       coat: 0x241c1a,
       odds: 3,
@@ -34,7 +52,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "silver-comet",
-      name: "Silver Comet",
+      name: "Comet",
       color: 0x3a86ff,
       coat: 0xb8b9b4,
       odds: 4,
@@ -46,7 +64,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "autumn-valor",
-      name: "Autumn Valor",
+      name: "Valor",
       color: 0xffbe0b,
       coat: 0x9b4e29,
       odds: 6,
@@ -58,7 +76,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "northern-tempest",
-      name: "Northern Tempest",
+      name: "Tempest",
       color: 0x9b5de5,
       coat: 0x4c3b35,
       odds: 5,
@@ -70,7 +88,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "crimson-banner",
-      name: "Crimson Banner",
+      name: "Crimson",
       color: 0x22b573,
       coat: 0x6f3926,
       odds: 8,
@@ -82,7 +100,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "golden-promise",
-      name: "Golden Promise",
+      name: "Promise",
       color: 0xff7b22,
       coat: 0xc18a4c,
       odds: 7,
@@ -94,7 +112,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "blue-meridian",
-      name: "Blue Meridian",
+      name: "Meridian",
       color: 0x42d4d4,
       coat: 0x3f302b,
       odds: 9,
@@ -106,7 +124,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "royal-ember",
-      name: "Royal Ember",
+      name: "Ember",
       color: 0xf06cad,
       coat: 0x7d4128,
       odds: 6,
@@ -118,7 +136,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "willow-creek",
-      name: "Willow Creek",
+      name: "Willow",
       color: 0xe84a5f,
       coat: 0xb18b64,
       odds: 11,
@@ -130,7 +148,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "iron-resolve",
-      name: "Iron Resolve",
+      name: "Titan",
       color: 0x5c7cfa,
       coat: 0x34302d,
       odds: 7,
@@ -142,7 +160,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "velvet-thunder",
-      name: "Velvet Thunder",
+      name: "Thunder",
       color: 0xf4a261,
       coat: 0x221d1d,
       odds: 5,
@@ -154,7 +172,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "coastal-wind",
-      name: "Coastal Wind",
+      name: "Zephyr",
       color: 0x845ec2,
       coat: 0xd0c4ae,
       odds: 10,
@@ -166,7 +184,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "scarlet-horizon",
-      name: "Scarlet Horizon",
+      name: "Horizon",
       color: 0x2a9d8f,
       coat: 0xa96136,
       odds: 12,
@@ -178,7 +196,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "noble-pursuit",
-      name: "Noble Pursuit",
+      name: "Noble",
       color: 0xe9c46a,
       coat: 0x5c382c,
       odds: 8,
@@ -190,7 +208,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "dancing-shadow",
-      name: "Dancing Shadow",
+      name: "Shadow",
       color: 0x00b4d8,
       coat: 0x2c2523,
       odds: 9,
@@ -202,7 +220,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "western-legend",
-      name: "Western Legend",
+      name: "Legend",
       color: 0xf28482,
       coat: 0x8c512f,
       odds: 10,
@@ -214,7 +232,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "emerald-bay",
-      name: "Emerald Bay",
+      name: "Emerald",
       color: 0x84a59d,
       coat: 0xc0aa87,
       odds: 13,
@@ -226,7 +244,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "storm-lantern",
-      name: "Storm Lantern",
+      name: "Lantern",
       color: 0xf6bd60,
       coat: 0x514039,
       odds: 8,
@@ -238,7 +256,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "quiet-majesty",
-      name: "Quiet Majesty",
+      name: "Majesty",
       color: 0x577590,
       coat: 0xd7d0c4,
       odds: 11,
@@ -250,7 +268,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "copper-ridge",
-      name: "Copper Ridge",
+      name: "Copper",
       color: 0x90be6d,
       coat: 0xa75f32,
       odds: 7,
@@ -262,7 +280,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "moonlit-harbor",
-      name: "Moonlit Harbor",
+      name: "Harbor",
       color: 0xf94144,
       coat: 0x302927,
       odds: 12,
@@ -274,7 +292,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "grand-alliance",
-      name: "Grand Alliance",
+      name: "Alliance",
       color: 0x277da1,
       coat: 0x74452f,
       odds: 6,
@@ -286,7 +304,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "summer-anthem",
-      name: "Summer Anthem",
+      name: "Anthem",
       color: 0xf8961e,
       coat: 0xccaa76,
       odds: 9,
@@ -298,7 +316,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "blackwater-belle",
-      name: "Blackwater Belle",
+      name: "Belle",
       color: 0x6a4c93,
       coat: 0x1e1b1b,
       odds: 4,
@@ -310,7 +328,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "highland-echo",
-      name: "Highland Echo",
+      name: "Echo",
       color: 0x43aa8b,
       coat: 0x8b725e,
       odds: 10,
@@ -334,7 +352,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "bold-venture",
-      name: "Bold Venture",
+      name: "Venture",
       color: 0x4d908e,
       coat: 0x9a5c36,
       odds: 8,
@@ -346,7 +364,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "winter-rose",
-      name: "Winter Rose",
+      name: "Rose",
       color: 0xf9844a,
       coat: 0xe0d9ca,
       odds: 11,
@@ -358,7 +376,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "sunset-courier",
-      name: "Sunset Courier",
+      name: "Courier",
       color: 0x9b5de5,
       coat: 0xb76f3d,
       odds: 9,
@@ -370,7 +388,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "cedar-run",
-      name: "Cedar Run",
+      name: "Cedar",
       color: 0x2d6a4f,
       coat: 0x65402d,
       odds: 15,
@@ -525,7 +543,7 @@ HD.CONFIG = {
     },
   },
   sabotageFailureChance: 0.33,
-  roundBonuses: [100, 150, 250],
+  roundBonuses: [200, 300, 500],
   racesPerRound: 2,
   totalRaces: 6,
   raceLaps: 3,
@@ -569,7 +587,7 @@ HD.createInventory = () =>
   Object.fromEntries(Object.keys(HD.CONFIG.items).map((itemId) => [itemId, 0]));
 
 HD.state = {
-  money: 100,
+  money: 200,
   inventory: HD.createInventory(),
   selectedItem: "hotdog",
   round: 1,
@@ -604,6 +622,13 @@ HD.state = {
   sabotagePlans: [],
   raceAnnouncement: "",
   matchStarted: false,
+  matchRules: {
+    horseCount: 6,
+    racesPerDay: 2,
+    laps: 3,
+    raceVariety: "standard",
+    liveBetting: true,
+  },
 };
 HD.world = {
   remotePlayers: new Map(),

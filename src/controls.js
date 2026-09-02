@@ -41,6 +41,7 @@ HD.Controls = (() => {
     document.addEventListener("pointerup", endCharge);
     document.addEventListener("pointercancel", cancelCharge);
     document.addEventListener("mousemove", look);
+    document.addEventListener("contextmenu", togglePhoneWithPointer);
     document.addEventListener("keydown", keydown);
     document.addEventListener("keyup", keyup);
     window.addEventListener("blur", cancelCharge);
@@ -66,6 +67,10 @@ HD.Controls = (() => {
     );
   }
   function keydown(event) {
+    if (isTextEntry(event.target)) {
+      if (event.code === "Escape") event.target.blur();
+      return;
+    }
     if (setMovementKey(event.code, true)) return;
     if (event.repeat) return;
     if (/^Digit[0-9]$/.test(event.code)) {
@@ -86,9 +91,6 @@ HD.Controls = (() => {
       return toggleStanding();
     }
     if (HD.Settings.matches(event, "interact")) return interact();
-    if (HD.Settings.matches(event, "phone")) {
-      setMode(S.mode === "phone" ? "look" : "phone");
-    }
     if (HD.Settings.matches(event, "throw")) {
       if (S.mode !== "throw") return setMode("throw");
       return startCharge("keyboard");
@@ -97,6 +99,19 @@ HD.Controls = (() => {
     if (HD.Settings.matches(event, "rankings")) {
       HD.UI.showRankings(true, `DAY ${S.round} CURRENT RANKINGS`);
     }
+  }
+
+  function isTextEntry(target) {
+    return target instanceof HTMLElement && Boolean(
+      target.closest("input, textarea, select, [contenteditable='true']"),
+    );
+  }
+
+  function togglePhoneWithPointer(event) {
+    const menuOpen = !document.querySelector("#game-menu")?.classList.contains("closed");
+    if (menuOpen || S.paused || S.vendorOpen || S.counterOpen) return;
+    event.preventDefault();
+    setMode(S.mode === "phone" ? "look" : "phone");
   }
   function keyup(event) {
     setMovementKey(event.code, false);
@@ -583,18 +598,15 @@ HD.Controls = (() => {
   }
   function toggleStanding() {
     if (S.mode === "phone" || S.vendorOpen || S.counterOpen) return;
-    S.standing = !S.standing;
     if (S.standing) {
-      S.playerPosition.copy(camera.position);
-      HD.Models.setPlayerStanding(HD.world.localPlayer, true);
-      HD.UI.setMode("walking");
-      HD.UI.announce("You stand up. Use WASD to walk, Space to return to your seat.");
-    } else {
-      S.playerPosition.copy(HD.CONFIG.seat);
-      HD.Models.setPlayerStanding(HD.world.localPlayer, false);
-      HD.UI.setMode("look");
-      HD.UI.announce("You return to your seat.");
+      HD.UI.announce("You are already standing. Walk back to the stands whenever you like.");
+      return;
     }
+    S.standing = true;
+    S.playerPosition.copy(camera.position);
+    HD.Models.setPlayerStanding(HD.world.localPlayer, true);
+    HD.UI.setMode("walking");
+    HD.UI.announce("You stand up. Use WASD to explore the stadium.");
   }
   function interact() {
     if (S.vendorOpen) return closeVendor();
@@ -655,6 +667,7 @@ HD.Controls = (() => {
   function sitDown() {
     closeVendor();
     closeBetCounter();
+    if (S.matchStarted && S.standing) return;
     S.standing = false;
     HD.Models.setPlayerStanding(HD.world.localPlayer, false);
     S.playerPosition.copy(HD.CONFIG.seat);

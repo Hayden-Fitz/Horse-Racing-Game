@@ -9,7 +9,6 @@ HD.Settings = (() => {
     right: "KeyD",
     stand: "Space",
     interact: "KeyE",
-    phone: "ShiftLeft",
     throw: "KeyF",
     item: "KeyQ",
     rankings: "KeyR",
@@ -22,7 +21,6 @@ HD.Settings = (() => {
     right: "Move right",
     stand: "Stand / sit",
     interact: "Interact",
-    phone: "Phone",
     throw: "Ready item",
     item: "Next item",
     rankings: "Current rankings",
@@ -81,7 +79,9 @@ HD.Settings = (() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       const savedBindings = { ...DEFAULT_BINDINGS, ...(saved.bindings || {}) };
-      if (savedBindings.phone === "KeyP") savedBindings.phone = "ShiftLeft";
+      // Phone access moved to right-click. Remove the retired keyboard binding
+      // from older saves so Shift cannot open the phone from the lobby.
+      delete savedBindings.phone;
       return {
         ...defaults,
         ...saved,

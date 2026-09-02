@@ -11,6 +11,7 @@ HD.UI = (() => {
     inventory: $("#inventory"),
     countdown: $("#countdown"),
     raceNotice: $("#race-notice"),
+    raceEventBadge: $("#race-event-badge"),
     raceWinner: $("#race-winner-banner"),
     announcement: $("#announcement"),
     progress: $("#race-progress div"),
@@ -55,6 +56,12 @@ HD.UI = (() => {
     transferItem: $("#transfer-item"),
     sendTransfer: $("#send-transfer"),
     transferStatus: $("#transfer-status"),
+    trackPayBalance: $("#trackpay-balance"),
+    requestMoney: $("#request-money"),
+    requestItem: $("#request-item"),
+    requestTransfer: $("#request-transfer"),
+    trackPayRequests: $("#trackpay-requests"),
+    phoneNotification: $("#phone-notification"),
     phoneHome: $("#phone-home"),
     phoneTime: $("#phone-time"),
     phoneHomeClock: $("#phone-home-clock"),
@@ -79,6 +86,8 @@ HD.UI = (() => {
   };
   let deliveryRenderTimer = 0;
   const rankingRowHeight = 44;
+  const pendingTrackPayRequests = new Map();
+  let activePhoneNotification = null;
 
   // ---------------------------------------------------------------------------
   // Primary HUD and phone applications
@@ -107,6 +116,20 @@ HD.UI = (() => {
     renderSabotage();
     renderTransfer();
     renderChat();
+    renderRaceEvent();
+  }
+
+  function renderRaceEvent() {
+    if (!el.raceEventBadge) return;
+    const event = S.raceEvent;
+    if (!event) {
+      el.raceEventBadge.textContent = "";
+      return;
+    }
+    el.raceEventBadge.innerHTML = `
+      <strong>${escapeMarkup(event.location)}</strong>
+      <span>${escapeMarkup(event.label)} · ${escapeMarkup(event.modifierLabel)}</span>
+    `;
   }
 
   function renderOddsWatch() {
@@ -344,6 +367,16 @@ HD.UI = (() => {
       .join("");
     if (ownedItems.some(([id]) => id === previousItem)) el.transferItem.value = previousItem;
     el.sendTransfer.disabled = !targets.length;
+
+    const requestedItem = el.requestItem.value;
+    el.requestItem.innerHTML = '<option value="">No item</option>' +
+      Object.entries(C.items)
+        .map(([id, item]) => `<option value="${id}">${item.name}</option>`)
+        .join("");
+    if (C.items[requestedItem]) el.requestItem.value = requestedItem;
+    el.requestTransfer.disabled = !targets.length;
+    el.trackPayBalance.textContent = `$${S.money}`;
+    renderTrackPayRequests();
   }
 
   function sendTransfer() {
@@ -378,6 +411,113 @@ HD.UI = (() => {
     addLedger(`TrackPay transfer`, -money);
     announce("TrackPay transfer sent.");
     HD.Audio?.cue?.("moneySpend");
+    render();
+  }
+
+  function requestTransfer() {
+    const target = el.transferPlayer.value;
+    const money = Math.max(0, Math.floor(Number(el.requestMoney.value) || 0));
+    const itemId = el.requestItem.value;
+    if (!target || (!money && !itemId)) {
+      HD.Audio?.cue?.("error");
+      return announce("Choose a player and money or an item to request.");
+    }
+
+    const requested = HD.Network.isConnected()
+      ? HD.Network.sendTransferRequest(target, money, itemId)
+      : HD.AI.requestTransfer(target, money, itemId);
+    if (!requested) {
+      HD.Audio?.cue?.("error");
+      return announce("That TrackPay request could not be sent.");
+    }
+
+    el.requestMoney.value = 0;
+    el.requestItem.value = "";
+    const description = money ? `$${money}` : C.items[itemId]?.name || "an item";
+    el.transferStatus.textContent = `Requested ${description}.`;
+    HD.Audio?.cue?.("messageSent");
+  }
+
+  function receiveTrackPayRequest(request) {
+    if (!request?.id || pendingTrackPayRequests.has(request.id)) return;
+    pendingTrackPayRequests.set(request.id, request);
+    renderTrackPayRequests();
+    showPhoneNotification(
+      "transfer",
+      request.fromName || "TrackPay request",
+      request.money
+        ? `Requests $${request.money}`
+        : `Requests your ${C.items[request.itemId]?.name || "item"}`,
+    );
+    HD.Audio?.cue?.("paymentRequest");
+  }
+
+  function receiveTrackPayTransfer(transfer) {
+    const description = transfer.money
+      ? `$${transfer.money}`
+      : C.items[transfer.itemId]?.name || "an item";
+    showPhoneNotification(
+      "transfer",
+      transfer.fromName || "TrackPay",
+      `Sent you ${description}`,
+    );
+    HD.Audio?.cue?.("moneyGain");
+  }
+
+  function receiveTrackPayResponse(response) {
+    showPhoneNotification(
+      "transfer",
+      response.fromName || "TrackPay",
+      response.accepted ? "Accepted your request" : "Declined your request",
+    );
+    HD.Audio?.cue?.(response.accepted ? "message" : "error");
+  }
+
+  function renderTrackPayRequests() {
+    if (!el.trackPayRequests) return;
+    const requests = [...pendingTrackPayRequests.values()];
+    el.trackPayRequests.innerHTML = requests.length
+      ? requests.map((request) => {
+          const description = request.money
+            ? `$${request.money}`
+            : C.items[request.itemId]?.name || "an item";
+          return `
+            <article data-trackpay-request="${escapeMarkup(request.id)}">
+              <span>
+                <strong>${escapeMarkup(request.fromName || "Player")}</strong>
+                <small>REQUESTED ${escapeMarkup(description)}</small>
+              </span>
+              <button data-request-response="accept">PAY</button>
+              <button data-request-response="decline">DECLINE</button>
+            </article>
+          `;
+        }).join("")
+      : "<span>No pending requests.</span>";
+
+    el.trackPayRequests.querySelectorAll("[data-request-response]").forEach((button) => {
+      button.onclick = () => respondToTrackPayRequest(
+        button.closest("[data-trackpay-request]").dataset.trackpayRequest,
+        button.dataset.requestResponse === "accept",
+      );
+    });
+  }
+
+  function respondToTrackPayRequest(requestId, accepted) {
+    const request = pendingTrackPayRequests.get(requestId);
+    if (!request) return;
+    const completed = HD.Network.isConnected()
+      ? HD.Network.respondToTransferRequest(request, accepted)
+      : HD.AI.respondToTransferRequest(request, accepted);
+    if (!completed && accepted) {
+      HD.Audio?.cue?.("error");
+      return announce("You do not have enough to complete that request.");
+    }
+    pendingTrackPayRequests.delete(requestId);
+    renderTrackPayRequests();
+    el.transferStatus.textContent = accepted ? "Request paid." : "Request declined.";
+    if (![...pendingTrackPayRequests].length) {
+      document.querySelector('[data-app="transfer"]')?.classList.remove("has-notification");
+    }
     render();
   }
 
@@ -436,7 +576,28 @@ HD.UI = (() => {
     const messagesOpen = el.phone.classList.contains("app-open") &&
       messagesButton?.classList.contains("active");
     messagesButton?.classList.toggle("has-notification", !messagesOpen);
+    showPhoneNotification(
+      "messages",
+      message.fromName || "New message",
+      message.text,
+    );
     HD.Audio?.cue?.("message");
+  }
+
+  function showPhoneNotification(app, title, body) {
+    const button = document.querySelector(`[data-app="${app}"]`);
+    button?.classList.add("has-notification");
+    activePhoneNotification = app;
+    el.phoneNotification.dataset.app = app;
+    el.phoneNotification.querySelector("strong").textContent = title;
+    el.phoneNotification.querySelector("small").textContent = body;
+    el.phoneNotification.hidden = false;
+    el.phoneNotification.classList.remove("visible");
+    requestAnimationFrame(() => el.phoneNotification.classList.add("visible"));
+    clearTimeout(el.phoneNotification.timer);
+    el.phoneNotification.timer = setTimeout(() => {
+      el.phoneNotification.classList.remove("visible");
+    }, 5200);
   }
 
   function sendChatMessage(event) {
@@ -586,7 +747,11 @@ HD.UI = (() => {
   }
 
   function normalizedStake(input) {
-    return Math.max(5, Math.floor(Number(input.value || 5) / 5) * 5);
+    const minimum = S.raceEvent?.minBet || 5;
+    return Math.max(
+      minimum,
+      Math.floor(Number(input.value || minimum) / 5) * 5,
+    );
   }
 
   function placeOnlineBet() {
@@ -665,6 +830,9 @@ HD.UI = (() => {
     if (show) {
       document.querySelector("#settings-panel").hidden = true;
       document.querySelector(".menu-card").classList.remove("settings-active");
+    } else {
+      el.menu.classList.remove("match-setup-open");
+      document.querySelector("#match-setup").hidden = true;
     }
   }
   function phone(show) {
@@ -714,6 +882,14 @@ HD.UI = (() => {
     if (button.dataset.app === "messages") {
       button.classList.remove("has-notification");
       renderChat();
+    }
+    if (button.dataset.app === "transfer") {
+      button.classList.remove("has-notification");
+      renderTransfer();
+    }
+    if (activePhoneNotification === button.dataset.app) {
+      activePhoneNotification = null;
+      el.phoneNotification.classList.remove("visible");
     }
     HD.Audio?.cue?.("appOpen");
   }
@@ -881,13 +1057,20 @@ HD.UI = (() => {
   }
   el.bet.onclick = placeOnlineBet;
   el.toggle.onclick = () => HD.Controls.setMode(S.mode === "phone" ? "look" : "phone");
-  el.menuPlay.onclick = () => HD.Controls.closeMenu();
+  el.menuPlay.onclick = () => HD.MatchSetup.openSinglePlayer();
   el.menuResume.onclick = () => HD.Controls.closeMenu();
   el.resultContinue.onclick = () => (S.phase === "matchOver" ? HD.Race.restart() : HD.Race.next());
   el.vendorClose.onclick = () => HD.Controls.closeVendor();
   el.counterPlaceBet.onclick = placeCounterBet;
   el.counterClose.onclick = () => HD.Controls.closeBetCounter();
   el.sendTransfer.onclick = sendTransfer;
+  el.requestTransfer.onclick = requestTransfer;
+  el.phoneNotification.onclick = () => {
+    const button = document.querySelector(
+      `[data-app="${el.phoneNotification.dataset.app}"]`,
+    );
+    if (button) openPhoneApp(button);
+  };
   el.rankingsButton.onclick = () => {
     showRankings(true, `DAY ${S.round} CURRENT RANKINGS`);
   };
@@ -915,6 +1098,9 @@ HD.UI = (() => {
     renderLeaderboard,
     renderChat,
     receiveChatMessage,
+    receiveTrackPayRequest,
+    receiveTrackPayTransfer,
+    receiveTrackPayResponse,
     phone,
     announce,
     showRaceWinner,

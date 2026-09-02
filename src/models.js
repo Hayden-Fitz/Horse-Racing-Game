@@ -408,7 +408,7 @@ HD.Models = (() => {
     const skin = 0xdca677;
     const torso = mesh(
       new THREE.CylinderGeometry(0.52, 0.62, 1.35, 12),
-      0xf4f1e8,
+      silkColor,
       root,
       [0, 1.65, 0],
     );
@@ -418,25 +418,16 @@ HD.Models = (() => {
     head.scale.set(0.92, 1.04, 0.92);
     const helmet = mesh(
       new THREE.SphereGeometry(0.61, 14, 8, 0, Math.PI * 2, 0, 1.7),
-      0x1d1d1c,
+      silkColor,
       root,
     );
     helmet.position.y = 3.5;
-    box([0.86, 0.09, 0.42], 0x1d1d1c, root, [0, 3.4, -0.38]);
+    box([0.86, 0.09, 0.42], 0x191d1d, root, [0, 3.4, -0.38]);
     addRodBetween(root, [-0.46, 3.38, -0.08], [-0.33, 2.87, -0.4], 0.035, 0x20201f);
     addRodBetween(root, [0.46, 3.38, -0.08], [0.33, 2.87, -0.4], 0.035, 0x20201f);
 
-    for (let row = 0; row < 3; row++) {
-      for (let column = 0; column < 3; column++) {
-        if ((row + column) % 2) continue;
-        box(
-          [0.34, 0.34, 0.035],
-          silkColor,
-          root,
-          [-0.34 + column * 0.34, 2.02 - row * 0.34, -0.52],
-        );
-      }
-    }
+    box([1.06, 0.28, 0.08], 0xf6f4ee, root, [0, 1.88, -0.51]);
+    box([1.06, 0.28, 0.08], 0xf6f4ee, root, [0, 1.88, 0.51]);
     box([1.18, 0.18, 0.78], 0x20201f, root, [0, 0.98, 0]);
 
     [-1, 1].forEach((side) => {
@@ -450,7 +441,8 @@ HD.Models = (() => {
         10,
       );
       arm.rotation.z = side * -0.16;
-      sphere(0.18, 0x20201f, root, [side * 0.86, 1.02, 0]);
+      box([0.34, 0.22, 0.34], 0xf6f4ee, root, [side * 0.81, 1.63, 0]);
+      sphere(0.18, skin, root, [side * 0.86, 1.02, 0]);
       const leg = new THREE.Group();
       leg.position.set(side * 0.34, 0.88, 0);
       root.add(leg);
@@ -476,6 +468,7 @@ HD.Models = (() => {
     const root = new THREE.Group(),
       body = new THREE.Group();
     const poolIndex = HD.CONFIG.horses.findIndex((horseData) => horseData.id === data.id);
+    const startingLane = startingLaneForRaceNumber(index);
     const speedRating = data.speed || 75;
     const staminaRating = data.stamina || 75;
     const accelerationRating = data.acceleration || 75;
@@ -492,15 +485,29 @@ HD.Models = (() => {
     neck.rotation.z = -0.55;
     const head = mesh(new THREE.CapsuleGeometry(0.62, 0.8, 4, 8), data.coat, body, [2.45, 3.45, 0]);
     head.rotation.z = Math.PI / 2;
-    const muzzle = mesh(new THREE.CapsuleGeometry(0.4, 0.65, 4, 9), data.coat, body, [3.05, 3.25, 0]);
+    const muzzleColor = new THREE.Color(data.coat)
+      .lerp(new THREE.Color(0xd7a273), 0.24)
+      .getHex();
+    const muzzle = mesh(
+      new THREE.CapsuleGeometry(0.43, 0.68, 5, 10),
+      muzzleColor,
+      body,
+      [3.05, 3.25, 0],
+    );
     muzzle.rotation.z = Math.PI / 2;
     sphere(0.075, 0x211817, body, [3.42, 3.32, -0.26]);
     sphere(0.075, 0x211817, body, [3.42, 3.32, 0.26]);
-    sphere(0.1, 0x111111, body, [2.85, 3.72, -0.5]);
-    sphere(0.1, 0x111111, body, [2.85, 3.72, 0.5]);
+    for (const side of [-1, 1]) {
+      sphere(0.145, 0x111111, body, [2.85, 3.72, side * 0.5]);
+      sphere(0.038, 0xffffff, body, [2.91, 3.77, side * 0.625]);
+    }
     const blaze = box([0.78, 0.08, 0.2], 0xe8dfce, body, [2.68, 3.96, 0]);
     blaze.rotation.z = -0.18;
-    const bridle = mesh(new THREE.TorusGeometry(0.57, 0.055, 7, 18), 0x2c1c17, body);
+    const bridle = mesh(
+      new THREE.TorusGeometry(0.57, 0.06, 8, 20),
+      data.color,
+      body,
+    );
     bridle.position.set(2.7, 3.42, 0);
     bridle.rotation.y = Math.PI / 2;
     box([1.25, 0.18, 1.35], 0x2a1b16, body, [1.3, 3.4, 0]);
@@ -528,25 +535,33 @@ HD.Models = (() => {
     const hindLegs = [];
     [-1.15, 1.05].forEach((x, a) =>
       [-0.64, 0.64].forEach((z, b) => {
-        const leg = cylinder(0.18, 0.25, 2.3, data.coat, body, [x, 0.55, z], 8);
+        const leg = new THREE.Group();
+        leg.position.set(x, 1.72, z);
+        body.add(leg);
+        cylinder(0.2, 0.27, 1.18, data.coat, leg, [0, -0.52, 0], 9);
+        sphere(0.22, data.coat, leg, [0, -1.05, 0]);
+        const lower = new THREE.Group();
+        lower.position.set(0, -1.04, 0);
+        leg.add(lower);
+        cylinder(0.15, 0.2, 1.08, data.coat, lower, [0, -0.5, 0], 9);
         leg.userData.phase = ((a + b) % 2) * Math.PI;
+        leg.userData.lower = lower;
         legs.push(leg);
         if (x > 0) frontLegs.push(leg);
         else hindLegs.push(leg);
-        sphere(0.24, data.coat, leg, [0, -0.72, 0]);
         const hoof = mesh(
           new THREE.CapsuleGeometry(0.23, 0.3, 4, 9),
           0x211a17,
-          leg,
-          [0.1, -1.22, 0],
+          lower,
+          [0.12, -1.08, 0],
         );
         hoof.rotation.z = Math.PI / 2 - 0.08;
         hoof.scale.set(1.1, 1, 0.92);
         const shoe = mesh(
           new THREE.TorusGeometry(0.24, 0.035, 6, 12, Math.PI * 1.65),
           0x72777a,
-          leg,
-          [0.12, -1.41, 0],
+          lower,
+          [0.14, -1.27, 0],
         );
         shoe.rotation.x = Math.PI / 2;
       }),
@@ -576,6 +591,7 @@ HD.Models = (() => {
     jockey.position.set(-0.15, 3.2, 0);
     jockey.rotation.y = -Math.PI / 2;
     body.add(jockey);
+    addSaddleNumbers(body, index + 1, data.color);
     const label = numberSprite(index + 1);
     label.position.set(0, 6.15, 0);
     root.add(label);
@@ -602,8 +618,8 @@ HD.Models = (() => {
         staminaRating,
         accelerationRating,
         resistanceRating,
-        lane: index,
-        targetLane: index,
+        lane: startingLane,
+        targetLane: startingLane,
         earlyPace: 0.94 + accelerationRating * 0.0012,
         stamina: 0.95 + staminaRating * 0.001,
         finishKick: Math.max(0.012, (accelerationRating - 62) * 0.0015),
@@ -630,6 +646,43 @@ HD.Models = (() => {
       },
     };
     return root;
+  }
+
+  function startingLaneForRaceNumber(index) {
+    const fieldSize = HD.CONFIG.raceHorseCount;
+    const raceNumber = index + 1;
+
+    if (fieldSize === 8 && raceNumber === 8) return 0;
+    if (fieldSize === 8) return index + 1;
+
+    return index;
+  }
+
+  function addSaddleNumbers(parent, number, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 96;
+    const context = canvas.getContext("2d");
+    context.fillStyle = `#${color.toString(16).padStart(6, "0")}`;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "white";
+    context.font = "900 70px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(number, 64, 51);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    for (const side of [-1, 1]) {
+      const badge = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.78), material);
+      badge.position.set(-0.22, 3.01, side * 0.89);
+      badge.rotation.y = side < 0 ? Math.PI : 0;
+      parent.add(badge);
+    }
   }
 
   function addRodBetween(parent, startValues, endValues, radius, color) {

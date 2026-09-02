@@ -58,6 +58,12 @@ HD.Network = (() => {
       leave: $("#lobby-leave"),
       message: $("#lobby-message"),
       singlePlayer: $("#menu-play"),
+      ruleHorses: $("#lobby-rule-horses"),
+      ruleRaces: $("#lobby-rule-races"),
+      ruleLaps: $("#lobby-rule-laps"),
+      ruleVariety: $("#lobby-rule-variety"),
+      ruleLive: $("#lobby-rule-live"),
+      saveRules: $("#lobby-save-rules"),
     });
 
     restorePlayerName();
@@ -85,7 +91,7 @@ HD.Network = (() => {
     elements.start.addEventListener("click", startOnlineMatch);
     elements.ready.addEventListener("click", toggleReady);
     elements.leave.addEventListener("click", leaveOnlineSession);
-    elements.singlePlayer.addEventListener("click", leaveOnlineSession);
+    elements.saveRules.addEventListener("click", saveLobbyRules);
     elements.playerName.addEventListener("change", savePlayerName);
     elements.lobbyCode.addEventListener("input", () => {
       elements.lobbyCode.value = sanitizeLobbyCode(elements.lobbyCode.value);
@@ -129,6 +135,7 @@ HD.Network = (() => {
           hostId: selfId,
           capacity: 8,
           visibility: lobbyVisibility,
+          rules: HD.MatchSetup.currentRules(),
           started: false,
           createdAt: now,
           updatedAt: now,
@@ -224,6 +231,7 @@ HD.Network = (() => {
     hostId = data.meta.hostId;
     playing = Boolean(data.meta.started);
     lobby = lobbySummary(code, data);
+    HD.MatchSetup.useRules(data.meta.rules || S.matchRules);
     rosterSignature = "";
 
     HD.Stadium.assignLocalSeat(seatIndex);
@@ -304,6 +312,9 @@ HD.Network = (() => {
     lobby.name = lobbyCache.meta.name || lobby.name;
     lobby.started = Boolean(lobbyCache.meta.started);
     lobby.visibility = lobbyCache.meta.visibility || "public";
+    if (!playing && lobbyCache.meta.rules) {
+      HD.MatchSetup.useRules(lobbyCache.meta.rules);
+    }
 
     syncMembers(initial);
     syncRaceState();
@@ -422,8 +433,27 @@ HD.Network = (() => {
         S.money += money;
         if (itemId && S.inventory[itemId] !== undefined) S.inventory[itemId]++;
         HD.UI.announce(`${event.payload.fromName || "A player"} sent you ${money ? `$${money}` : HD.CONFIG.items[itemId]?.name || "an item"}.`);
-        HD.Audio?.cue?.("moneyGain");
+        HD.UI.receiveTrackPayTransfer?.({
+          fromName: event.payload.fromName,
+          money,
+          itemId,
+        });
         HD.UI.render();
+      }
+      if (event.type === "transferRequest" && event.payload?.to === selfId) {
+        HD.UI.receiveTrackPayRequest?.({
+          id: event.payload.requestId || eventId,
+          fromId: event.from,
+          fromName: event.payload.fromName || members.get(event.from)?.name || "A player",
+          money: Math.max(0, Math.floor(Number(event.payload.money) || 0)),
+          itemId: event.payload.itemId || "",
+        });
+      }
+      if (event.type === "transferResponse" && event.payload?.to === selfId) {
+        HD.UI.receiveTrackPayResponse?.({
+          fromName: event.payload.fromName || members.get(event.from)?.name || "A player",
+          accepted: Boolean(event.payload.accepted),
+        });
       }
     });
   }
@@ -713,6 +743,35 @@ HD.Network = (() => {
     return true;
   }
 
+  function sendTransferRequest(to, money, itemId) {
+    if (!lobby || !members.has(to) || to === selfId) return false;
+    const amount = Math.max(0, Math.floor(Number(money) || 0));
+    if (!amount && !itemId) return false;
+    if (itemId && !HD.CONFIG.items[itemId]) return false;
+    postLobbyEvent("transferRequest", {
+      requestId: `request-${selfId}-${Date.now()}`,
+      to,
+      money: amount,
+      itemId: itemId || "",
+      fromName: members.get(selfId)?.name || "A player",
+    });
+    return true;
+  }
+
+  function respondToTransferRequest(request, accepted) {
+    if (!lobby || !request?.fromId || request.fromId === selfId) return false;
+    if (accepted && !sendTransfer(request.fromId, request.money, request.itemId)) {
+      return false;
+    }
+    postLobbyEvent("transferResponse", {
+      to: request.fromId,
+      requestId: request.id,
+      accepted: Boolean(accepted),
+      fromName: members.get(selfId)?.name || "A player",
+    });
+    return true;
+  }
+
   function updateAvatar(avatar) {
     if (!lobby) return;
     firebaseRequest(`lobbies/${lobby.id}/players/${selfId}/avatar`, {
@@ -874,7 +933,26 @@ HD.Network = (() => {
     if (!lobby) return;
 
     elements.room.hidden = false;
+    document.querySelector(".lobby-actions")?.classList.add("online-room-active");
     elements.roomName.textContent = lobby.name;
+    document.querySelector("#lobby-rules-summary").textContent =
+      HD.MatchSetup.summary(lobbyCache?.meta?.rules);
+    const rules = HD.MatchSetup.sanitizeRules(lobbyCache?.meta?.rules);
+    elements.ruleHorses.value = rules.horseCount;
+    elements.ruleRaces.value = rules.racesPerDay;
+    elements.ruleLaps.value = rules.laps;
+    elements.ruleVariety.value = rules.raceVariety;
+    elements.ruleLive.checked = rules.liveBetting;
+    [
+      elements.ruleHorses,
+      elements.ruleRaces,
+      elements.ruleLaps,
+      elements.ruleVariety,
+      elements.ruleLive,
+    ].forEach((control) => {
+      control.disabled = !isHost() || playing;
+    });
+    elements.saveRules.hidden = !isHost() || playing;
     elements.roomCode.textContent = `${lobby.visibility.toUpperCase()} · CODE ${lobby.id}`;
     elements.memberList.innerHTML = [
       lobbySeatRow([0, 1, 2], "BOTTOM ROW"),
@@ -951,6 +1029,25 @@ HD.Network = (() => {
     }).catch((error) => showFirebaseError(error, "Ready status was not saved."));
   }
 
+  function saveLobbyRules() {
+    if (!lobby || !isHost() || playing) return;
+    const rules = HD.MatchSetup.sanitizeRules({
+      horseCount: elements.ruleHorses.value,
+      racesPerDay: elements.ruleRaces.value,
+      laps: elements.ruleLaps.value,
+      raceVariety: elements.ruleVariety.value,
+      liveBetting: elements.ruleLive.checked,
+    });
+    firebaseRequest(`lobbies/${lobby.id}/meta`, {
+      method: "PATCH",
+      body: { rules, updatedAt: Date.now() },
+    }).then(() => {
+      setMessage("Match rules updated for everyone in the room.");
+    }).catch((error) => {
+      showFirebaseError(error, "The match rules were not saved.");
+    });
+  }
+
   function startOnlineMatch() {
     const everyoneReady = [...members.values()].every((player) => player.ready);
     if (!isHost() || !lobby || !everyoneReady) return;
@@ -1025,6 +1122,7 @@ HD.Network = (() => {
     chatMessages.length = 0;
     clearRemotePlayers();
     elements.room.hidden = true;
+    document.querySelector(".lobby-actions")?.classList.remove("online-room-active");
     setStatus("online", "FIREBASE ONLINE");
   }
 
@@ -1271,6 +1369,8 @@ HD.Network = (() => {
     chatHistory,
     sendSabotage,
     sendTransfer,
+    sendTransferRequest,
+    respondToTransferRequest,
     transferTargets,
     updateAvatar,
     isConnected,

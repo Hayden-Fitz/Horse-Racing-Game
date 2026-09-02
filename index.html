@@ -27,6 +27,7 @@
         <button id="menu-button" class="menu-button" aria-label="Open game menu">☰ MENU</button>
         <div id="countdown" class="countdown"></div>
         <div id="race-notice" class="race-notice" role="status"></div>
+        <div id="race-event-badge" class="race-event-badge"></div>
         <div id="race-winner-banner" class="race-winner-banner"></div>
         <div id="announcement" class="announcement">Click the stadium to look around</div>
         <div id="crosshair" class="crosshair">+</div>
@@ -38,7 +39,7 @@
         </div>
         <div class="camera-help">
           <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand <kbd>WASD</kbd> Walk <kbd>E</kbd> Interact
-          <kbd>F</kbd> Throw <kbd>Shift</kbd> Phone <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
+          <kbd>F</kbd> Throw <kbd>Right-click</kbd> Phone <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
         </div>
         <div id="race-progress" class="race-progress"><div></div></div>
         <div id="hotbar" class="hotbar">
@@ -61,6 +62,13 @@
           <strong>HOTDOG OS</strong>
           <span class="phone-signals">5G <i></i></span>
         </div>
+        <button id="phone-notification" class="phone-notification" type="button" hidden>
+          <i></i>
+          <span>
+            <strong>NEW NOTIFICATION</strong>
+            <small></small>
+          </span>
+        </button>
         <section class="phone-widget" aria-label="Personal race-day photo and clock">
           <div>
             <strong id="phone-home-clock">9:41</strong>
@@ -110,7 +118,7 @@
           <div id="ledger" class="ledger"></div>
         </section>
         <section class="app-panel" data-panel="odds">
-          <div class="section-title"><span>HORSE DIRECTORY</span><em>ALL 24 HORSES</em></div>
+          <div class="section-title"><span>HORSE DIRECTORY</span><em>ALL 30 HORSES</em></div>
           <div id="odds-watch" class="odds-watch"></div>
         </section>
         <section class="app-panel" data-panel="leaders">
@@ -128,24 +136,50 @@
           <div id="sabotage-status" class="deliveries">No fixer hired for this race.</div>
         </section>
         <section class="app-panel" data-panel="transfer">
-          <div class="section-title"><span>TRACKPAY</span><em>PLAYER TRANSFERS</em></div>
-          <p class="tip">Send money or one owned item to another player. Transfers are immediate.</p>
+          <div class="section-title"><span>TRACKPAY</span><em>SEND &amp; REQUEST</em></div>
+          <div class="trackpay-balance">
+            <span><small>AVAILABLE</small><strong id="trackpay-balance">$200</strong></span>
+            <i>TP</i>
+          </div>
           <label class="transfer-field">
-            Recipient
+            Player
             <select id="transfer-player"></select>
           </label>
-          <div class="transfer-grid">
-            <label>
-              Money
-              <input id="transfer-money" type="number" min="0" step="5" value="0" />
-            </label>
-            <label>
-              Item
-              <select id="transfer-item"></select>
-            </label>
+          <div class="trackpay-actions">
+            <section>
+              <small>SEND</small>
+              <div class="transfer-grid">
+                <label>
+                  Money
+                  <input id="transfer-money" type="number" min="0" step="5" value="0" />
+                </label>
+                <label>
+                  Item
+                  <select id="transfer-item"></select>
+                </label>
+              </div>
+              <button id="send-transfer" class="primary">SEND NOW</button>
+            </section>
+            <section>
+              <small>REQUEST</small>
+              <div class="transfer-grid">
+                <label>
+                  Money
+                  <input id="request-money" type="number" min="0" step="5" value="0" />
+                </label>
+                <label>
+                  Item
+                  <select id="request-item"></select>
+                </label>
+              </div>
+              <button id="request-transfer">REQUEST</button>
+            </section>
           </div>
-          <button id="send-transfer" class="primary">SEND TRANSFER</button>
           <div id="transfer-status" class="deliveries">Choose a player and something to send.</div>
+          <div class="trackpay-request-title">INCOMING REQUESTS</div>
+          <div id="trackpay-requests" class="trackpay-requests">
+            <span>No pending requests.</span>
+          </div>
         </section>
         <section class="app-panel messages-app" data-panel="messages">
           <div class="section-title"><span>MESSAGES</span><em>LOBBY CHAT</em></div>
@@ -254,6 +288,38 @@
                 <em id="lobby-room-code"></em>
               </div>
               <div id="lobby-members"></div>
+              <div id="lobby-rules-summary" class="lobby-rules-summary"></div>
+              <div class="lobby-rule-editor">
+                <label>HORSES
+                  <select id="lobby-rule-horses">
+                    <option value="4">4</option><option value="5">5</option>
+                    <option value="6">6</option><option value="7">7</option>
+                    <option value="8">8</option>
+                  </select>
+                </label>
+                <label>RACES / DAY
+                  <select id="lobby-rule-races">
+                    <option value="2">2</option><option value="3">3</option>
+                  </select>
+                </label>
+                <label>LAPS
+                  <select id="lobby-rule-laps">
+                    <option value="2">2</option><option value="3">3</option>
+                    <option value="4">4</option>
+                  </select>
+                </label>
+                <label>STYLE
+                  <select id="lobby-rule-variety">
+                    <option value="standard">Standard</option>
+                    <option value="strategic">Strategic</option>
+                    <option value="chaos">Chaos</option>
+                  </select>
+                </label>
+                <label class="lobby-rule-live">
+                  <input id="lobby-rule-live" type="checkbox" checked /> LIVE BETTING
+                </label>
+                <button id="lobby-save-rules">SAVE MATCH RULES</button>
+              </div>
               <div class="lobby-room-actions">
                 <button id="lobby-copy">COPY INVITE</button>
                 <button id="lobby-ready">I'M READY</button>
@@ -265,6 +331,67 @@
               Single player is ready. Online play connects directly through Firebase.
             </p>
           </div>
+          <section id="match-setup" class="match-setup" hidden>
+            <div class="match-setup-heading">
+              <span>
+                <small>SINGLE-PLAYER RACE NIGHT</small>
+                <strong>BUILD YOUR MATCH</strong>
+              </span>
+              <em>CUSTOM RACE CARD</em>
+            </div>
+            <div class="match-setup-grid">
+              <label>
+                HORSES PER RACE
+                <select id="match-horse-count">
+                  <option value="4">4 horses · focused</option>
+                  <option value="5">5 horses</option>
+                  <option value="6" selected>6 horses · classic</option>
+                  <option value="7">7 horses</option>
+                  <option value="8">8 horses · maximum chaos</option>
+                </select>
+              </label>
+              <label>
+                RACES PER DAY
+                <select id="match-races-per-day">
+                  <option value="2" selected>2 races · standard</option>
+                  <option value="3">3 races · full event</option>
+                </select>
+              </label>
+              <label>
+                LAPS PER RACE
+                <select id="match-laps">
+                  <option value="2">2 laps · sprint</option>
+                  <option value="3" selected>3 laps · standard</option>
+                  <option value="4">4 laps · endurance</option>
+                </select>
+              </label>
+              <label>
+                RACE VARIETY
+                <select id="match-variety">
+                  <option value="standard" selected>Standard mix</option>
+                  <option value="strategic">Strategic · fewer events</option>
+                  <option value="chaos">Chaos · more race events</option>
+                </select>
+              </label>
+              <label class="match-rule-toggle">
+                <input id="match-live-betting" type="checkbox" checked />
+                LIVE BETTING THROUGH LAP ONE
+              </label>
+            </div>
+            <div class="match-setup-preview">
+              <span><small>STARTING BANKROLL</small><strong>$200</strong></span>
+              <span><small>THREE DAYS</small><strong id="match-race-total">6 RACES</strong></span>
+              <span><small>FIELD</small><strong id="match-field-summary">6 HORSES</strong></span>
+            </div>
+            <p>
+              Every match draws different horses and AI strategies. Special race types and
+              location conditions rotate across the three-day event.
+            </p>
+            <div class="match-setup-actions">
+              <button id="match-setup-back">BACK</button>
+              <button id="match-setup-start">START SINGLE PLAYER</button>
+            </div>
+          </section>
           <button id="menu-resume" hidden>RESUME RACE</button>
           <div class="menu-system-actions">
             <button id="settings-open">SETTINGS & ACCESSIBILITY</button>
@@ -369,7 +496,7 @@
                   <input id="effects-volume" type="range" min="0" max="100" value="82" />
                   <output id="effects-volume-value">82%</output>
                 </label>
-                <label>
+                <label hidden>
                   Commentator
                   <input id="commentator-volume" type="range" min="0" max="100" value="84" />
                   <output id="commentator-volume-value">84%</output>
@@ -386,8 +513,8 @@
             </fieldset>
           </section>
           <div class="menu-controls">
-            <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand/sit <kbd>WASD</kbd> Walk
-            <kbd>E</kbd> Shop <kbd>Shift</kbd> Phone <kbd>F</kbd> Throw <kbd>Q</kbd> Item
+            <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand <kbd>WASD</kbd> Walk
+            <kbd>E</kbd> Shop <kbd>Right-click</kbd> Phone <kbd>F</kbd> Throw <kbd>Q</kbd> Item
             <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
           </div>
         </div>

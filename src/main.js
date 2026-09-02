@@ -15,6 +15,7 @@ HD.Game = (() => {
 
   function init() {
     HD.Settings.init();
+    HD.MatchSetup.init();
     HD.Audio.init();
     renderScale = desiredRenderScale();
     const scene = new THREE.Scene();
@@ -57,7 +58,7 @@ HD.Game = (() => {
     HD.AI.init();
     HD.Controls.init();
     HD.Network.init();
-    HD.UI.addLedger("Round 1 bankroll", 100);
+    HD.UI.addLedger("Day 1 bankroll", 200);
     HD.UI.render();
     HD.UI.countdown(String(HD.CONFIG.preparationDuration));
     HD.UI.setMode("look");

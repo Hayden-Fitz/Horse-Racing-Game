@@ -13,6 +13,10 @@ HD.Stadium = (() => {
   const COMMENTATOR_STAIR_HALF_ANGLE = 0.047;
   const UPPER_CONCOURSE_Y = 13.5;
   const STAIR_SURFACE_INSET = 0.055;
+  const commentatorBoothEnabled = () => Boolean(
+    HD.CONFIG.features?.commentatorBooth,
+  );
+  let lastVisualRound = 0;
   const DETAILED_SEATS = [
     { row: 1, column: 30, local: true, activity: "watch" },
     { row: 1, column: 29, activity: "phone" },
@@ -30,9 +34,12 @@ HD.Stadium = (() => {
 
   function build(scene) {
     HD.world.projectileBarriers = [];
+    HD.world.commentatorBox = null;
+    HD.world.commentators = [];
 
     const ground = mesh(new THREE.CircleGeometry(190, 72), 0x4b8a45, scene, [0, -0.6, 0]);
     ground.rotation.x = -Math.PI / 2;
+    HD.world.exteriorGround = ground;
     createExteriorTerrain(scene);
     const trackShape = new THREE.Shape();
     trackShape.absellipse(0, 0, 72, 43, 0, Math.PI * 2, false);
@@ -46,7 +53,7 @@ HD.Stadium = (() => {
     track.receiveShadow = true;
     scene.add(track);
     createDetailedInfieldGrass(scene);
-    for (let laneLine = 0; laneLine <= HD.CONFIG.raceHorseCount; laneLine++) {
+    for (let laneLine = 0; laneLine <= 8; laneLine++) {
       addTrackLine(
         scene,
         HD.CONFIG.trackLanes.innerLineX +
@@ -167,7 +174,7 @@ HD.Stadium = (() => {
   function addFinishLine(scene) {
     const startX = HD.CONFIG.trackLanes.innerLineX;
     const endX = startX +
-      HD.CONFIG.raceHorseCount * HD.CONFIG.trackLanes.spacingX;
+      8 * HD.CONFIG.trackLanes.spacingX;
     const checkerWidth = (endX - startX) / 12;
     for (let checker = 0; checker < 12; checker++) {
       const color = checker % 2 ? 0x202020 : 0xffffff;
@@ -289,7 +296,7 @@ HD.Stadium = (() => {
           (stairAngle) =>
             angleDistance(angle, stairAngle) < stairHalfAngle(rx, rz, stairAngle),
         );
-        const inCommentatorCutout = row >= 4 &&
+        const inCommentatorCutout = commentatorBoothEnabled() && row >= 4 &&
           angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE;
         if (
           detailedPlayerSeat ||
@@ -307,7 +314,8 @@ HD.Stadium = (() => {
     crowdBodies.instanceColor.needsUpdate = true;
     createCrowdThrowers(scene, throwerSeats, colors);
     createOvalCanopy(root);
-    createCommentatorBooth(root);
+    // Retired broadcast booth: construction is preserved for a future toggle.
+    if (commentatorBoothEnabled()) createCommentatorBooth(root);
   }
 
   function chooseCrowdThrowerSeats(rows, columns) {
@@ -321,7 +329,7 @@ HD.Stadium = (() => {
           return angleDistance(angle, stairAngle) <
             stairHalfAngle(rx, rz, stairAngle) + 0.025;
         });
-        const blockedByBooth = row >= 4 &&
+        const blockedByBooth = commentatorBoothEnabled() && row >= 4 &&
           angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE + 0.025;
         const playerSeat = DETAILED_SEATS.some((seat) => {
           return seat.row === row && seat.column === column;
@@ -1418,10 +1426,8 @@ HD.Stadium = (() => {
     const clearsStairs = STAIR_ANGLES.every((stairAngle) => {
       return angleDistance(angle, stairAngle) > 0.14;
     });
-    const clearsCommentatorBooth = angleDistance(
-      angle,
-      COMMENTATOR_ANGLE,
-    ) > 0.24;
+    const clearsCommentatorBooth = !commentatorBoothEnabled() ||
+      angleDistance(angle, COMMENTATOR_ANGLE) > 0.24;
     return clearsStairs && clearsCommentatorBooth;
   }
 
@@ -1449,7 +1455,10 @@ HD.Stadium = (() => {
       const end = nextAngle - stairHalfAngle(middleX, middleZ, next);
       const boothStart = COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE;
       const boothEnd = COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE;
-      const spans = row >= 4 && start < boothEnd && end > boothStart
+      const spans = commentatorBoothEnabled() &&
+        row >= 4 &&
+        start < boothEnd &&
+        end > boothStart
         ? [
             [start, Math.max(start, boothStart)],
             [Math.min(end, boothEnd), end],
@@ -1666,11 +1675,32 @@ HD.Stadium = (() => {
   }
   function createInfield(scene) {
     createRaceBoard(scene);
+    createInfieldLightPoles(scene);
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2,
         p = oval(30, 10, angle);
       cylinder(0.45, 0.7, 6, 0x765034, scene, [p.x, 2.5, p.z]);
       sphere(3.8, 0x2f7d3e, scene, [p.x, 7, p.z]);
+    }
+  }
+
+  function createInfieldLightPoles(scene) {
+    for (const x of [-18, 18]) {
+      const pole = new THREE.Group();
+      pole.position.set(x, 0, 0);
+      scene.add(pole);
+      cylinder(0.22, 0.34, 12.5, 0x434c4b, pole, [0, 6.25, 0], 10);
+      box([5.6, 0.42, 1.1], 0x242b2b, pole, [0, 12.4, 0]);
+      for (let lamp = -2; lamp <= 2; lamp++) {
+        const fixture = box(
+          [0.8, 0.62, 0.22],
+          0xffe5a1,
+          pole,
+          [lamp * 1.05, 12.38, 0.58],
+        );
+        fixture.material.emissive.setHex(0xffca55);
+        fixture.material.emissiveIntensity = 1.25;
+      }
     }
   }
 
@@ -1707,6 +1737,7 @@ HD.Stadium = (() => {
     field.position.y = 0.08;
     field.receiveShadow = true;
     scene.add(field);
+    HD.world.infieldGrass = field;
 
     const tufts = new THREE.InstancedMesh(
       new THREE.ConeGeometry(0.09, 0.34, 4),
@@ -2148,6 +2179,7 @@ HD.Stadium = (() => {
   }
 
   function createPlayerRoutes(scene) {
+    HD.world.barriers = [];
     createRaisedRing(scene, 80.5, 50.5, 74, 44, 1.65, 0xd8c499);
     createUpperConcourse(scene);
     createConcourseGlassRails(scene);
@@ -2158,8 +2190,7 @@ HD.Stadium = (() => {
     HD.world.shopPositions = [];
     HD.world.betCounterPositions = [];
     HD.world.sabotageCounterPositions = [];
-    HD.world.barriers = [];
-    createCommentatorBarriers();
+    if (commentatorBoothEnabled()) createCommentatorBarriers();
     const shopAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4];
     shopAngles.forEach((angle, index) => createUpperShop(scene, angle, index));
     createSabotageCounter(scene, Math.PI + 0.28);
@@ -2167,13 +2198,28 @@ HD.Stadium = (() => {
   }
 
   function createUpperConcourse(scene) {
+    const color = 0xb7a47f;
+    if (!commentatorBoothEnabled()) {
+      createSolidOvalSegment(
+        scene,
+        120,
+        83,
+        103.25,
+        69.75,
+        UPPER_CONCOURSE_Y,
+        color,
+        0,
+        Math.PI * 2,
+        96,
+      );
+      return;
+    }
     const cutHalfAngle = COMMENTATOR_HALF_ANGLE;
     const cutStart = COMMENTATOR_ANGLE - cutHalfAngle;
     const cutEnd = COMMENTATOR_ANGLE + cutHalfAngle;
     const stairOpeningHalfAngle = COMMENTATOR_STAIR_HALF_ANGLE;
     const stairOpeningStart = COMMENTATOR_ANGLE - stairOpeningHalfAngle;
     const stairOpeningEnd = COMMENTATOR_ANGLE + stairOpeningHalfAngle;
-    const color = 0xb7a47f;
 
     const shellSegmentCount = 8;
     for (let segment = 0; segment < shellSegmentCount; segment++) {
@@ -2642,7 +2688,7 @@ HD.Stadium = (() => {
 
   function createConcourseGlassRails(scene) {
     createCurvedGlassRail(scene, 103.25, 69.75, 13.5, 2.2, 72);
-    createCommentatorStairGlassReturns(scene);
+    if (commentatorBoothEnabled()) createCommentatorStairGlassReturns(scene);
   }
 
   function createCommentatorStairGlassReturns(scene) {
@@ -2761,6 +2807,9 @@ HD.Stadium = (() => {
         const start = oval(radiusX, radiusZ, spanStart);
         const end = oval(radiusX, radiusZ, spanEnd);
         panels.push({ start, end });
+        if (height <= 3 && HD.world.barriers) {
+          addSegmentBarrier(start, end, 0.1);
+        }
       });
     }
 
@@ -2819,10 +2868,12 @@ HD.Stadium = (() => {
 
   function glassRailOpenings(radiusX, radiusZ) {
     const fullTurn = Math.PI * 2;
-    const openings = [[
-      COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
-      COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
-    ]];
+    const openings = commentatorBoothEnabled()
+      ? [[
+          COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
+          COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
+        ]]
+      : [];
 
     STAIR_ANGLES.forEach((angle) => {
       const halfAngle = stairHalfAngle(radiusX, radiusZ, angle);
@@ -3056,6 +3107,10 @@ HD.Stadium = (() => {
     shape.quadraticCurveTo(x, y, x + radius, y);
   }
   function update(time) {
+    if (lastVisualRound !== HD.state.round) {
+      lastVisualRound = HD.state.round;
+      applyDayTheme(lastVisualRound);
+    }
     HD.world.crowd.forEach((p, i) => {
       if (i % 3 === 0) HD.Models.animateCharacter(p, time, true);
     });
@@ -3073,6 +3128,19 @@ HD.Stadium = (() => {
       HD.world.raceBoard.lastUpdate = time;
       drawRaceBoard();
     }
+  }
+
+  function applyDayTheme(round) {
+    const themes = [
+      { sky: 0x83cee8, fog: 0xb8d9dc, ground: 0x4b8a45, field: 0xffffff },
+      { sky: 0x91b8c5, fog: 0xa7bec0, ground: 0x3f7351, field: 0xd9eee0 },
+      { sky: 0xe6b878, fog: 0xd7b386, ground: 0x9c8a4b, field: 0xdac586 },
+    ];
+    const theme = themes[Math.min(2, Math.max(0, round - 1))];
+    HD.world.scene.background.setHex(theme.sky);
+    HD.world.scene.fog?.color.setHex(theme.fog);
+    HD.world.exteriorGround?.material.color.setHex(theme.ground);
+    HD.world.infieldGrass?.material.color.setHex(theme.field);
   }
   return {
     build,

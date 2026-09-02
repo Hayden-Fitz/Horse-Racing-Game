@@ -99,7 +99,9 @@ HD.Audio = (() => {
     });
     document.addEventListener("pointerover", handleControlHover, true);
     document.addEventListener("pointerout", handleControlExit, true);
-    startCommentatorWorker();
+    // Retired broadcast feature: the worker and full PA implementation remain
+    // below for a possible future return, but are not loaded in the live game.
+    if (C.features?.commentator) startCommentatorWorker();
   }
 
   function handleControlHover(event) {
@@ -268,7 +270,7 @@ HD.Audio = (() => {
 
     updateGallopLoop();
     updateMusic();
-    updateCommentary(dt);
+    if (C.features?.commentator) updateCommentary(dt);
   }
 
   function updateGallopLoop() {
@@ -320,10 +322,26 @@ HD.Audio = (() => {
       uiHover: () => playSample("uiHover", { gain: 0.11 * scale }),
       uiClick: () => playSample("uiClick", { gain: 0.2 * scale }),
       stadiumOpen: () => playSample("uiOpen", { gain: 0.14 * scale }),
-      phoneOpen: () => playSample("uiOpen", { gain: 0.22 * scale }),
-      phoneClose: () => playSample("uiClose", { gain: 0.2 * scale }),
-      appOpen: () => playSample("uiOpen", { gain: 0.16 * scale, playbackRate: 1.08 }),
-      message: () => playSample("uiConfirm", { gain: 0.22 * scale }),
+      phoneOpen: () => playSample("uiClick", {
+        gain: 0.12 * scale,
+        playbackRate: 1.08,
+      }),
+      phoneClose: () => playSample("uiClick", {
+        gain: 0.1 * scale,
+        playbackRate: 0.92,
+      }),
+      appOpen: () => playSample("uiClick", {
+        gain: 0.12 * scale,
+        playbackRate: 1.16,
+      }),
+      message: () => playSample("uiConfirm", {
+        gain: 0.26 * scale,
+        playbackRate: 1.12,
+      }),
+      paymentRequest: () => playSample("uiConfirm", {
+        gain: 0.25 * scale,
+        playbackRate: 0.9,
+      }),
       messageSent: () => playSample("uiConfirm", { gain: 0.18 * scale, playbackRate: 1.08 }),
       error: () => playSample("uiError", { gain: 0.24 * scale }),
       bet: () => playSample("uiConfirm", { gain: 0.24 * scale }),
@@ -846,6 +864,7 @@ HD.Audio = (() => {
   }
 
   function commentate(text, priorityName = "ambient", category = "progress") {
+    if (!C.features?.commentator) return false;
     if (!text || !context || !unlocked) return false;
 
     const settings = HD.Settings.audioSettings();

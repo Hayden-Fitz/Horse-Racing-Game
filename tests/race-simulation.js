@@ -42,6 +42,26 @@ async function run() {
   });
   assert.deepEqual(openingOdds, configuredOdds, "Opening prices must match each horse's fixed odds");
 
+  const originalHorseCount = HD.CONFIG.raceHorseCount;
+  HD.CONFIG.raceHorseCount = 8;
+  HD.state.activeHorseIds = [];
+  HD.state.horseFieldRacesRemaining = 0;
+  HD.Race.resetHorses({ forceStart: true });
+  assert.equal(
+    HD.state.horses[7].userData.data.lane,
+    0,
+    "Horse #8 should start from the inside lane in an eight-horse field",
+  );
+  assert.equal(
+    HD.state.horses[0].userData.data.lane,
+    1,
+    "Horse #1 should shift outward when horse #8 takes the inside lane",
+  );
+  HD.CONFIG.raceHorseCount = originalHorseCount;
+  HD.state.activeHorseIds = [];
+  HD.state.horseFieldRacesRemaining = 0;
+  HD.Race.resetHorses({ forceStart: true });
+
   const boostedHorse = HD.state.horses[0];
   const boostedHorseId = boostedHorse.userData.data.id;
   const oatsPosition = boostedHorse.position.clone().add(new THREE.Vector3(0, 2.2, 0));

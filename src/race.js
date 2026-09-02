@@ -8,6 +8,19 @@ HD.Race = (() => {
   let lastNetworkUi = -1;
   let ambientThrowSchedule = [];
   let ambientThrowWindow = 0;
+  const RACE_TYPES = {
+    normal: { label: "NORMAL RACE", payoutMultiplier: 1 },
+    highRoller: { label: "HIGH ROLLER", payoutMultiplier: 1.35, minBet: 20 },
+    underdog: { label: "UNDERDOG DASH", payoutMultiplier: 1.15, underdogBoost: 0.018 },
+    chaos: { label: "CHAOS CUP", payoutMultiplier: 1.1, eventCount: 2 },
+    doubleMoney: { label: "DOUBLE MONEY", payoutMultiplier: 2 },
+    championship: { label: "CHAMPIONSHIP", payoutMultiplier: 1.5, eventCount: 2 },
+  };
+  const DAY_CONDITIONS = [
+    { location: "CLASSIC RACETRACK", modifiers: ["Clear", "Breezy"] },
+    { location: "MOUNTAIN RACETRACK", modifiers: ["Crosswind", "Light Rain"] },
+    { location: "DESERT RACETRACK", modifiers: ["Dry Heat", "Dust Gusts"] },
+  ];
 
   // ---------------------------------------------------------------------------
   // Horse lifecycle and three-lap simulation
@@ -129,8 +142,12 @@ HD.Race = (() => {
       (horse.userData.legs || []).forEach((leg) => {
         if (!leg?.rotation || !leg.position) return;
         const cycle = Math.sin(stridePhase + leg.userData.phase);
-        leg.rotation.z = cycle * 0.72 * movement;
-        leg.position.y = 0.55 + Math.max(0, -cycle) * 0.12 * movement;
+        leg.rotation.z = cycle * 0.58 * movement;
+        leg.position.y = 1.72 + Math.max(0, -cycle) * 0.1 * movement;
+        if (leg.userData.lower) {
+          leg.userData.lower.rotation.z =
+            (-0.08 + Math.max(0, -cycle) * 0.62) * movement;
+        }
       });
     });
   }
@@ -145,12 +162,16 @@ HD.Race = (() => {
       data.progress = 0;
       data.staging = false;
     });
+    if (!S.raceEvent) S.raceEvent = selectRaceEvent();
     const sabotageReport = resolveSabotage();
     const bettingNotice =
-      "Live betting remains open until the leader completes lap one.";
+      S.matchRules?.liveBetting === false
+        ? "Live betting is disabled for this match."
+        : "Live betting remains open until the leader completes lap one.";
+    const raceHeader = `${S.raceEvent.label} · ${S.raceEvent.modifierLabel}.`;
     S.raceAnnouncement = sabotageReport
-      ? `${sabotageReport} ${bettingNotice}`
-      : `They're off! ${bettingNotice}`;
+      ? `${raceHeader} ${sabotageReport} ${bettingNotice}`
+      : `${raceHeader} They're off! ${bettingNotice}`;
     HD.UI.countdown("GO!");
     HD.UI.announce(S.raceAnnouncement);
     if (sabotageReport) HD.UI.showRaceNotice(sabotageReport.replace("PADDOCK ALERT: ", ""));
@@ -295,7 +316,8 @@ HD.Race = (() => {
           finishingKick *
           drafting *
           panicPace *
-          (1 - d.sabotagePenalty) +
+          (1 - d.sabotagePenalty) *
+          raceConditionMultiplier(d, raceFraction, i) +
         naturalStride;
 
       const accelerating = targetSpeed > d.speed;
@@ -325,6 +347,7 @@ HD.Race = (() => {
     });
 
     applyHorseTraffic(dt);
+    updateRandomRaceEvent();
 
     S.horses.forEach((horse) => {
       const d = horse.userData.data;
@@ -344,7 +367,7 @@ HD.Race = (() => {
       HD.UI.announce("Lap one is complete. The live betting book is closed!");
       HD.UI.render();
     }
-    if (bookIsOpen && S.raceTime - S.lastOdds > 0.6) {
+    if (bookIsOpen && S.raceTime - S.lastOdds > 0.45) {
       S.lastOdds = S.raceTime;
       updateOdds();
       HD.UI.renderCards();
@@ -546,9 +569,83 @@ HD.Race = (() => {
   function liveBettingOpen() {
     if (S.phase === "betting") return true;
     if (S.phase !== "racing" || !S.horses.length) return false;
+    if (S.matchRules?.liveBetting === false) return false;
     return Math.max(
       ...S.horses.map((horse) => horse.userData.data.progress),
     ) < 1;
+  }
+
+  function raceConditionMultiplier(data, raceFraction, horseIndex) {
+    const raceEvent = S.raceEvent || {};
+    let multiplier = 1;
+    if (raceEvent.type === "underdog" && data.startingOdds >= 9) {
+      multiplier *= 1 + (raceEvent.underdogBoost || 0);
+    }
+    if (raceEvent.modifier === "Light Rain") {
+      multiplier *= 0.986 + (data.cornering || 75) * 0.00018;
+    } else if (raceEvent.modifier === "Crosswind") {
+      multiplier *= 1 + Math.sin(S.raceTime * 0.45 + horseIndex) * 0.006;
+    } else if (raceEvent.modifier === "Dry Heat") {
+      multiplier *= 1 - raceFraction * Math.max(0, 88 - data.staminaRating) * 0.00022;
+    } else if (raceEvent.modifier === "Dust Gusts") {
+      multiplier *= 1 + Math.sin(S.raceTime * 0.8 + horseIndex * 1.7) * 0.004;
+    }
+    return multiplier;
+  }
+
+  function selectRaceEvent() {
+    const condition = DAY_CONDITIONS[Math.min(2, Math.max(0, S.round - 1))];
+    const variety = S.matchRules?.raceVariety || "standard";
+    const sequence = variety === "strategic"
+      ? ["normal", "highRoller", "normal"]
+      : variety === "chaos"
+        ? ["chaos", "underdog", "doubleMoney"]
+        : ["normal", "underdog", "highRoller", "chaos", "doubleMoney"];
+    const finalRace = S.race === C.totalRaces;
+    const type = finalRace
+      ? "championship"
+      : sequence[(S.race + S.round - 2) % sequence.length];
+    const definition = RACE_TYPES[type];
+    const modifier = condition.modifiers[(S.race + S.round) % condition.modifiers.length];
+    const baseEvents = definition.eventCount ?? (variety === "strategic" ? 0 : 1);
+    return {
+      type,
+      ...definition,
+      location: condition.location,
+      modifier,
+      modifierLabel: modifier.toUpperCase(),
+      eventsRemaining: baseEvents,
+      nextEventAt: 7 + Math.random() * 8,
+    };
+  }
+
+  function updateRandomRaceEvent() {
+    const raceEvent = S.raceEvent;
+    if (!raceEvent?.eventsRemaining || S.raceTime < raceEvent.nextEventAt) return;
+    const running = S.horses.filter((horse) => !horse.userData.data.finished);
+    if (!running.length) return;
+    const horse = running[Math.floor(Math.random() * running.length)];
+    const data = horse.userData.data;
+    const choices = ["secondWind", "stumble", "spook"];
+    const eventType = choices[Math.floor(Math.random() * choices.length)];
+    if (eventType === "secondWind") {
+      data.boost = Math.max(data.boost, 2.2);
+      HD.UI.showRaceNotice(`${data.name} catches a second wind!`, 2300);
+    } else if (eventType === "stumble") {
+      data.slow = Math.max(data.slow, 1.1);
+      HD.UI.showRaceNotice(`${data.name} loses momentum for a moment.`, 2300);
+    } else {
+      const direction = Math.random() > 0.5 ? 1 : -1;
+      data.targetLane = THREE.MathUtils.clamp(
+        Math.round(data.lane) + direction,
+        0,
+        C.raceHorseCount - 1,
+      );
+      data.passing = true;
+      HD.UI.showRaceNotice(`${data.name} is spooked into another lane!`, 2300);
+    }
+    raceEvent.eventsRemaining--;
+    raceEvent.nextEventAt = S.raceTime + 10 + Math.random() * 12;
   }
 
   // ---------------------------------------------------------------------------
@@ -567,7 +664,9 @@ HD.Race = (() => {
     const winningTickets = S.bets.filter((bet) => bet.horse === winner);
     const returnedStake = winningTickets.reduce((total, bet) => total + bet.amount, 0);
     const profit = winningTickets.reduce((total, bet) => total + bet.amount * bet.odds, 0);
-    const payout = returnedStake + profit;
+    const payout = Math.round(
+      (returnedStake + profit) * (S.raceEvent?.payoutMultiplier || 1),
+    );
     if (payout) {
       S.money += payout;
       HD.UI.addLedger(`Race ${S.race} payout`, payout);
@@ -606,6 +705,7 @@ HD.Race = (() => {
       lastOdds: 0,
       sabotagePlans: [],
       raceAnnouncement: "",
+      raceEvent: selectRaceEvent(),
     });
     clearProjectiles();
     resetHorses({ forceStart: options.forceStart });
@@ -666,7 +766,7 @@ HD.Race = (() => {
       return HD.UI.announce("Waiting for the lobby host to restart the match.");
     }
     Object.assign(S, {
-      money: 100,
+      money: 200,
       inventory: HD.createInventory(),
       round: 1,
       race: 1,
@@ -685,7 +785,9 @@ HD.Race = (() => {
       horseFieldRacesRemaining: 0,
       horseBag: C.horses.map((horse) => horse.id),
       horseSpeedBonuses: {},
+      raceEvent: null,
     });
+    S.raceEvent = selectRaceEvent();
     clearProjectiles();
     resetHorses();
     HD.AI?.resetMatch?.();
@@ -694,7 +796,7 @@ HD.Race = (() => {
     HD.Controls.sitDown();
     HD.UI.countdown(String(C.preparationDuration));
     HD.UI.progress(0);
-    HD.UI.addLedger("Round 1 bankroll", 100);
+    HD.UI.addLedger("Day 1 bankroll", 200);
     HD.UI.announce("A fresh day at Hotdog Downs!");
     HD.UI.render();
   }
@@ -1212,6 +1314,7 @@ HD.Race = (() => {
       timer: S.timer,
       finishOrder: [...S.finishOrder],
       announcement: S.raceAnnouncement,
+      raceEvent: S.raceEvent ? { ...S.raceEvent } : null,
       activeHorseIds: [...S.activeHorseIds],
       horseFieldRacesRemaining: S.horseFieldRacesRemaining,
       horses: S.horses.map((horse) => {
@@ -1282,7 +1385,7 @@ HD.Race = (() => {
       snapshot.phase === "betting" &&
       snapshot.race === 1
     ) {
-      S.money = 100;
+      S.money = 200;
       S.inventory = HD.createInventory();
       S.ledger = [];
     }
@@ -1293,6 +1396,7 @@ HD.Race = (() => {
     S.timer = snapshot.timer;
     S.finishOrder = Array.isArray(snapshot.finishOrder) ? [...snapshot.finishOrder] : [];
     S.raceAnnouncement = snapshot.announcement || "";
+    if (snapshot.raceEvent) S.raceEvent = { ...snapshot.raceEvent };
     if (!fieldChanged && Number.isFinite(snapshot.horseFieldRacesRemaining)) {
       S.horseFieldRacesRemaining = snapshot.horseFieldRacesRemaining;
     }

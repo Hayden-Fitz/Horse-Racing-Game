@@ -5,13 +5,13 @@ HD.AI = (() => {
   const C = HD.CONFIG;
   const names = ["Maya", "Dex", "Rin", "Sol", "Nia", "Bo", "Kit"];
   const personalities = [
-    "favorite",
-    "value",
+    "conservative",
+    "highRoller",
     "chaos",
-    "favorite",
-    "value",
+    "underdog",
+    "saboteur",
     "chaos",
-    "favorite",
+    "conservative",
   ];
   let players = [];
   let activeRaceKey = "";
@@ -25,7 +25,7 @@ HD.AI = (() => {
     players = names.map((name, index) => ({
       id: `ai-${index}`,
       name,
-      money: 100,
+      money: 200,
       personality: personalities[index],
       bets: [],
       betDelay: 2 + index * 1.7,
@@ -38,7 +38,7 @@ HD.AI = (() => {
         ...HD.createInventory(),
         hotdog: 2,
         soda: 1,
-        carrot: personalities[index] === "favorite" ? 1 : 0,
+        carrot: personalities[index] === "conservative" ? 1 : 0,
       },
       destination: null,
       route: [],
@@ -47,6 +47,7 @@ HD.AI = (() => {
       activityTimer: 0,
       patrolStep: 0,
       sabotageMade: false,
+      requestMade: false,
     }));
     activeRaceKey = "";
     settledRaceKey = "";
@@ -68,6 +69,7 @@ HD.AI = (() => {
       player.throwMade = false;
       player.shopVisited = false;
       player.sabotageMade = false;
+      player.requestMade = false;
       player.betDelay = 2 + ((index * 17 + S.race * 5) % 16);
       player.liveBetAt = 3.5 + ((index * 11 + S.race) % 8);
       player.throwAt = 6 + ((index * 13 + S.race * 3) % 18);
@@ -89,6 +91,9 @@ HD.AI = (() => {
         }
         if (!player.sabotageMade && bettingElapsed >= 8 + index * 1.4) {
           attemptSabotage(player, index);
+        }
+        if (!player.requestMade && bettingElapsed >= 20 + index * 1.3) {
+          maybeRequestFromPlayer(player, index);
         }
       });
       return;
@@ -172,7 +177,7 @@ HD.AI = (() => {
 
   function createRoute(start, index, mode) {
     const seat = HD.Stadium.playerSeatPlacement(index + 1).avatar;
-    const startOnUpperFloor = start.y > 10;
+    const startOnUpperFloor = start.y > 14;
     const startOnWalkway = start.y < 3.5;
 
     const seatAngle = Math.atan2(seat.z, seat.x);
@@ -209,7 +214,10 @@ HD.AI = (() => {
     const shops = HD.world.shopPositions || [];
     const shop = shops[index % Math.max(1, shops.length)];
     const shopPoint = shop
-      ? new THREE.Vector3(shop.x, upperHeight, shop.z)
+      ? new THREE.Vector3(shop.x, upperHeight, shop.z).addScaledVector(
+          new THREE.Vector3(shop.x, 0, shop.z).normalize(),
+          -5.2,
+        )
       : ovalPoint(110, 74, stairAngle + Math.PI / 4, upperHeight);
     const shopAngle = Math.atan2(shopPoint.z, shopPoint.x);
     return startOnUpperFloor
@@ -260,7 +268,12 @@ HD.AI = (() => {
 
   function attemptSabotage(player, index) {
     player.sabotageMade = true;
-    if (player.money < 70 || index % 3 === 1) return;
+    const sabotageChance = player.personality === "saboteur"
+      ? 0.86
+      : player.personality === "chaos"
+        ? 0.48
+        : 0.2;
+    if (player.money < 70 || Math.random() > sabotageChance) return;
     const optionIds = ["looseShoe", "badFeed", "gateTampering"];
     const optionId = optionIds[(index + S.race) % optionIds.length];
     const option = C.sabotageOptions[optionId];
@@ -288,9 +301,9 @@ HD.AI = (() => {
       });
     if (!options.length) return;
 
-    const preferredItems = player.personality === "favorite"
+    const preferredItems = player.personality === "conservative"
       ? ["performanceOats", "carrot", "hurdle"]
-      : player.personality === "value"
+      : player.personality === "underdog"
         ? ["soda", "hotdog", "hurdle"]
         : ["airHorn", "horseshoe", "hurdle"];
     const preferred = preferredItems
@@ -308,8 +321,13 @@ HD.AI = (() => {
     const horse = S.horses[horseIndex]?.userData.data;
     if (!horse) return;
 
-    const confidence = player.personality === "favorite" ? 0.13 :
-      player.personality === "value" ? 0.1 : 0.075;
+    const confidence = player.personality === "highRoller"
+      ? 0.24
+      : player.personality === "conservative"
+        ? 0.08
+        : player.personality === "underdog"
+          ? 0.12
+          : 0.14;
     const bankrollStake = Math.floor((player.money * confidence) / 5) * 5;
     const desiredStake = live
       ? Math.max(5, Math.min(60, Math.floor((bankrollStake * 0.7) / 5) * 5))
@@ -332,13 +350,15 @@ HD.AI = (() => {
     const entries = S.horses.map((horse, index) => {
       const data = horse.userData.data;
       let score = data.ability * 8 - data.odds * 0.08;
-      if (player.personality === "value") score += data.odds * 0.11;
+      if (player.personality === "underdog") score += data.odds * 0.16;
+      if (player.personality === "conservative") score += data.resistanceRating * 0.012;
+      if (player.personality === "highRoller") score += data.speedRating * 0.011;
       if (player.personality === "chaos") score += Math.sin(index * 5.3 + S.race) * 1.7;
       if (live) score += data.progress * 4.5;
       return { index, score };
     });
     entries.sort((first, second) => second.score - first.score);
-    const choiceRange = player.personality === "favorite" ? 2 : 4;
+    const choiceRange = player.personality === "conservative" ? 2 : 4;
     const choice = (player.name.length + S.race) % choiceRange;
     return entries[Math.min(choice, entries.length - 1)].index;
   }
@@ -349,7 +369,9 @@ HD.AI = (() => {
     const raceOrder = [...S.horses]
       .map((horse, index) => ({ index, progress: horse.userData.data.progress }))
       .sort((first, second) => second.progress - first.progress);
-    const supportFavorite = player.personality === "favorite" || playerIndex % 3 === 0;
+    const supportFavorite = player.personality === "conservative" ||
+      player.personality === "highRoller" ||
+      playerIndex % 3 === 0;
     const targetIndex = supportFavorite
       ? backedHorse
       : raceOrder.find((entry) => entry.index !== backedHorse)?.index ?? backedHorse;
@@ -431,6 +453,69 @@ HD.AI = (() => {
     return true;
   }
 
+  function requestTransfer(id, money, itemId) {
+    const player = players.find((candidate) => candidate.id === id);
+    if (!player || (!money && !itemId)) return false;
+    window.setTimeout(() => {
+      const canPayMoney = !money || player.money >= money;
+      const canSendItem = !itemId || player.inventory[itemId] > 0;
+      const accepts = canPayMoney && canSendItem && Math.random() > 0.28;
+      if (accepts) {
+        player.money -= money;
+        S.money += money;
+        if (itemId) {
+          player.inventory[itemId]--;
+          S.inventory[itemId]++;
+        }
+        HD.UI.receiveTrackPayTransfer?.({
+          fromName: player.name,
+          money,
+          itemId,
+        });
+        HD.UI.addLedger(`TrackPay from ${player.name}`, money);
+        HD.UI.render();
+      } else {
+        HD.UI.receiveTrackPayResponse?.({
+          fromName: player.name,
+          accepted: false,
+        });
+      }
+    }, 700 + Math.random() * 900);
+    return true;
+  }
+
+  function maybeRequestFromPlayer(player, index) {
+    player.requestMade = true;
+    if ((index + S.race) % 4 !== 1) return;
+    const wantsItem = index % 2 === 0;
+    const itemId = wantsItem ? (index % 3 === 0 ? "hotdog" : "soda") : "";
+    HD.UI.receiveTrackPayRequest?.({
+      id: `ai-request-${S.round}-${S.race}-${player.id}`,
+      fromId: player.id,
+      fromName: player.name,
+      money: wantsItem ? 0 : 10 + (index % 3) * 5,
+      itemId,
+    });
+  }
+
+  function respondToTransferRequest(request, accepted) {
+    if (!accepted) return true;
+    const money = Math.max(0, Math.floor(Number(request.money) || 0));
+    if (money > S.money) return false;
+    if (request.itemId && !S.inventory[request.itemId]) return false;
+    const player = players.find((candidate) => candidate.id === request.fromId);
+    if (!player) return false;
+    S.money -= money;
+    player.money += money;
+    if (request.itemId) {
+      S.inventory[request.itemId]--;
+      player.inventory[request.itemId]++;
+    }
+    HD.UI.addLedger(`TrackPay to ${player.name}`, -money);
+    HD.Audio?.cue?.("moneySpend");
+    return true;
+  }
+
   return {
     init,
     update,
@@ -440,5 +525,7 @@ HD.AI = (() => {
     rankingPlayers,
     transferTargets,
     receiveTransfer,
+    requestTransfer,
+    respondToTransferRequest,
   };
 })();
