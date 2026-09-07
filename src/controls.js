@@ -66,6 +66,9 @@ HD.Controls = (() => {
     );
   }
   function keydown(event) {
+    // Typing in Messages, lobby names or settings must never trigger movement,
+    // item selection, throwing or the remappable phone shortcut.
+    if (isTextEntry(event.target)) return;
     if (setMovementKey(event.code, true)) return;
     if (event.repeat) return;
     if (/^Digit[0-9]$/.test(event.code)) {
@@ -100,6 +103,7 @@ HD.Controls = (() => {
   }
   function keyup(event) {
     setMovementKey(event.code, false);
+    if (isTextEntry(event.target)) return;
     if (HD.Settings.matches(event, "throw") && chargeSource === "keyboard") {
       releaseThrow();
     }
@@ -110,6 +114,13 @@ HD.Controls = (() => {
     if (!direction) return false;
     S.movement[direction] = pressed;
     return true;
+  }
+
+  function isTextEntry(target) {
+    return Boolean(
+      target?.isContentEditable ||
+      /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || ""),
+    );
   }
   function setMode(mode) {
     if (mode !== "phone") S.atSabotageCounter = false;

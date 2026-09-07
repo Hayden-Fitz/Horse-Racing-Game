@@ -9,6 +9,7 @@ const testFiles = [
   "stadium-smoke.js",
   "race-simulation.js",
   "ai-behavior.js",
+  "imported-models.mjs",
 ];
 
 for (const testFile of testFiles) {

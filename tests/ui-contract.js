@@ -55,10 +55,9 @@ assert.ok(
   "Every horse needs complete Odds Watch ratings",
 );
 assert.equal(sandbox.HD.CONFIG.raceHorseCount, 6, "Each race should contain six horses");
-assert.equal(
-  sandbox.HD.CONFIG.trackLanes.centerX,
-  53.35,
-  "The innermost horse lane should be removed and replaced outside",
+assert.ok(
+  sandbox.HD.CONFIG.trackLanes.centerX < 53.35,
+  "The innermost dirt lane must be used",
 );
 assert.equal(sandbox.HD.CONFIG.horseFieldRaces, 2, "Each horse field should remain for two races");
 assert.equal(

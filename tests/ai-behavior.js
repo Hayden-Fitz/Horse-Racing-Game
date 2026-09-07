@@ -46,30 +46,27 @@ async function run() {
   HD.AI.update();
 
   const afterOpeningBets = HD.AI.rankingPlayers();
-  assert.equal(afterOpeningBets.length, 7, "Single-player should create seven AI opponents");
-  assert.ok(
-    afterOpeningBets.every((player) => player.money < 100),
-    "Every AI opponent should place an opening wager",
-  );
+  assert.equal(afterOpeningBets.length, 0, "Practice Mode must not create AI opponents");
+  assert.equal(HD.state.sabotagePlans.length, 0, "Removed AI must not sabotage horses");
 
   HD.state.phase = "racing";
   HD.state.raceTime = 30;
   HD.AI.update();
   assert.equal(
     HD.state.projectiles.length,
-    7,
-    "Every AI opponent should make one intentional race throw",
+    0,
+    "Removed player AI must not generate throws",
   );
   assert.ok(
-    HD.state.projectiles.some((projectile) => projectile.type === "carrot"),
-    "At least one AI should support its selected horse",
+    HD.AI.transferTargets().length === 0,
+    "Practice must not offer fake transfer recipients",
   );
   assert.ok(
-    HD.state.projectiles.some((projectile) => projectile.type !== "carrot"),
-    "At least one AI should interfere with a competing horse",
+    HD.AI.receiveTransfer("ai-0", 100, "hotdog") === false,
+    "Transfers to removed players must fail",
   );
 
-  console.log("Single-player AI betting and intentional throwing checks passed.");
+  console.log("Practice Mode has no simulated player opponents or transfers.");
 }
 
 function createCanvasContext() {

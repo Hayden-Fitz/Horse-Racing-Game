@@ -1,3 +1,6 @@
 node_modules/
 .env
 npm-debug.log*
+.model-review-profile/
+.model-review-profile-2/
+artifacts/

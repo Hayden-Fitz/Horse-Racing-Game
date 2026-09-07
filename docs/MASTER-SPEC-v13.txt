@@ -1,0 +1,3627 @@
+===============================================================
+HOTDOG DERBY
+CODEX — MASTER DEVELOPMENT SPECIFICATION v13
+===============================================================
+
+IMPORTANT:
+THIS DOCUMENT IS THE CURRENT AUTHORITATIVE DESIGN SPECIFICATION.
+
+When older code, comments, assets, or documentation conflict with this
+specification, FOLLOW THIS SPECIFICATION.
+
+Do not silently re-add removed mechanics.
+Do not invent replacement mechanics unless explicitly requested.
+
+===============================================================
+1. GAME NAME
+===============================================================
+
+HOTDOG DERBY
+
+===============================================================
+2. CORE GAME CONCEPT
+===============================================================
+
+Hotdog Derby is an 8-player online multiplayer horse-racing roguelike
+party game.
+
+Players are spectators who can:
+
+- Bet on horses
+- Watch races
+- Throw objects at horses
+- Sabotage horses
+- Trade money and items
+- Buy food
+- Buy items
+- Bid in auctions
+- Buy legendary items
+- Choose positive rewards
+- Choose negative effects
+- Obtain Upgrades
+- Customize characters
+- Own a personal horse
+- Name their personal horse
+- Customize their personal horse
+- Enter their personal horse into races
+- Actually control their personal horse
+- Discover 48 unique normal horses
+- Build different strategies
+- Try to finish the run with the most money
+
+Maximum online players:
+8 HUMAN PLAYERS.
+
+There are NO online AI player opponents.
+
+Normal horses still use horse AI.
+
+===============================================================
+3. PLAYER COMBAT REMOVAL
+===============================================================
+
+Players DO NOT attack other players.
+
+REMOVE:
+
+- Punching
+- Player combat
+- Player damage
+- Player stun
+- Player knockback
+- Throwing items at players as attacks
+
+Items primarily interact with:
+
+- Horses
+- Track
+- Obstacles
+- Environment
+- Race conditions
+- Race objects
+
+===============================================================
+4. SINGLE-PLAYER MODE
+===============================================================
+
+Single-player is called:
+
+PRACTICE MODE
+
+Practice Mode is NOT an AI multiplayer match.
+
+There are NO AI player characters.
+
+Horse AI still exists for normal horses.
+
+I no longer want the fake players in. 
+
+Practice Mode supports:
+
+- Movement
+- Jumping
+- Phone
+- Betting
+- Horse odds
+- Throwing
+- Inventory
+- Item selection
+- Item physics
+- Horse interaction
+- Sabotage
+- Upgrades
+- Personal horse
+- Player-controlled racing
+- Different horse counts
+- Different race counts
+- Crowd chaos
+- Practice concessions
+- Practice item testing
+
+Crowd throwing should generally happen MORE OFTEN in Practice Mode.
+
+Practice should function as a configurable sandbox.
+
+===============================================================
+5. CORE GAME LOOP
+===============================================================
+
+PREPARE
+→ CUSTOMIZE
+→ MANAGE INVENTORY
+→ BUY
+→ BET
+→ RACE
+→ THROW
+→ SABOTAGE
+→ REACT
+→ RACE ENDS
+→ RECEIVE PAYOUT
+→ LEADERBOARD / DAY CHANGE
+→ POSITIVE REWARD CHOICE
+→ NEGATIVE EFFECT CHOICE
+→ SHOP
+→ AUCTION
+→ LEGENDARY SHOP
+→ TRADE
+→ INVENTORY
+→ CUSTOMIZE
+→ NEXT RACE
+→ CONTINUE RUN
+→ CHAMPIONSHIP RACE
+→ FINAL RESULTS
+
+===============================================================
+6. GAME SETTINGS
+===============================================================
+
+Game settings must exist in BOTH:
+
+- Multiplayer
+- Practice Mode
+
+MULTIPLAYER:
+
+The HOST controls game settings.
+
+PRACTICE MODE:
+
+The player controls game settings.
+
+Settings must synchronize in multiplayer.
+
+Include settings for:
+
+- Number of days
+- Number of races
+- Number of horses per race
+- Number of laps
+- Starting money
+- Crowd throwing frequency
+- Crowd item frequency
+- Crowd chaos
+- Random event frequency
+- Race types
+- Race modifiers
+- Allow Player Horses ON/OFF
+- Personal horse race limit
+- Player Racing ON/OFF
+- Player-race entry cost
+- Player-race payout
+- Item availability
+- Legendary item availability
+- Sabotage availability
+- Upgrade availability
+
+The system should support adding additional reasonable settings later.
+
+===============================================================
+7. GAME SETTING DEPENDENCIES
+===============================================================
+
+Changing settings must correctly update every dependent system.
+
+Number of days:
+- Changes total run length.
+- Changes total possible daily Upgrade opportunities.
+
+Number of races:
+- Changes progression length.
+
+Horses per race:
+- Changes lanes.
+- Changes starting positions.
+- Changes gate slots.
+- Changes odds.
+- Changes payouts.
+- Changes camera framing.
+
+Number of laps:
+- Changes race duration.
+- Changes finish logic.
+
+Allow Player Horses:
+- Controls whether personal horses can enter.
+
+Player Racing:
+- Controls whether player-controlled races are available.
+
+Crowd Chaos:
+- Controls intensity and frequency of crowd interactions.
+
+Prevent invalid settings combinations.
+
+===============================================================
+8. ROGUELIKE STRUCTURE
+===============================================================
+
+The MAIN MULTIPLAYER GAME is a roguelike.
+
+The roguelike is NOT a separate mode.
+
+As the run progresses:
+
+- Stakes increase
+- Rewards increase
+- Better items become available
+- Rare items appear
+- More expensive purchases appear
+- More unusual mechanics appear
+- Risk increases
+
+Each run should feel meaningfully different.
+
+The goal is not pure randomness.
+
+The player should make meaningful decisions.
+
+===============================================================
+9. DAY SYSTEM
+===============================================================
+
+Runs are divided into DAYS.
+
+The exact number of days is configurable.
+
+At the end of an appropriate day:
+
+- Display standings
+- Display money
+- Display race results
+- Display statistics
+- Give Positive Reward Choice
+- Give Negative Effect Choice
+
+The number of possible Upgrade opportunities scales with the number of
+days in the run.
+
+===============================================================
+10. LEADERBOARD / DAY CHANGE
+===============================================================
+
+Display:
+
+- Player standings
+- Current money
+- Day results
+- Race results
+- Major statistics
+- Positive rewards
+- Negative effects
+
+This screen should feel like a major gameplay event.
+
+===============================================================
+11. POSITIVE REWARD CHOICE
+===============================================================
+
+At the appropriate day progression, give THREE positive choices.
+
+The three categories are:
+
+1. MONEY
+2. ITEM
+3. UPGRADE
+
+The player chooses ONE.
+
+Example:
+
+CHOOSE A REWARD
+
+[ $850 ]
+
+[ RARE ITEM ]
+
+[ UPGRADE ]
+
+CHOOSE ONE
+
+===============================================================
+12. UPGRADE SYSTEM
+===============================================================
+
+The old "Charm" concept is now officially called:
+
+UPGRADES
+
+Do NOT call these Charms in the game.
+
+Upgrades may ONLY appear in the Positive Reward Choice.
+
+Do NOT create:
+
+- Upgrade Shop
+- Upgrade vendor
+- Upgrade inventory tab
+- Upgrade equipment screen
+- Upgrade equipment slots
+- Upgrade purchases
+- Separate Upgrade drops
+
+The ONLY normal way to obtain an Upgrade is through the Positive Reward
+Choice.
+
+===============================================================
+13. DAILY UPGRADE LIMIT
+===============================================================
+
+The player gets ONE Upgrade opportunity per day.
+
+Therefore:
+
+3-day run = up to 3 Upgrade opportunities
+5-day run = up to 5 Upgrade opportunities
+10-day run = up to 10 Upgrade opportunities
+
+Exactly ONE of the three positive reward choices should be an Upgrade.
+
+A player should not obtain multiple daily Upgrades through the same reward
+screen.
+
+===============================================================
+14. UPGRADE DESIGN
+===============================================================
+
+Upgrades are run-based gameplay modifiers.
+
+They can modify:
+
+- Throwing
+- Throw range
+- Throw force
+- Item efficiency
+- Item quantity
+- Horse interaction
+- Sabotage
+- Information
+- Economy
+- Defensive mechanics
+- Other appropriate gameplay systems
+
+Upgrades should create meaningful builds.
+
+Do not create excessive permanent power creep.
+
+===============================================================
+15. NEGATIVE EFFECT CHOICE
+===============================================================
+
+The player receives TWO different NEGATIVE EFFECT choices.
+
+The player chooses ONE.
+
+Call them:
+
+NEGATIVE EFFECTS
+
+Never call them curses.
+
+Examples:
+
+- Reduced throw power
+- Reduced throw range
+- More expensive items
+- Reduced movement
+- Reduced jump
+- Reduced item effectiveness
+- Increased sabotage cost
+- Reduced sabotage effectiveness
+
+Negative Effects should create strategic tradeoffs without making the game
+unplayable.
+
+===============================================================
+16. REWARD RANDOMIZATION
+===============================================================
+
+Reward choices should vary between runs.
+
+Do not always show identical choices.
+
+Choices should be:
+
+- Randomized
+- Unpredictable
+- Fair
+- Balanced
+
+The positive reward categories remain:
+
+- Money
+- Item
+- Upgrade
+
+===============================================================
+17. ECONOMY
+===============================================================
+
+Money must remain valuable throughout the run.
+
+Avoid the old problem where approximately $2,000 makes nearly everything
+affordable.
+
+Players can spend money on:
+
+- Food
+- Auction items
+- Legendary items
+- Sabotage
+- Player racing
+- Special opportunities
+- Other appropriate purchases
+
+Some powerful items should cost thousands of dollars.
+
+===============================================================
+18. CATCH-UP ECONOMY
+===============================================================
+
+Poor players must still have meaningful choices.
+
+Provide:
+
+- Cheap useful items
+- Affordable purchases
+- Useful bets
+- Underdog opportunities
+- Recovery opportunities
+- Low-cost utilities
+
+Do NOT simply give losing players free money.
+
+Rich players should have more options, not automatic victory.
+
+===============================================================
+19. FOOD / CONCESSIONS
+===============================================================
+
+Food can be obtained through:
+
+1. CONCESSIONS PHONE APP
+2. PHYSICAL CONCESSION STANDS
+
+Phone food orders have:
+
+12 SECOND DELIVERY TIME
+
+Display:
+
+ORDERED
+→
+DELIVERING
+12
+11
+10
+...
+1
+→
+DELIVERED
+
+Food must not instantly appear.
+
+===============================================================
+20. AUCTION SYSTEM
+===============================================================
+
+Auction is a TAB INSIDE THE CONCESSIONS APP.
+
+Three different items are available at once.
+
+Each listing displays:
+
+- Image
+- Name
+- Category
+- Description
+- Starting bid
+- Current bid
+- Highest bidder
+- Timer
+- Bid button
+
+Each auction lasts:
+
+15 SECONDS
+
+Highest valid bidder wins.
+
+Winner pays final bid.
+
+Winner receives the item.
+
+Auction state must synchronize between all players.
+
+Auction transactions must be server authoritative.
+
+===============================================================
+21. AUCTION ECONOMY
+===============================================================
+
+Auction items should generally be:
+
+- Unusual
+- Mechanically interesting
+- Less consistently available
+- Potentially stronger
+
+Players should have to decide whether to:
+
+SPEND NOW
+
+or
+
+SAVE FOR AUCTION
+
+===============================================================
+22. ITEM SYSTEM OVERVIEW
+===============================================================
+
+There are EXACTLY:
+
+18 NORMAL ITEMS
+
+and
+
+6 LEGENDARY ITEMS.
+
+Do NOT add normal items unless explicitly requested.
+
+Do NOT add legendary items unless explicitly requested.
+
+===============================================================
+23. ITEM PHYSICAL CHARACTERISTICS
+===============================================================
+
+Every throwable item must have:
+
+- Weight
+- Throwing Ease
+- Throw force
+- Throw range
+- Maximum trajectory height
+- Collision behavior
+- Bounce behavior where appropriate
+
+WEIGHT:
+
+1 = Very Light
+2 = Light
+3 = Medium
+4 = Heavy
+5 = Very Heavy
+
+Weight primarily affects maximum throw height and vertical trajectory.
+
+Higher weight means:
+
+- Lower maximum attainable height
+- Stronger downward arc
+- Less extreme vertical throws
+
+THROWING EASE:
+
+1 = Very Difficult
+2 = Difficult
+3 = Normal
+4 = Easy
+5 = Very Easy
+
+Throwing Ease primarily affects maximum horizontal throwing distance.
+
+Higher Throwing Ease means:
+
+- Longer possible throws
+- Easier long-distance throws
+
+Weight and Throwing Ease are SEPARATE characteristics.
+
+===============================================================
+24. HORSE EFFECT SYSTEM
+===============================================================
+
+There are exactly SIX standardized Horse Effects.
+
+1. SPEED BOOST
+2. RESISTANCE GAIN
+3. STUN
+4. SLOW
+5. KNOCKBACK
+6. INTELLIGENCE BOOST
+
+Every horse-affecting item should use these standardized effects.
+
+===============================================================
+25. SPEED BOOST
+===============================================================
+
+Temporarily increases horse speed.
+
+Intensity can be:
+
+- Low
+- Medium
+- High
+- Very High
+
+===============================================================
+26. RESISTANCE GAIN
+===============================================================
+
+Resistance Gain reduces the severity and/or duration of future negative
+horse effects.
+
+It primarily protects against:
+
+- Stun
+- Slow
+- Knockback
+
+It does NOT make the horse completely immune.
+
+Example:
+
+A horse with Resistance Gain gets hit by a Hotdog.
+
+Instead of:
+
+1.5 second stun
+
+it might receive:
+
+0.9 second stun
+
+depending on resistance strength.
+
+===============================================================
+27. STUN
+===============================================================
+
+Temporarily prevents normal horse movement.
+
+Stun is different from Slow.
+
+Stun should temporarily interrupt the horse.
+
+===============================================================
+28. SLOW
+===============================================================
+
+Temporarily reduces horse movement speed.
+
+Slow does not completely stop the horse.
+
+===============================================================
+29. KNOCKBACK
+===============================================================
+
+Applies physical displacement or changes the horse's racing line.
+
+Knockback should interact with:
+
+- Horse position
+- Momentum
+- Track boundaries
+- Other horses
+- Obstacles
+
+===============================================================
+30. INTELLIGENCE BOOST
+===============================================================
+
+Temporarily improves horse decision-making.
+
+It can improve:
+
+- Lane switching
+- Overtaking
+- Avoidance
+- Reaction time
+- Choosing better racing lines
+
+===============================================================
+31. ITEM EFFECT LIMIT
+===============================================================
+
+An item may have UP TO THREE different Horse Effects.
+
+Each effect has an independent intensity.
+
+Example:
+
+Stun — HIGH
+Slow — LOW
+Knockback — LOW
+
+Not every item needs three effects.
+
+Some items should have only one effect.
+
+Some should have two.
+
+Some should have three.
+
+The effects should have different strengths so every item does not feel the
+same.
+
+===============================================================
+32. NORMAL ITEM ROSTER
+===============================================================
+
+The EXACT 18 normal items are:
+
+1. Hotdog
+2. Soda
+3. Oats
+4. Carrot
+5. Popcorn
+6. Water Bottle
+7. Pretzel
+8. Pillow
+9. Chair
+10. Rubber Chicken
+11. Foam Horseshoe
+12. Tennis Ball
+13. Beach Ball
+14. Traffic Cone
+15. Banana Peel
+16. Frisbee
+17. Foam Finger
+18. Hurdle
+
+REMOVED NORMAL ITEMS:
+
+- Glue Trap
+- Snow Cone
+
+Do NOT re-add them.
+
+===============================================================
+33. HOTDOG
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+4
+
+Type:
+Throwable / Stun
+
+Horse Effects:
+
+- Stun — Medium
+
+The Hotdog is a STUN item.
+
+It is NOT a boost item.
+
+It is NOT a slow-only item.
+
+===============================================================
+34. SODA
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+3
+
+Type:
+Throwable / Slow
+
+Horse Effects:
+
+- Slow — Medium
+
+Small splash on impact.
+
+===============================================================
+35. OATS
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+4
+
+Type:
+Throwable / Horse Interaction
+
+Horse Effects:
+
+- Speed Boost — Medium
+- Resistance Gain — Low
+
+Positive horse item.
+
+===============================================================
+36. CARROT
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+5
+
+Type:
+Throwable / Horse Intelligence
+
+Horse Effects:
+
+- Intelligence Boost — Medium
+- Speed Boost — Low
+
+===============================================================
+37. POPCORN
+===============================================================
+
+Weight:
+1
+
+Throwing Ease:
+3
+
+Type:
+Throwable / Distraction
+
+Horse Effects:
+
+- Stun — Medium
+- Slow — Low
+
+On initial impact:
+
+- Apply Medium Stun.
+- Release 5 popcorn kernels in random nearby directions.
+
+Each kernel is a separate projectile.
+
+Each kernel can apply:
+
+- Stun — Low
+
+The kernels must use actual collision/physics.
+
+===============================================================
+38. WATER BOTTLE
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+3
+
+Type:
+Throwable
+
+Horse Effects:
+
+- Slow — Medium
+- Knockback — Low
+
+===============================================================
+39. PRETZEL
+===============================================================
+
+Weight:
+1
+
+Throwing Ease:
+5
+
+Type:
+Throwable
+
+Horse Effects:
+
+- Stun — Low
+- Slow — Low
+
+Very easy to throw and capable of long distance.
+
+===============================================================
+40. PILLOW
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+4
+
+Type:
+Throwable / Impact
+
+Horse Effects:
+
+- Knockback — Medium
+- Slow — Low
+- Stun — Low
+
+===============================================================
+41. CHAIR
+===============================================================
+
+Weight:
+5
+
+Throwing Ease:
+1
+
+Type:
+Throwable / Heavy / Impact
+
+Horse Effects:
+
+- Knockback — High
+- Stun — High
+
+Very heavy.
+
+Very difficult to throw far.
+
+Strong direct impact.
+
+===============================================================
+42. RUBBER CHICKEN
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+4
+
+Type:
+Throwable / Bounce
+
+Horse Effects:
+
+- Knockback — Low
+
+Very bouncy.
+
+Unpredictable ricochets.
+
+===============================================================
+43. FOAM HORSESHOE
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+3
+
+Type:
+Throwable / Bounce
+
+Horse Effects:
+
+- Stun — Low
+- Slow — Low
+
+Bounces from appropriate surfaces.
+
+===============================================================
+44. TENNIS BALL
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+5
+
+Type:
+Throwable / Bounce
+
+Horse Effects:
+
+- Stun — Low
+- Knockback — Low
+
+Fast.
+
+Small.
+
+Long range.
+
+Strong bounce.
+
+===============================================================
+45. BEACH BALL
+===============================================================
+
+Weight:
+1
+
+Throwing Ease:
+5
+
+Type:
+Throwable / Bounce / Multi-target
+
+Horse Effects:
+
+- Slow — Low
+- Knockback — Low
+
+Very light.
+
+Very long range.
+
+Large collision size.
+
+Can affect multiple horses.
+
+===============================================================
+46. TRAFFIC CONE
+===============================================================
+
+Weight:
+4
+
+Throwing Ease:
+2
+
+Type:
+Throwable / Heavy / Impact
+
+Horse Effects:
+
+- Knockback — High
+- Stun — Medium
+
+Heavy.
+
+Strong collision.
+
+===============================================================
+47. BANANA PEEL
+===============================================================
+
+Weight:
+1
+
+Throwing Ease:
+4
+
+Type:
+Placable
+
+Horse Effects:
+
+- Stun — Medium
+- Slow — Medium
+
+Placed on the track.
+
+When a horse crosses it:
+
+- Trigger stumble
+- Apply Medium Stun
+- Apply Medium Slow
+
+===============================================================
+48. FRISBEE
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+5
+
+Type:
+Throwable / Bounce / Special
+
+Horse Effects:
+
+- Slow — Low
+- Knockback — Low
+
+IMPORTANT PHYSICS IDENTITY:
+
+Medium Weight
++
+Very High Throwing Ease
+
+The Frisbee should travel FAR.
+
+It should NOT be capable of extremely high vertical throws.
+
+Use appropriate curved/flat projectile behavior.
+
+Can ricochet.
+
+===============================================================
+49. FOAM FINGER
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+4
+
+Type:
+Throwable / Knockback
+
+Horse Effects:
+
+- Knockback — Medium
+
+Very light.
+
+Long range.
+
+Weak overall impact.
+
+===============================================================
+50. HURDLE
+===============================================================
+
+Weight:
+4
+
+Throwing Ease:
+2
+
+Type:
+Placable / Obstacle
+
+Horse Effects when a horse is disrupted by it:
+
+- Slow — Medium
+- Stun — Low
+
+Creates a physical track obstacle.
+
+Horses should need to jump, avoid, or navigate it.
+
+===============================================================
+51. LEGENDARY SHOP
+===============================================================
+
+Create a:
+
+LEGENDARY SHOP
+
+Legendary items are:
+
+- Extremely expensive
+- Powerful
+- Unusual
+- Rare
+- Not standard concession purchases
+
+The shop ROTATES.
+
+Do not permanently display every legendary item.
+
+===============================================================
+52. LEGENDARY ITEM ROSTER
+===============================================================
+
+There are EXACTLY SIX legendary items.
+
+1. Golden Horseshoe
+2. Golden Carrot
+3. Golden Hotdog
+4. Bowling Ball
+5. Giant Cowbell
+6. Boomerang
+
+Removed legendary items:
+
+- Bumper Ball
+- Black Hole Ball
+- Rocket Horse
+
+Do NOT re-add them.
+
+===============================================================
+53. GOLDEN HORSESHOE
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+3
+
+Type:
+Legendary / Throwable / Stun
+
+Horse Effects:
+
+- Stun — High
+
+It is a powerful negative horse-interaction item.
+
+It is NOT a boost.
+
+===============================================================
+54. GOLDEN CARROT
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+5
+
+Type:
+Legendary / Throwable / Horse Intelligence
+
+Horse Effects:
+
+- Intelligence Boost — High
+- Speed Boost — Medium
+- Resistance Gain — Low
+
+===============================================================
+55. GOLDEN HOTDOG
+===============================================================
+
+Weight:
+2
+
+Throwing Ease:
+4
+
+Type:
+Legendary / Throwable / Stun
+
+Horse Effects:
+
+- Stun — Very High
+
+It is a much stronger version of the normal Hotdog.
+
+The Golden Hotdog is NOT a boost item.
+
+===============================================================
+56. BOWLING BALL
+===============================================================
+
+Weight:
+5
+
+Throwing Ease:
+1
+
+Type:
+Legendary / Heavy / Impact
+
+Horse Effects:
+
+- Knockback — Very High
+- Stun — High
+
+Very heavy.
+
+Very difficult to throw far.
+
+Can:
+
+- Roll
+- Bounce
+- Deflect
+- Maintain momentum
+
+===============================================================
+57. GIANT COWBELL
+===============================================================
+
+Weight:
+5
+
+Throwing Ease:
+2
+
+Type:
+Legendary / Special
+
+Horse Effects:
+
+- Stun — Extreme
+- Intelligence Boost — Extreme
+
+SPECIAL RULE:
+
+MAXIMUM 1 GIANT COWBELL PER INVENTORY.
+
+If the Giant Cowbell successfully hits a horse:
+
+THAT HORSE AUTOMATICALLY LOSES THE RACE.
+
+This is intentionally an extremely powerful legendary effect.
+
+Prevent duplication.
+
+===============================================================
+58. BOOMERANG
+===============================================================
+
+Weight:
+3
+
+Throwing Ease:
+5
+
+Type:
+Legendary / Throwable / Returning / Stun
+
+Horse Effects:
+
+- Stun — Medium
+
+The Boomerang has the EXACT SAME CORE HORSE EFFECT as the basic Hotdog.
+
+The Hotdog stuns.
+
+Therefore:
+
+THE BOOMERANG STUNS.
+
+It does NOT boost horses.
+
+It does NOT replace the Hotdog effect with Slow.
+
+===============================================================
+59. BOOMERANG RETURN SYSTEM
+===============================================================
+
+First throw:
+
+100% return chance.
+
+After every throw, multiply the previous return chance by:
+
+0.75
+
+Formula:
+
+Return Chance =
+100% × 0.75^(Throw Number - 1)
+
+Examples:
+
+1st throw = 100.00%
+2nd throw = 75.00%
+3rd throw = 56.25%
+4th throw = 42.19%
+5th throw = 31.64%
+6th throw = 23.73%
+7th throw = 17.80%
+8th throw = 13.35%
+9th throw = 10.01%
+10th throw = 7.51%
+
+If the return roll fails:
+
+- Boomerang is lost.
+- It does not return.
+- Player must obtain another one.
+
+===============================================================
+60. ITEM DATA SYSTEM
+===============================================================
+
+Items MUST be data-driven.
+
+Every item supports:
+
+- ID
+- Name
+- Description
+- Category
+- Tags
+- Rarity
+- Price
+- Model
+- Icon
+- Weight
+- Throwing Ease
+- Throw Force
+- Range
+- Maximum Height
+- Bounce
+- Collision
+- Duration
+- Horse Effects
+- Effect Intensities
+- Environmental Effects
+- Special Behavior
+
+===============================================================
+61. ITEM CATEGORIES
+===============================================================
+
+Items can use multiple tags.
+
+Useful tags include:
+
+- THROWABLE
+- PLACABLE
+- BOUNCE
+- STUN
+- SLOW
+- SPEED BOOST
+- RESISTANCE GAIN
+- KNOCKBACK
+- INTELLIGENCE BOOST
+- HEAVY
+- SPECIAL
+- LEGENDARY
+- OBSTACLE
+
+Tags describe behavior.
+
+They do not replace the Horse Effect system.
+
+===============================================================
+62. ITEM PHYSICS
+===============================================================
+
+Weight primarily affects:
+
+- Maximum height
+- Vertical trajectory
+- Gravity feel
+- Downward arc
+
+Throwing Ease primarily affects:
+
+- Maximum horizontal distance
+- Long-range throwing ability
+
+Throw force and player aim still matter.
+
+Physics must feel consistent and learnable.
+
+===============================================================
+63. INVENTORY SYSTEM
+===============================================================
+
+The item-management system is:
+
+INVENTORY
+
+There is NO HOTBAR.
+
+There is NO permanent nine-slot bar.
+
+Players can own more items than can be immediately selected.
+
+The Inventory app displays:
+
+- All owned items
+- Quantity
+- Category
+- Rarity
+- Description
+- Availability
+
+===============================================================
+64. INVENTORY WHEEL
+===============================================================
+
+Holding:
+
+E
+
+opens the temporary Inventory selection wheel.
+
+First layer:
+
+- Food
+- Placable
+- Bounce
+- Impact
+- Special
+- Legendary
+- Other relevant categories
+
+Second layer:
+
+- Items belonging to selected category
+
+The wheel disappears when not being used.
+
+===============================================================
+65. AUTOMATIC ITEM REPLACEMENT
+===============================================================
+
+When an item reaches zero:
+
+STEP 1:
+
+Search the SAME CATEGORY.
+
+If another usable item exists:
+
+Automatically equip it.
+
+STEP 2:
+
+If no item exists in that category:
+
+Automatically equip a usable item from another category.
+
+STEP 3:
+
+If no items remain:
+
+Equip nothing.
+
+Never leave the player holding an invalid empty item.
+
+Show brief feedback:
+
+ITEM DEPLETED
+→
+SWITCHED TO [ITEM]
+
+===============================================================
+66. ITEM CONTROLS
+===============================================================
+
+E:
+
+Inventory / Context Interaction
+
+F:
+
+Hold / Unhold selected item
+
+LEFT CLICK:
+
+Throw held item
+
+Control flow:
+
+HOLD E
+→ SELECT CATEGORY
+→ SELECT ITEM
+→ RELEASE E
+
+PRESS F
+→ HOLD ITEM
+
+PRESS F AGAIN
+→ STOP HOLDING ITEM
+
+LEFT CLICK
+→ THROW ITEM
+
+===============================================================
+67. PHONE SYSTEM
+===============================================================
+
+The phone must look like a real smartphone.
+
+Include:
+
+- Realistic proportions
+- Bezel/frame
+- Rounded screen
+- Home screen
+- App icons
+- Status bar
+- Time
+- Battery
+- Connection indicator
+- Navigation
+- App transitions
+
+===============================================================
+68. PHONE HOME SCREEN
+===============================================================
+
+Apps:
+
+1. Messages
+2. Horses
+3. DerbyPay
+4. Betting
+5. Concessions
+6. DerbyNews
+7. Inventory
+8. Sabotage
+
+Character Customization is NOT a phone app.
+
+===============================================================
+69. PHONE APP DESIGN
+===============================================================
+
+Every app must have its own visual identity.
+
+All apps share:
+
+- Phone OS framework
+- Navigation conventions
+- Icon family
+- General quality
+
+Each app must have unique:
+
+- Layout
+- Typography
+- Visual motifs
+- UI elements
+- Information hierarchy
+- Interaction style
+- Personality
+
+Do NOT copy the exact same interface between apps.
+
+===============================================================
+70. PHONE ICONS
+===============================================================
+
+All home-screen icons should belong to one unified visual family.
+
+They should share:
+
+- Shape language
+- Scale
+- Rendering quality
+- Detail level
+- General aesthetic
+
+Each icon must remain visually distinct.
+
+===============================================================
+71. MESSAGES
+===============================================================
+
+Keep the current simple Messages design.
+
+When text input is active:
+
+SHIFT = CAPITALIZATION
+
+Shift must NOT:
+
+- Close phone
+- Deselect phone
+- Trigger phone action
+
+===============================================================
+72. PHONE KEY
+===============================================================
+
+Default phone key:
+
+LEFT SHIFT
+
+The phone key is remappable.
+
+Settings:
+
+SETTINGS
+→ CONTROLS
+→ PHONE
+
+When text input is active:
+
+SHIFT = capitalization.
+
+Outside text input:
+
+SHIFT = phone key.
+
+===============================================================
+73. CONCESSIONS APP
+===============================================================
+
+Must resemble a real food-ordering app.
+
+Tabs:
+
+- FOOD
+- VENDORS
+- AUCTION
+
+Food delivery:
+
+12 seconds.
+
+Auction:
+
+- 3 items
+- 15 seconds
+- Starting bid
+- Current bid
+- Highest bidder
+- Bid button
+
+===============================================================
+74. BETTING APP
+===============================================================
+
+Give the Betting app a dedicated sports/racing identity.
+
+Display:
+
+- Race
+- Horse number
+- Horse name
+- Odds
+- Bet types
+- Payout
+- Current bets
+- Betting status
+
+Supported bets:
+
+- WIN
+- PLACE
+- SHOW
+- EXACTA
+- TRIFECTA
+
+===============================================================
+75. HORSE APP
+===============================================================
+
+Horse database app.
+
+HOME:
+
+Current race field.
+
+ALL HORSES:
+
+All 48 normal horses.
+
+PERSONAL HORSE:
+
+Player's personal horse.
+
+Profile displays:
+
+- Name
+- Number
+- Stats
+- Appearance
+- Personality
+- History
+- Entries remaining
+- Enter Next Race
+
+===============================================================
+76. DERBYPAY
+===============================================================
+
+Payment/trading app.
+
+Support:
+
+- Send money
+- Request money
+- Send item
+- Request item
+- Trade
+
+Possible trades:
+
+- Item ↔ item
+- Money ↔ item
+- Item ↔ money
+- Item + money ↔ item
+- Other valid combinations
+
+All trades must be atomic.
+
+===============================================================
+77. TRADE SAFETY
+===============================================================
+
+Both players must explicitly confirm.
+
+Either:
+
+TRADE COMPLETE
+
+or:
+
+NOTHING CHANGES
+
+Prevent:
+
+- Money duplication
+- Item duplication
+- Double spending
+- Desync
+- Cancellation exploits
+
+===============================================================
+78. DERBYNEWS
+===============================================================
+
+Dynamic racing news application.
+
+Can report:
+
+- Money wagered
+- Current leader
+- Odds changes
+- Horse hits
+- Horse stuns
+- Horse slows
+- Overtakes
+- Comebacks
+- Large payouts
+- Player race results
+- Sabotage
+- Rare horses
+- Auctions
+- Legendary events
+- Major events
+
+Example:
+
+BREAKING:
+#27 TAKES THE LEAD
+
+RACE ALERT:
+#72 HIT BY A HOTDOG
+
+MASSIVE UPSET:
+LONGSHOT #14 WINS
+
+===============================================================
+79. SABOTAGE APP
+===============================================================
+
+Display:
+
+- Available sabotage
+- Cost
+- Targets
+- Success chance
+- Detection chance
+- Active sabotage
+- History
+- Results
+
+Possible sabotage:
+
+- Slow
+- Distract
+- Stamina drain
+- Force lane change
+- Confuse
+- Alter start
+- Create obstacle
+- Alter intelligence
+- Reduce recovery
+
+Each sabotage has:
+
+- Cost
+- Risk
+- Failure possibility
+- Detection possibility
+- Visual feedback
+- Result feedback
+
+===============================================================
+80. CHARACTER CUSTOMIZATION
+===============================================================
+
+Character customization is NOT a phone app.
+
+Categories:
+
+- Hats
+- Shirts
+- Pants
+- Shoes
+- Accessories
+- Body colors
+- Emotes
+- Phone themes
+
+DO NOT add Upgrade equipment slots.
+
+===============================================================
+81. PLAYER CHARACTER
+===============================================================
+
+Use the current basic player design.
+
+The player should be:
+
+- Simple
+- Bald/basic by default
+- Easy to customize
+- Easy to recognize
+
+Base structure:
+
+- Round head
+- Floating head
+- Simple/no facial features
+- Cone-shaped body
+- Circular hands
+- Cylindrical arms
+- Simple legs
+- Simple shoes
+
+Players start standing in their seating area.
+
+===============================================================
+82. PERSONAL HORSE
+===============================================================
+
+Every player owns one personal horse.
+
+Players can:
+
+- Choose archetype
+- Name horse
+- Customize horse
+- Customize saddle
+- Customize bridle
+- Customize number cloth
+- Add cosmetics
+- View stats
+- Enter races
+- Control horse
+- Earn money
+- Qualify for Championship
+
+===============================================================
+83. PERSONAL HORSE ARCHETYPES
+===============================================================
+
+There are 10 archetypes:
+
+1. Sprinter
+2. Tank
+3. Endurance
+4. Rocket
+5. Smart
+6. Agile
+7. Power
+8. Comeback
+9. Balanced
+10. Wildcard
+
+All ten must be competitively balanced.
+
+No mathematically superior archetype.
+
+Different archetypes use different stat distributions.
+
+===============================================================
+84. PERSONAL HORSE NAMING
+===============================================================
+
+Players can name their horse.
+
+Name appears in:
+
+- Horse app
+- Profile
+- Race UI
+- Results
+- Championship
+- Player information
+
+Use appropriate name filtering and validation.
+
+===============================================================
+85. PERSONAL HORSE CUSTOMIZATION
+===============================================================
+
+Allow:
+
+- Coat
+- Mane
+- Tail
+- Saddle
+- Bridle
+- Number cloth
+- Accessories
+- Cosmetic details
+
+Cosmetics must NOT alter competitive statistics.
+
+===============================================================
+86. PERSONAL HORSE RACE LIMIT
+===============================================================
+
+Default:
+
+2 personal horse race entries per game.
+
+This is configurable in Game Settings.
+
+Display:
+
+PERSONAL HORSE ENTRIES REMAINING
+
+===============================================================
+87. ENTER PERSONAL HORSE
+===============================================================
+
+Horse profile contains:
+
+[ ENTER NEXT RACE ]
+
+If available:
+
+- Enter horse
+- Assign lane
+- Add to betting field
+- Recalculate odds
+- Recalculate payouts
+
+If unavailable:
+
+Disable button and explain why.
+
+===============================================================
+88. PLAYER-CONTROLLED RACING
+===============================================================
+
+Players can ACTUALLY race their personal horse.
+
+Controls:
+
+W = Accelerate
+S = Slow / Brake
+A = Steer Left
+D = Steer Right
+SPACE = Jump
+
+The player physically controls the horse.
+
+Do NOT automate player racing.
+
+===============================================================
+89. PLAYER RACE ECONOMY
+===============================================================
+
+Player-controlled races should be expensive and risky.
+
+Example:
+
+Entry:
+$2,000
+
+Potential win:
+$8,000+
+
+These numbers can be balanced later.
+
+===============================================================
+90. PLAYER RACE INTERACTION
+===============================================================
+
+While one or more players are racing:
+
+Non-racing players can:
+
+- Throw food
+- Throw items at horses
+- Use placables
+- Sabotage horses
+- Bet
+- Emote
+
+Racing players can:
+
+- Accelerate
+- Brake
+- Steer
+- Jump
+- Change lanes
+- Dodge objects
+
+Players themselves are never attack targets.
+
+===============================================================
+91. NORMAL HORSES
+===============================================================
+
+Create EXACTLY:
+
+48 unique normal horses.
+
+Each horse has:
+
+- Name
+- Permanent number
+- Appearance
+- Speed
+- Acceleration
+- Maximum speed
+- Stamina
+- Defense
+- Cornering
+- Recovery
+- Intelligence
+- Lane switching
+- Overtaking
+- Start performance
+- Final stretch performance
+- Consistency
+- Interference resistance
+- Personality
+- Base odds tendency
+
+===============================================================
+92. HORSE PERSONALITIES
+===============================================================
+
+Possible personalities:
+
+- Front-runner
+- Comeback
+- Aggressive
+- Nervous
+- Cautious
+- Overtaker
+- Lane-switcher
+- Stubborn
+- Easily startled
+- Endurance
+- Sprint
+- Unpredictable
+
+Behavior must actually reflect personality.
+
+===============================================================
+93. HORSE RARITY
+===============================================================
+
+Normal horse rarities:
+
+- Common
+- Uncommon
+- Rare
+- Very Rare
+- Legendary
+- Special
+
+Example:
+
+Golden Horse appearance chance approximately:
+
+0.25%
+
+Exact probability can be balanced later.
+
+Rarity does not automatically mean unbeatable.
+
+===============================================================
+94. HORSE DISCOVERY
+===============================================================
+
+Horse app displays:
+
+HORSES DISCOVERED
+X / 48
+
+Undiscovered:
+
+???
+
+Discovered:
+
+- Name
+- Number
+- Image
+- Stats
+- Personality
+- History
+
+Discovery contributes to long-term progression.
+
+===============================================================
+95. HORSE NUMBERS
+===============================================================
+
+Every normal horse has a permanent identity number.
+
+Examples:
+
+00
+07
+12
+27
+33
+48
+72
+91
+
+Race position is separate from horse identity.
+
+===============================================================
+96. HORSE ODDS
+===============================================================
+
+Odds must be calculated from the ACTUAL ACTIVE FIELD.
+
+If six horses participate:
+
+Only those six horses are included in the probability calculation.
+
+Absent horses must NOT remain in the probability calculation.
+
+Displayed odds must match actual payout calculations.
+
+Dynamic odds can consider:
+
+- Horse stats
+- Current position
+- Distance
+- Stamina
+- Speed
+- Overtakes
+- Interference
+- Random events
+- Momentum
+- Betting activity
+
+===============================================================
+97. DYNAMIC HORSE COUNT / LANES
+===============================================================
+
+When horse count changes, dynamically recalculate:
+
+- Lane positions
+- Starting positions
+- Gate slots
+- Dirt usage
+- Horse spacing
+- Odds
+- Payouts
+- Horse number placement
+- Camera framing
+
+8-HORSE BUG FIX:
+
+- Use all 8 dirt lanes.
+- Use the innermost dirt lane.
+- Horse 8 must be outside horse 7.
+- Horse 8 must NEVER wrap beside horse 1.
+- Horse 7 must remain entirely on dirt.
+
+===============================================================
+98. HORSE AI
+===============================================================
+
+Horse AI handles:
+
+- Track following
+- Speed
+- Acceleration
+- Stamina
+- Cornering
+- Lane switching
+- Overtaking
+- Intelligence
+- Interference
+- Recovery
+- Starting behavior
+- Final stretch behavior
+- Personality
+- Horse effects
+
+Horse AI must react naturally to:
+
+- Stun
+- Slow
+- Knockback
+- Resistance Gain
+- Speed Boost
+- Intelligence Boost
+- Obstacles
+- Other horses
+- Track events
+
+===============================================================
+99. CHAMPIONSHIP
+===============================================================
+
+At the end of the run:
+
+Create a BONUS CHAMPIONSHIP RACE.
+
+Qualifying horses:
+
+- Normal horses that won a race
+- Personal horses that won a race
+
+If the same horse wins multiple races:
+
+It occupies ONE Championship slot.
+
+If more than 8 unique winners exist:
+
+Choose the 8 horses with the fastest winning times.
+
+Maximum:
+
+8 horses.
+
+Track:
+
+- Horse identity
+- Horse number
+- Winning time
+- Winning race
+- Player owner
+
+===============================================================
+100. STADIUM / ARENA
+===============================================================
+
+The stadium must look like a believable actual horse-racing arena.
+
+The stadium layout must remain physically CONSISTENT from every angle.
+
+Required views for development/reference:
+
+- Front
+- Back
+- Left side
+- Right side
+- Isometric
+- Top-down
+
+The same physical architecture must appear in every view.
+
+Do NOT redesign parts of the stadium between camera angles.
+
+===============================================================
+101. STADIUM TRACK
+===============================================================
+
+The main horse racing surface is one continuous OVAL track.
+
+The track must clearly read as a horse-racing path.
+
+Include:
+
+- Inner rail
+- Outer rail
+- Dirt racing lanes
+- Straight sections
+- Curved sections
+- Starting area
+- Starting gate
+- Finish line
+- Track signs
+- Fence posts
+- Barriers
+
+All seats should be positioned around the oval track.
+
+===============================================================
+102. STADIUM SEATING / STRUCTURE
+===============================================================
+
+Create a real arena-like spectator structure.
+
+Include:
+
+- Seating around the entire oval
+- Multiple seating sections
+- Multiple rows
+- Staircases
+- Railings
+- Walkways
+- Reserved seating
+- Structural supports
+- Grandstands
+- Upper seating
+- Top floor
+
+The seating should NOT only exist on one side.
+
+===============================================================
+103. TOP FLOOR / ROOF
+===============================================================
+
+The stadium must have a TOP FLOOR.
+
+The top floor must have:
+
+- Seating
+- Walkways
+- Railings
+- Staircases
+- Structural details
+- Decorations
+
+The top floor must have a ROOF.
+
+The roof covers the top floor.
+
+Do not add another floor above the roof.
+
+Fix all:
+
+- Window clipping
+- Seat clipping
+- Structural clipping
+- Empty spaces
+- Bad spacing
+- Unrealistic architecture
+
+===============================================================
+104. STAIRCASES / WALKWAYS
+===============================================================
+
+Add believable staircases throughout the stadium.
+
+Stairs should connect:
+
+- Lower seating
+- Upper seating
+- Top floor
+- Player interaction areas
+
+Include:
+
+- Handrails
+- Landings
+- Walkways
+- Logical circulation
+
+The stairs must actually connect the different elevations.
+
+===============================================================
+105. HORSE ENTRY / EXIT TUNNEL
+===============================================================
+
+Create a clearly visible tunnel/opening where horses enter and leave.
+
+Before races:
+
+HORSES ENTER
+
+After racing:
+
+HORSES EXIT
+
+The tunnel must connect logically to the stable/arena side.
+
+Include:
+
+- Tunnel
+- Gate
+- Fence
+- Signs
+- Track-side opening
+- Appropriate structural supports
+
+===============================================================
+106. PLAYER INTERACTION RING
+===============================================================
+
+Immediately outside the horse racing circle, create a fenced-off circular
+player interaction area.
+
+This area should be positioned around/beneath the appropriate stair areas.
+
+Players can walk around this circular area.
+
+Purpose:
+
+- Watch horses up close
+- Throw items toward horses
+- Place items
+- Interact with the race
+- Move around the arena
+
+The area must be fenced off from the actual racing surface.
+
+Players normally cannot walk onto the horse racing surface.
+
+The ring must connect logically to:
+
+- Stairs
+- Seating
+- Walkways
+- Fences
+- Arena circulation
+
+===============================================================
+107. STADIUM LIFE
+===============================================================
+
+Add believable arena details:
+
+- Crowd
+- Vendors
+- Posters
+- Flags
+- Signs
+- Plants
+- Reserved seats
+- Cameras
+- Track workers
+- Decorations
+- Concessions
+- Railings
+- Structural supports
+
+NPC simulation should remain simple.
+
+===============================================================
+108. THREE LOCATIONS
+===============================================================
+
+CLASSIC:
+
+- Traditional racetrack
+- Green grass
+- Classic arena
+- Trees
+- Buildings
+
+MOUNTAIN:
+
+- Mountains
+- Rocks
+- Trees
+- Elevation
+- Wind/weather
+- Atmospheric depth
+
+DESERT:
+
+- Sand
+- Rocks
+- Cacti
+- Heat
+- Long straightaways
+- Distant terrain
+
+The stadium architecture remains recognizable across locations while the
+environment changes.
+
+===============================================================
+109. BACKGROUNDS
+===============================================================
+
+CLASSIC:
+
+- Trees
+- Buildings
+- Landscape
+- Horizon
+
+MOUNTAIN:
+
+- Multiple mountain layers
+- Trees
+- Rocks
+- Atmospheric depth
+
+DESERT:
+
+- Sand
+- Rocks
+- Cacti
+- Distant terrain
+- Atmospheric depth
+
+Do NOT use low-quality placeholder mountains.
+
+===============================================================
+110. MUSIC
+===============================================================
+
+Lobby music is acceptable.
+
+Gameplay music should have stronger location identity.
+
+CLASSIC:
+
+Horse-racing / sports atmosphere.
+
+MOUNTAIN:
+
+Adventure / environmental atmosphere.
+
+DESERT:
+
+Hot / open / desert atmosphere.
+
+Avoid overly childish/playful gameplay music.
+
+===============================================================
+111. MAIN MENU
+===============================================================
+
+Main menu appears before lobby.
+
+LEFT:
+
+PLAY
+SETTINGS
+CREDITS
+QUIT
+
+RIGHT:
+
+Live stadium scene.
+
+Show:
+
+- Stadium
+- Oval racetrack
+- Horses running
+- Good lighting
+- Interesting camera
+
+The presentation can take broad inspiration from PEAK's presentation,
+but must remain original.
+
+===============================================================
+112. LOBBY
+===============================================================
+
+Flow:
+
+MAIN MENU
+→ PLAY
+→ LOBBY
+→ GAME SETTINGS
+→ GAME
+
+Host controls multiplayer settings.
+
+===============================================================
+113. SETTINGS SCREEN
+===============================================================
+
+Categories:
+
+- Sound
+- Video
+- Controls
+- Gameplay
+- UI
+- Accessibility
+
+Controls include:
+
+- Movement
+- Camera
+- Throwing
+- Inventory
+- Interaction
+- Phone
+- Custom keybinds
+
+Phone default:
+
+Left Shift
+
+E:
+
+Inventory/context interaction
+
+F:
+
+Hold/unhold item
+
+Left Click:
+
+Throw
+
+===============================================================
+114. GLOBAL UI SCALE
+===============================================================
+
+Add a global UI scale slider.
+
+It affects:
+
+- Main menu
+- Phone
+- Betting
+- Horse app
+- Concessions
+- Auction
+- DerbyPay
+- DerbyNews
+- Inventory
+- Sabotage
+- Settings
+- Results
+- Shop
+- HUD
+- Notifications
+- Popups
+
+Setting must persist.
+
+===============================================================
+115. REPLAY SYSTEM
+===============================================================
+
+Create a replay/camera system.
+
+Purpose:
+
+- Gameplay clips
+- Funny moments
+- Steam trailer
+- Kickstarter trailer
+- Daily highlights
+
+Camera types:
+
+- Spectator
+- Horse close-up
+- Item close-up
+- Low angle
+- Under horse
+- Finish line
+- Side
+- Front
+- Rear
+- Wide stadium
+- Overhead
+
+===============================================================
+116. REPLAY DATA
+===============================================================
+
+Record enough race state to reconstruct major events.
+
+Record:
+
+- Horse positions
+- Horse states
+- Item throws
+- Projectile positions
+- Collisions
+- Horse hits
+- Horse effects
+- Sabotage
+- Overtakes
+- Large bets
+- Major payouts
+- Random events
+- Race finish
+
+Use a manageable replay buffer.
+
+===============================================================
+117. DAILY HIGHLIGHTS
+===============================================================
+
+At the end of appropriate days:
+
+DAY X WINNER
+
+DAY X MOST UNFORTUNATE MOMENT
+
+Winner image should use:
+
+- Actual winning horse
+- Actual finish line
+- Actual track
+- Crowd
+- Good camera angle
+
+Unfortunate moment should use:
+
+- Actual horse
+- Actual item/event
+- Actual interaction
+
+Do not use generic screenshots.
+
+===============================================================
+118. ONLINE MULTIPLAYER
+===============================================================
+
+Maximum:
+
+8 HUMAN PLAYERS
+
+NO ONLINE PLAYER BOTS.
+
+Synchronize:
+
+- Player position
+- Rotation
+- Animation
+- Jumping
+- Emotes
+- Money
+- Bets
+- Betting outcomes
+- Items
+- Item purchases
+- Item throws
+- Physics
+- Horse states
+- Horse positions
+- Odds
+- Sabotage
+- Trades
+- Auctions
+- Race state
+- Game settings
+- Reward choices
+- Negative Effects
+- Upgrades
+- Map
+- Loading
+- Championship
+
+===============================================================
+119. SERVER AUTHORITY
+===============================================================
+
+Server/host must control:
+
+- Money
+- Bets
+- Payouts
+- Horse state
+- Horse results
+- Item effects
+- Sabotage
+- Trades
+- Auctions
+- Reward choices
+- Negative Effects
+- Upgrades
+- Championship
+- Player race outcomes
+
+Do not trust the client with economy-critical results.
+
+===============================================================
+120. SERVER ARCHITECTURE
+===============================================================
+
+Use a reliable, scalable multiplayer architecture.
+
+Target:
+
+- 8 players
+- Reliable synchronization
+- Low initial cost
+- Scalable architecture
+- Reconnection
+- Economy security
+
+Do not purchase expensive infrastructure prematurely.
+
+===============================================================
+121. NETWORK FAILURE
+===============================================================
+
+Handle:
+
+- Disconnect
+- Reconnect
+- Host disconnect
+- Loading disconnect
+- Race disconnect
+- Trade disconnect
+- Auction disconnect
+- Betting disconnect
+- Lag
+- Desync
+
+Fail gracefully.
+
+===============================================================
+122. ANTI-EXPLOIT
+===============================================================
+
+Prevent:
+
+- Money duplication
+- Item duplication
+- Trade duplication
+- Duplicate payouts
+- Fake horse results
+- Fake inventory
+- Invalid bets
+- Late bets
+- Fake sabotage
+- Auction exploits
+- Client-side economy manipulation
+- Giant Cowbell duplication
+
+===============================================================
+123. PERFORMANCE
+===============================================================
+
+Optimize for:
+
+- 8 players
+- 48 horses
+- Personal horses
+- Physics
+- Crowd
+- Throwables
+- Stadium
+- Auctions
+- Replay
+- News
+- Networking
+
+Use where appropriate:
+
+- Object pooling
+- Efficient physics
+- Efficient AI
+- LOD
+- Network relevancy
+- Collision optimization
+
+===============================================================
+124. 3D ASSET STATUS
+===============================================================
+
+ALREADY MODELED:
+
+- Player
+- Oats
+- Soda
+- Chair
+- Pillow
+- Hotdog
+- Horseshoe
+- Hurdle
+- Carrot
+
+ALSO MODELED:
+
+- Water Bottle
+- Rubber Chicken
+- Tennis Ball
+- Beach Ball
+- Traffic Cone
+- Boomerang
+- Banana Peel
+- Frisbee
+- Foam Finger
+
+STILL NEEDED:
+
+- Popcorn
+- Pretzel
+
+LEGENDARY ASSETS:
+
+- Golden Horseshoe
+- Golden Carrot
+- Golden Hotdog
+- Bowling Ball
+- Giant Cowbell
+- Boomerang
+
+OTHER REQUIRED ASSETS:
+
+- Final horse model
+- Jockey
+- Starting gate
+- Finish line
+- Track barriers
+- Stadium seating
+- Grandstand
+- Staircases
+- Railings
+- Top floor
+- Roof
+- Horse entrance/exit tunnel
+- Player interaction ring
+- Vendor stands
+- Environment props
+- Personal horse customization assets
+
+===============================================================
+125. FINAL HORSE MODEL
+===============================================================
+
+THE FINAL HORSE MODEL STILL NEEDS TO BE MADE.
+
+The current horse model is NOT good enough for the final game.
+
+Create a high-quality horse model with:
+
+- Believable proportions
+- Good head
+- Good muzzle
+- Good neck
+- Good chest
+- Proper legs
+- Proper hooves
+- Ears
+- Mane
+- Tail
+- Bridle
+- Saddle
+- Jockey compatibility
+- Clean geometry
+- Strong silhouette
+
+Style:
+
+Stylized but believable.
+
+Do NOT make it look like disconnected primitive blocks.
+
+===============================================================
+126. JOCKEY
+===============================================================
+
+Create a recognizable jockey.
+
+Include:
+
+- Racing uniform
+- Helmet
+- Boots
+- Saddle interaction
+- Proper horse compatibility
+
+===============================================================
+127. HORSE ANIMATIONS
+===============================================================
+
+Normal and personal horses need:
+
+- Idle
+- Walk
+- Trot
+- Gallop
+- Start
+- Stop
+- Turn
+- Overtake
+- Stumble
+- Stun
+- Slow
+- Speed Boost
+- Knockback
+- Recovery
+- Jump
+- Finish
+
+Animations must transition smoothly.
+
+===============================================================
+128. ACHIEVEMENTS
+===============================================================
+
+Examples:
+
+- First Win
+- Huge Bet
+- Huge Payout
+- Underdog Victory
+- Hit a Horse
+- Hit Multiple Horses
+- Successful Sabotage
+- Failed Sabotage
+- Caught Sabotaging
+- Biggest Comeback
+- Last Second Win
+- Perfect Exacta
+- Perfect Trifecta
+- Championship Winner
+- Rare Horse Discovery
+- Golden Horse Discovery
+- Major Auction Win
+- Major Trade
+- Personal Horse Victory
+- Player Racing Victory
+- Legendary Item Purchase
+- Legendary Item Use
+
+===============================================================
+129. XP / LEVELS
+===============================================================
+
+XP sources:
+
+- Race completion
+- Run completion
+- Match completion
+- Wins
+- Successful bets
+- Large payouts
+- Horse interactions
+- Sabotage
+- Achievements
+- Funny/unusual events
+
+Levels represent long-term progression.
+
+Levels should NOT massively increase player power.
+
+===============================================================
+130. PERMANENT PROGRESSION
+===============================================================
+
+Permanent progression should be slow.
+
+Target:
+
+20–40+ hours of meaningful progression.
+
+Permanent progression can include:
+
+- XP
+- Levels
+- Cosmetics
+- Champion Medals
+- Horse discovery
+- Achievements
+
+UPGRADES are NOT permanent progression.
+
+Upgrades are run-based and obtained through the daily Positive Reward Choice.
+
+===============================================================
+131. DEVELOPMENT PRIORITY
+===============================================================
+
+DO NOT build everything simultaneously.
+
+Use vertical slices.
+
+PHASE 1 — CORE RACE
+
+- Game settings
+- Horse AI
+- Horse stats
+- Dynamic lanes
+- Dynamic horse counts
+- 8-horse bug fix
+- Dynamic odds
+- Correct payouts
+- Race start
+- Race finish
+- Results
+
+PHASE 2 — PERSONAL HORSE
+
+- Personal horse framework
+- 10 archetypes
+- Naming
+- Customization
+- Entry limits
+- Player racing
+- Spectator interaction
+
+PHASE 3 — ITEMS
+
+- Remove hotbar
+- Inventory
+- Inventory wheel
+- E selection
+- F hold/unhold
+- Left-click throw
+- 18 normal items
+- 6 legendary items
+- Horse Effect system
+- Weight
+- Throwing Ease
+- Multi-effect items
+- Physics
+- Crowd throwing
+- Boomerang return
+
+PHASE 4 — ECONOMY
+
+- Concessions
+- Food delivery
+- Auctions
+- Legendary Shop
+- Economy
+- Catch-up system
+- Betting
+- Sabotage
+
+PHASE 5 — ROGUELIKE
+
+- Positive rewards
+- Money reward
+- Item reward
+- Upgrade reward
+- One Upgrade per day
+- Negative Effects
+- Randomization
+- Balance
+
+PHASE 6 — HORSE COLLECTION
+
+- 48 horses
+- Horse rarity
+- Horse discovery
+- Horse app
+- Horse profiles
+- History
+- Personal horse integration
+
+PHASE 7 — PHONE
+
+- Real phone shell
+- Home screen
+- Icons
+- Messages
+- Horses
+- DerbyPay
+- Betting
+- Concessions
+- DerbyNews
+- Inventory
+- Sabotage
+- Auction tab
+- Phone keybind
+
+PHASE 8 — WORLD
+
+- FINAL HORSE MODEL
+- Jockey
+- Starting gate
+- Finish line
+- Track
+- Seating
+- Grandstand
+- Staircases
+- Railings
+- Top floor
+- Roof
+- Horse tunnel
+- Player interaction ring
+- Vendor stands
+- Backgrounds
+- Biomes
+
+PHASE 9 — PRESENTATION
+
+- Main menu
+- Lobby
+- Settings
+- UI scale
+- Music
+- News
+- Daily highlights
+- Championship
+- Replay
+
+PHASE 10 — RELEASE
+
+- Server architecture
+- Network reliability
+- Anti-exploit
+- Performance
+- Controller support
+- UI polish
+- Animation polish
+- Final bug fixing
+- Steam build
+- Trailer capture
+- Kickstarter capture
+
+===============================================================
+132. CURRENT KNOWN BUGS / REQUIRED CHANGES
+===============================================================
+
+Fix:
+
+1. Horse 8 wraps beside horse 1.
+2. Horse 7 clips into arena.
+3. Innermost dirt lane is unused.
+4. Odds/payouts fail to normalize with horse count.
+5. Old one-minute discount system must either be fully functional or removed.
+6. Old rank screen must be removed.
+7. R rank-screen key must be removed.
+8. Top-floor stadium clipping.
+9. Stadium seating needs redesign.
+10. Throwables clip through world geometry.
+11. Current horse model is poor.
+12. Background mountains are low quality.
+13. Gameplay music is too playful.
+14. Single-player AI player opponents must be removed.
+15. Personal horse system needs complete implementation.
+16. Personal horse must be controllable.
+17. Phone default must be Left Shift.
+18. Phone key must be remappable.
+19. Shift must capitalize text in Messages.
+20. Old hotbar must be removed.
+21. Inventory wheel must replace hotbar.
+22. E must be Inventory/context interaction.
+23. F must be hold/unhold.
+24. Left Click must be the only throw button.
+25. Same-category automatic replacement must work.
+26. Cross-category fallback must work.
+27. Player combat must be removed.
+28. Items must not attack players.
+29. Glue Trap must not exist.
+30. Snow Cone must not exist.
+31. Bumper Ball must not exist.
+32. Black Hole Ball must not exist.
+33. Rocket Horse must not exist.
+34. Legendary pool must contain exactly six items.
+35. Golden Horseshoe must be STUN, not Boost.
+36. Golden Hotdog must be STUN, not Boost.
+37. Basic Hotdog must be STUN.
+38. Boomerang must be STUN.
+39. Boomerang must be Legendary.
+40. Boomerang return chance must use the 0.75 multiplier.
+41. Every throwable item must have Weight.
+42. Every throwable item must have Throwing Ease.
+43. Weight must affect maximum throw height.
+44. Throwing Ease must affect maximum throw distance.
+45. Items may have up to three Horse Effects.
+46. Horse Effects must use the six standardized effects.
+47. Resistance Gain must reduce future negative effect severity/duration.
+48. Player Upgrades must ONLY appear in Positive Reward Choice.
+49. Exactly one Upgrade opportunity must exist per day.
+50. Character customization must not contain Upgrade equipment.
+51. Final horse model still needs to be made.
+52. Stadium must remain physically consistent across all camera angles.
+53. Stadium must have seating around the oval.
+54. Stadium must have a roofed top floor.
+55. Stadium must have staircases.
+56. Stadium must have the horse entry/exit tunnel.
+57. Stadium must have the fenced player interaction ring.
+58. Player interaction ring must be outside the racing surface.
+59. Game settings must work in both Multiplayer and Practice Mode.
+60. Game settings must include days, races, horses per race, laps,
+    crowd chaos, and Allow Player Horses.
+
+===============================================================
+133. IMPORTANT DESIGN DISTINCTIONS
+===============================================================
+
+NORMAL HORSES:
+
+48 collectible/discoverable horses.
+
+PERSONAL HORSE:
+
+One player-owned horse.
+
+PERSONAL HORSE ARCHETYPE:
+
+One of 10 balanced stat profiles.
+
+PLAYER RACING:
+
+Actual playable racing using the personal horse.
+
+INVENTORY:
+
+Entire owned item collection.
+
+ITEM WHEEL:
+
+Temporary selection system accessed by holding E.
+
+HOTBAR:
+
+REMOVED.
+
+E:
+
+Inventory/context interaction.
+
+F:
+
+Hold/unhold item.
+
+LEFT CLICK:
+
+Throw.
+
+PHONE:
+
+Separate smartphone system.
+
+UPGRADES:
+
+Run-based reward modifiers.
+
+UPGRADE ACQUISITION:
+
+Only through the Positive Reward Choice.
+
+ONE UPGRADE:
+
+One opportunity per day.
+
+NEGATIVE EFFECT:
+
+Chosen from two options during the reward/day progression.
+
+PLAYER COMBAT:
+
+REMOVED.
+
+===============================================================
+134. FINAL DESIGN PHILOSOPHY
+===============================================================
+
+Every race should create meaningful decisions.
+
+Players should think:
+
+"Do I take the money, item, or Upgrade?"
+
+"Which Negative Effect hurts me least?"
+
+"Should I save for the auction?"
+
+"Should I spend thousands on the Legendary Shop?"
+
+"Should I use my personal horse?"
+
+"Should I change my inventory?"
+
+"Which item should I throw?"
+
+"Should I save my Boomerang?"
+
+"Can I afford to lose it?"
+
+"Does this horse have Resistance Gain?"
+
+"Will this Hotdog stun the horse long enough?"
+
+"Should I use an item with multiple effects?"
+
+"Should I sabotage someone?"
+
+"Should I bet on the favorite?"
+
+"Should I take the underdog?"
+
+"Can I recover after losing most of my money?"
+
+Every race should potentially create a story.
+
+Examples:
+
+"I got the Golden Horse."
+
+"I got the Golden Hotdog."
+
+"I saw the Bowling Ball but couldn't afford it."
+
+"I won an auction by $25."
+
+"My Boomerang finally didn't come back."
+
+"The chair stunned the horse."
+
+"The horse resisted my Hotdog."
+
+"I got the one Upgrade I really wanted."
+
+"I took a terrible Negative Effect and had to change my strategy."
+
+"My personal horse won."
+
+"I actually raced my horse while everyone threw stuff at the track."
+
+"The Giant Cowbell made a horse lose."
+
+"The underdog won in the final seconds."
+
+The goal is:
+
+PLAYER DECISION
++
+HORSE BEHAVIOR
++
+RISK
++
+ITEM INTERACTION
++
+PLAYER RACING
++
+CONTROLLED RANDOMNESS
++
+ROGUELIKE BUILD CHOICES
+
+creating memorable multiplayer stories.
+
+===============================================================
+135. CORE SUCCESS CRITERIA
+===============================================================
+
+Hotdog Derby should be:
+
+FUN
+STABLE
+REPLAYABLE
+MULTIPLAYER
+CHAOTIC
+STRATEGIC
+EASY TO LEARN
+DIFFICULT TO MASTER
+VISUALLY DISTINCTIVE
+MEMORABLE
+
+The major systems must work together:
+
+HORSES
+BETTING
+ODDS
+ITEMS
+INVENTORY
+ITEM WHEEL
+SABOTAGE
+MONEY
+AUCTIONS
+LEGENDARY ITEMS
+UPGRADES
+TRADING
+ROGUELIKE CHOICES
+PERSONAL HORSES
+PLAYER RACING
+CHAMPIONSHIP
+STADIUM
+CROWD
+GAME SETTINGS
+
+The player should always have something interesting to do or decide.
+
+===============================================================
+136. FINAL IMPLEMENTATION RULE
+===============================================================
+
+When implementing or modifying the game:
+
+1. Inspect the existing project before changing architecture.
+2. Preserve working systems.
+3. Fix systems that conflict with this specification.
+4. Do not duplicate systems.
+5. Do not leave obsolete systems active.
+6. Do not re-add removed items or mechanics.
+7. Keep item behavior data-driven.
+8. Keep multiplayer economy server-authoritative.
+9. Keep game settings synchronized.
+10. Keep the stadium physically consistent.
+11. Keep the final horse model on the required asset list until complete.
+12. Test each feature in both Practice Mode and Multiplayer when applicable.
+13. Test different game-setting combinations.
+14. Test different horse counts.
+15. Test different lap counts.
+16. Test different day counts.
+17. Test item physics and Weight/Throwing Ease.
+18. Test all six Horse Effects.
+19. Test multi-effect items.
+20. Test the Boomerang return formula.
+21. Test Upgrade availability by day.
+22. Test the Giant Cowbell one-per-inventory restriction.
+23. Test economy exploits.
+24. Test disconnect/reconnect behavior.
+25. Do not consider a feature complete until it works with the existing game.
+
+END OF HOTDOG DERBY MASTER SPECIFICATION v13
+===============================================================

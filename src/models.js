@@ -59,7 +59,7 @@ HD.Models = (() => {
     root.add(bodyRig);
 
     const skinTones = [0xf1c7a5, 0xc88962, 0x8d593d, 0xe0aa82, 0x6e432f];
-    const skin = options.skin || skinTones[options.variant % skinTones.length];
+    const skin = options.skin ?? skinTones[(options.variant || 0) % skinTones.length];
     const trousers = options.trousers || 0x252525;
     const shoeColor = options.shoeColor || 0x20201f;
     const outfit = options.outfit || "raceday";
@@ -917,6 +917,8 @@ HD.Models = (() => {
   }
 
   function throwable(type) {
+    const imported = HD.Assets?.create(type);
+    if (imported) return imported;
     if (type === "soda") return soda();
     if (type === "horseshoe") return horseshoe();
     if (type === "carrot") return carrot();

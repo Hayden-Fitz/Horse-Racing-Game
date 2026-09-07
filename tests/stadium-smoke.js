@@ -46,10 +46,12 @@ async function run() {
     false,
     "Horse numbers should remain visible through stadium geometry",
   );
-  HD.Models.setPlayerNameTag(HD.world.players[0], "Maya");
-  assert.equal(HD.world.players[0].userData.nameTag.userData.label, "Maya");
+  assert.equal(HD.world.players.length, 0, "Reserved seats must not spawn fake players");
+  const remoteAvatar = HD.Models.playerCharacter(0x3366cc);
+  HD.Models.setPlayerNameTag(remoteAvatar, "Maya");
+  assert.equal(remoteAvatar.userData.nameTag.userData.label, "Maya");
   assert.equal(
-    HD.world.players[0].userData.nameTag.material.depthTest,
+    remoteAvatar.userData.nameTag.material.depthTest,
     false,
     "Player tags should remain visible through stadium geometry",
   );

@@ -35,12 +35,26 @@ async function run() {
   require("../src/race.js");
 
   HD.Race.resetHorses();
-  const openingOdds = HD.state.horses.map((horse) => horse.userData.data.odds);
-  const configuredOdds = HD.state.horses.map((horse) => {
-    const id = horse.userData.data.id;
-    return HD.CONFIG.horses.find((entry) => entry.id === id).odds;
-  });
-  assert.deepEqual(openingOdds, configuredOdds, "Opening prices must match each horse's fixed odds");
+  for (let count = 4; count <= 8; count++) {
+    HD.CONFIG.raceHorseCount = count;
+    HD.Race.resetHorses({ forceStart: true });
+    assert.equal(HD.state.horses.length, count);
+    const probability = HD.state.horses.reduce(
+      (total, horse) => total + horse.userData.data.liveChance, 0,
+    );
+    assert.ok(Math.abs(probability - 1) < 1e-10, "Active field probabilities must total one");
+    HD.state.horses.forEach((horse, lane) => {
+      assert.equal(horse.userData.data.lane, lane, "Starting lanes must never wrap");
+      for (let step = 0; step < 64; step++) {
+        const position = HD.Race.trackPoint(step / 64, lane).position;
+        const outer = (position.x / 72) ** 2 + (position.z / 43) ** 2;
+        const inner = (position.x / 49) ** 2 + (position.z / 22) ** 2;
+        assert.ok(outer < 1 && inner > 1, "Every lane must stay on dirt around the whole oval");
+      }
+    });
+  }
+  HD.CONFIG.raceHorseCount = 6;
+  HD.Race.resetHorses({ forceStart: true });
 
   const boostedHorse = HD.state.horses[0];
   const boostedHorseId = boostedHorse.userData.data.id;

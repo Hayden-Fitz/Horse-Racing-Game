@@ -1842,21 +1842,7 @@ HD.Stadium = (() => {
       const placement = grandstandSeat(seat.row, seat.column);
       const colorIndex = (index + 1) % HD.CONFIG.playerColors.length;
       const playerColor = HD.CONFIG.playerColors[colorIndex];
-      const avatar = HD.Models.playerCharacter(playerColor, {
-        variant: index,
-        activity: seat.activity,
-      });
-      avatar.position.copy(placement.avatar);
-      avatar.rotation.y = placement.yaw;
-      avatar.userData.activity = seat.activity;
-      avatar.userData.name = `Player ${index + 2}`;
-      avatar.traverse((object) => {
-        if (!object.isMesh) return;
-        object.castShadow = false;
-        object.receiveShadow = true;
-      });
-      scene.add(avatar);
-      HD.world.players.push(avatar);
+      // Reserved human seats stay empty until a real network player joins.
       createChair(scene, placement, playerColor);
     });
 

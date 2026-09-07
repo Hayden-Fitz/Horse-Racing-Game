@@ -8,6 +8,7 @@ HD.Race = (() => {
   let lastNetworkUi = -1;
   let ambientThrowSchedule = [];
   let ambientThrowWindow = 0;
+  const restingBounds = new THREE.Box3();
 
   // ---------------------------------------------------------------------------
   // Horse lifecycle and three-lap simulation
@@ -29,6 +30,10 @@ HD.Race = (() => {
       return C.horses.find((horse) => horse.id === horseId);
     });
     S.horses = field.map(HD.Models.horse);
+    updateOdds();
+    S.horses.forEach((horse) => {
+      horse.userData.data.startingOdds = horse.userData.data.odds;
+    });
     S.horses.forEach((horse) => {
       const data = horse.userData.data;
       data.maxSpeedBonus = S.horseSpeedBonuses?.[data.id] || 0;
@@ -980,6 +985,16 @@ HD.Race = (() => {
           p.grounded = true;
         }
       }
+
+      if (p.grounded) {
+        // Imported items have different heights. Seat the actual rotated mesh
+        // on the dirt without changing the shared ballistic landing plane.
+        if (p.groundVisualOffset === undefined) {
+          restingBounds.setFromObject(p.mesh);
+          p.groundVisualOffset = 0.05 - restingBounds.min.y;
+        }
+        p.mesh.position.y = p.position.y + p.groundVisualOffset;
+      }
     });
 
     S.projectiles.filter((p) => p.age >= (p.removeAt || 18)).forEach((p) => {
@@ -1233,6 +1248,8 @@ HD.Race = (() => {
           maxSpeedBonus: data.maxSpeedBonus || 0,
           startDelay: data.startDelay,
           odds: data.odds,
+          startingOdds: data.startingOdds,
+          liveChance: data.liveChance,
           finished: data.finished,
           place: data.place,
         };
@@ -1316,6 +1333,8 @@ HD.Race = (() => {
         "maxSpeedBonus",
         "startDelay",
         "odds",
+        "startingOdds",
+        "liveChance",
         "finished",
         "place",
       ].forEach((key) => {

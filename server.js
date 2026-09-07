@@ -12,6 +12,8 @@ const MIME_TYPES = {
   ".ico": "image/x-icon",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".glb": "model/gltf-binary",
+  ".mjs": "text/javascript; charset=utf-8",
   ".mp3": "audio/mpeg",
   ".ogg": "audio/ogg",
   ".png": "image/png",

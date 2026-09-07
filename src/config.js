@@ -532,12 +532,24 @@ HD.CONFIG = {
   raceHorseCount: 6,
   horseFieldRaces: 2,
   trackLanes: {
-    centerX: 53.35,
-    centerZ: 25.68,
-    spacingX: 2.85,
-    spacingZ: 2.68,
-    innerLineX: 51.925,
-    innerLineZ: 24.34,
+    // Keep every lane inside the existing 49/22 to 72/43 dirt oval.
+    innerLineX: 49.3,
+    innerLineZ: 22.3,
+    get spacingX() {
+      return 22.4 / HD.CONFIG.raceHorseCount;
+    },
+
+    get spacingZ() {
+      return 20.4 / HD.CONFIG.raceHorseCount;
+    },
+
+    get centerX() {
+      return this.innerLineX + this.spacingX / 2;
+    },
+
+    get centerZ() {
+      return this.innerLineZ + this.spacingZ / 2;
+    },
   },
   grandstandBaseHeight: 2.75,
 
