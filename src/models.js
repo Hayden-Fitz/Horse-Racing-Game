@@ -922,6 +922,8 @@ HD.Models = (() => {
   }
 
   function throwable(type) {
+    const imported = HD.Assets?.create(type);
+    if (imported) return imported;
     const recreated = HD.ReferenceModels?.create(type);
     if (recreated) return recreated;
     if (type === "soda") return soda();

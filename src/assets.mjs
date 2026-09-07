@@ -14,7 +14,7 @@ async function load(id) {
 
   const promise = (async () => {
     const entry = MODEL_CATALOG[id];
-    const url = new URL(`../assets/Models/optimized/${id}.glb`, import.meta.url);
+    const url = new URL(`../assets/Models/corrected/${id}.glb`, import.meta.url);
     const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) throw new Error(`Model ${id}: HTTP ${response.status}`);
     const gltf = await loader.parseAsync(await response.arrayBuffer(), url.href);

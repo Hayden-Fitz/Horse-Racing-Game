@@ -1,10 +1,12 @@
 import * as THREE from "../vendor/three.module.js";
 import { MODEL_CATALOG } from "../assets/Models/catalog.mjs";
+import { Assets } from "./assets.mjs";
 
 window.THREE = THREE;
 await import("./config.js");
 await import("./reference-models.js");
 await import("./models.js");
+await Assets.preload(Object.keys(MODEL_CATALOG));
 
 const renderer = new THREE.WebGLRenderer({ canvas: document.querySelector("#preview"), alpha: true, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -23,7 +25,7 @@ for (const [id, entry] of Object.entries(MODEL_CATALOG)) {
   const heading = document.createElement("h2");
   heading.textContent = entry.source.replace(/\.glb$|\. TODO_.*$/g, "");
   const detail = document.createElement("p");
-  detail.textContent = "Recreated from your screenshot";
+  detail.textContent = "Original GLB geometry · corrected materials";
   caption.append(heading, detail);
   card.append(viewport, caption);
   document.querySelector("#gallery").append(card);
@@ -36,14 +38,11 @@ for (const [id, entry] of Object.entries(MODEL_CATALOG)) {
   const rim = new THREE.DirectionalLight(0xd1e5ff, 1);
   rim.position.set(3, 3, -2);
   scene.add(rim);
-  const model = id === "playerBase"
-    ? HD.Models.playerCharacter(0x123cdb, { skin: 0xf1c78d, hat: "none", expression: "none", outfit: "plain" })
-    : HD.ReferenceModels.create(id);
+  const model = Assets.create(id);
   if (!model) {
     detail.textContent = "Model unavailable";
     continue;
   }
-  if (id === "playerBase") HD.Models.setPlayerStanding(model, true);
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());
   const root = new THREE.Group();
@@ -75,6 +74,6 @@ function render() {
 
 addEventListener("resize", render);
 addEventListener("scroll", render, { passive: true });
-document.querySelector("#status").textContent = `${views.length} screenshot-based recreations. Live game uses these meshes; GLB imports are archived. New item mechanics remain pending.`;
+document.querySelector("#status").textContent = `${views.length} original models with corrected colors. Supplied active items use these GLBs. The unrigged player export is a preview; the animated player still uses its existing rig.`;
 render();
 window.modelGalleryReady = true;

@@ -6,6 +6,22 @@ requirements work together. This avoids calling a partially built feature done.
 
 ## Completed migration tasks
 
+### Latest model direction: original GLBs, screenshot-based materials
+
+- [x] Restore supplied active-item GLBs instead of screenshot-built replacement shapes.
+- [x] Preserve original triangles/normals and source files; verify geometry fingerprints.
+- [x] Reduce restored downloads with exact vertex sharing, not shape simplification (about 15 MB total).
+- [x] Correct chair wood/upholstery, blue foam/pillow, gold finishes and bottle transparency.
+- [x] Restore a red/white wave label on the soda's exported silver wrapper.
+- [x] Keep the hotdog's sausage/toppings visible in the first-person hand pose.
+- [x] Preview all 18 corrected exports in the model gallery.
+- [ ] Rig the original player export before replacing the animated in-game character.
+- [ ] Confirm material matching with the user under their display/game lighting.
+
+Earlier screenshot-recreation and GLB-archiving tasks below are historical and
+superseded by this direction. Tests: `npm.cmd test`; browser gallery, startup,
+held hotdog and throwing checks: `node scripts/review-models.mjs 9338`.
+
 - [x] Save the full v13 specification in the repository.
 - [x] Rename the solo entry point to Practice Mode.
 - [x] Remove simulated player opponents and fake transfer recipients.

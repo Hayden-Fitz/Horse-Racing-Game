@@ -1,4 +1,5 @@
 import * as THREE from "../vendor/three.module.js";
+import { Assets } from "./assets.mjs";
 
 window.THREE = THREE;
 
@@ -20,6 +21,11 @@ const gameScripts = [
 ];
 
 for (const file of gameScripts) {
+  if (file === "models.js") {
+    window.HD.Assets = Assets;
+    await Assets.preload(Object.keys(window.HD.CONFIG.items)
+      .filter((id) => Assets.catalog[id] && !Assets.catalog[id].requiresRig));
+  }
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = new URL(file, import.meta.url).href;

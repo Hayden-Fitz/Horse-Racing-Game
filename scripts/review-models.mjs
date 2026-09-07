@@ -61,7 +61,7 @@ const state = await call("Runtime.evaluate", {
   expression: `JSON.stringify({
     renderer: Boolean(window.HD?.world?.renderer),
     horses: window.HD?.state?.horses?.length,
-    recreatedHotdog: window.HD?.Models?.throwable('hotdog')?.userData?.referenceModel,
+    importedHotdog: window.HD?.Models?.throwable('hotdog')?.userData?.importedModel,
     assetFailures: [...(window.HD?.Assets?.failures || [])]
   })`, returnByValue: true,
 });
@@ -221,4 +221,4 @@ await fetch(`http://127.0.0.1:${port}/json/close/${page.id}`, {
   signal: AbortSignal.timeout(5000),
 });
 socket.close();
-if (errors.length || !throwing.result?.value || !typing.result?.value || !state.result?.value?.includes('"recreatedHotdog":"hotdog"')) process.exitCode = 1;
+if (errors.length || !throwing.result?.value || !typing.result?.value || !state.result?.value?.includes('"importedHotdog":"hotdog"')) process.exitCode = 1;

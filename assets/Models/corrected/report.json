@@ -1,0 +1,182 @@
+[
+  {
+    "id": "hotdog",
+    "source": "HotDog.glb",
+    "sourceSha256": "fcafd955c85d34f63434ea1a9fe5e02b355d623484a001c47d8fde3c115febe0",
+    "triangles": 43332,
+    "bytes": 985204,
+    "originalGeometry": "987d2e26085a5283413360e26f746fa1f621d5ca95a2c2f6bc5845fad7c61528",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "soda",
+    "source": "better soda.glb",
+    "sourceSha256": "39f37d41af050af472968c6f518337ff98a0bcc706a9b86a1e42928556ad4a70",
+    "triangles": 11906,
+    "bytes": 307132,
+    "originalGeometry": "a20d8917750a5a3ffe86c649ace149273bfaa242bcd7036e426ee7a625063322",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "horseshoe",
+    "source": "horse shoe.glb",
+    "sourceSha256": "463aeda0fb8fc02c2f20b8fbb6fa742bb42d60ef32ffaea35f701ec8fb2ee2fb",
+    "triangles": 3284,
+    "bytes": 60460,
+    "originalGeometry": "3341145f8bcd0c44789a013e899b76737d7d82cb9822f54981ab2d19cb473f78",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "carrot",
+    "source": "Carrot.glb",
+    "sourceSha256": "91bf78425545887c935490b08d1e583da4856fe716c6ec2ed1d4f77de08ab7d5",
+    "triangles": 24618,
+    "bytes": 482960,
+    "originalGeometry": "3e3df10450d8ef62e103347479e4027d0a463365ee7dc957c85080953cf1f916",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "hurdle",
+    "source": "hurdle.glb",
+    "sourceSha256": "ade2b25bbfc062aea35dfaf319c32c7df01c0d683cae77b936512b525cfe2ffd",
+    "triangles": 5264,
+    "bytes": 110160,
+    "originalGeometry": "6ecda39ca30fe568108e24b2e8f5aeaa4fdf7b8902f47c599f7a398eef7916e9",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "pillow",
+    "source": "throw pillow.glb",
+    "sourceSha256": "f297b247db37ff5e85afc6cf2445c997aa06ff28cdef39dd049fc77cc2caa88c",
+    "triangles": 14020,
+    "bytes": 253104,
+    "originalGeometry": "b7f796e987c36297821708b6a4c841bb38d08d6537dccb0d354ee2abb0a55490",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "chair",
+    "source": "chair.glb",
+    "sourceSha256": "d62e8477eb718305aec629f71cc82f6e92a93629f81467c886463b8bbc72b239",
+    "triangles": 11478,
+    "bytes": 207736,
+    "originalGeometry": "3b8191e852a1590ba482cfaae5126a6e439b26f63b4e00fe6ed0dda63e7959e9",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "performanceOats",
+    "source": "Oats.glb",
+    "sourceSha256": "f5ccbc04cc5e6da5aa30367b8ca14c74e6ce1c93ca4485bd797d307c89a53334",
+    "triangles": 214632,
+    "bytes": 5004824,
+    "originalGeometry": "72c4e6961e35fbce191255e8940cb70831230be96ef3f22947b19e363604fc5c",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "popcorn",
+    "source": "popcorn.glb",
+    "sourceSha256": "aa5131152dcb46a88e81a6a5cabb024d6bdd7bbf63d944021d669f63a4af1b70",
+    "triangles": 180454,
+    "bytes": 4510252,
+    "originalGeometry": "998883fa06b842a3f53cfc26a054b526c18f6e50e4094b65c94fa856b38838ec",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "waterBottle",
+    "source": "water bottle.glb",
+    "sourceSha256": "c93d5ad5dc6f26be88239ca8db160f63b3facc4784ef7b5725cedeeae0613347",
+    "triangles": 85928,
+    "bytes": 1545592,
+    "originalGeometry": "7128e3fdaddcab9e9bf72c36af7006490bf8fcd223d29ea82c73b51c2f25d60c",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "tennisBall",
+    "source": "Tennis Ball.glb",
+    "sourceSha256": "2d60f1bf5bf38bcbce81c298477feb6db13d621197f61991e7890d3d137fb229",
+    "triangles": 4354,
+    "bytes": 93776,
+    "originalGeometry": "5df174b9e8704dd8f9a0ebb7d813ddcee6a3b3ecc53236bbd422656b11e2f672",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "beachBall",
+    "source": "beach ball.glb",
+    "sourceSha256": "01dd53c0433422d2fe8cc82433675f91fe49a9f15a3314b93830f66808c2f61a",
+    "triangles": 4250,
+    "bytes": 78196,
+    "originalGeometry": "ef60fc9f9f644a5e892819d63d6a9ffc6dbf5b17e99b4336bc06013b7d5f5604",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "trafficCone",
+    "source": "Traffic cone.glb",
+    "sourceSha256": "ed7660f55c8b269f553b01dd9eae986bd50b4aae357aed5c3fc771a849af574b",
+    "triangles": 3324,
+    "bytes": 79740,
+    "originalGeometry": "b214eba37e29681cb1b8ec393e9c3056d2c86a4584baf6abcffb1e91e8d12270",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "frisbee",
+    "source": "Frisbee.glb",
+    "sourceSha256": "0746ede0eb20e8b8a203e768b06d5044c695065f3ccae73457110a5337ad65ed",
+    "triangles": 24568,
+    "bytes": 461940,
+    "originalGeometry": "dcca51a1542f315b5b58fba4cb0c084e7601c3afc858778b566f2d5dd14a5212",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "goldenCarrot",
+    "source": "Golden Carrot. TODO_ add shine.glb",
+    "sourceSha256": "b6bafd836861c6eb376c0808c7bbdde728709b516387a67ec4da3e91cb6fb00d",
+    "triangles": 22628,
+    "bytes": 421604,
+    "originalGeometry": "335ddad05d7508bee86346fd01c4e1924de798590a9f2c3bb39fa0df97020d42",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "goldenHorseshoe",
+    "source": "Golden Horse Shoe. TODO_ add shine.glb",
+    "sourceSha256": "bcbd80a4b112c5eb427cca7ca9e898a296f1696410f2e6fbc8c4a97fab17c43a",
+    "triangles": 3284,
+    "bytes": 60460,
+    "originalGeometry": "f79a7b0412a3fdfa8457839a45f1898a1c342c818ebab3fb3dfc2ee64fc4dd59",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "goldenHotdog",
+    "source": "Golden HotDog. TODO_ add shine.glb",
+    "sourceSha256": "23d06a662c691328f54ab9883f2dea317e1fede858a422b1b2c8fbdd35a165a1",
+    "triangles": 42410,
+    "bytes": 762708,
+    "originalGeometry": "ff3948723dca146fc051d9c8d45dc51155f6240a6c17aea3b4c562dc98c14ee0",
+    "geometry": "original, unsimplified",
+    "requiresRig": false
+  },
+  {
+    "id": "playerBase",
+    "source": "Base Player, no accessories. TODO_ add accessories.glb",
+    "sourceSha256": "2ca63a0c4afb83071b9e1762dd8c6a56b096c7c809b6810689b0db75981ddc02",
+    "triangles": 18972,
+    "bytes": 350576,
+    "originalGeometry": "be59a7a7963aaef97ce52bd8c9354269281be58a8aab9e8edbccd9f0d8b40f6e",
+    "geometry": "original, unsimplified",
+    "requiresRig": true
+  }
+]
