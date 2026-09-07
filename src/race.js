@@ -8,6 +8,7 @@ HD.Race = (() => {
   let lastNetworkUi = -1;
   let ambientThrowSchedule = [];
   let ambientThrowWindow = 0;
+  let nextRaceTimeout = null;
   const restingBounds = new THREE.Box3();
 
   // ---------------------------------------------------------------------------
@@ -586,7 +587,11 @@ HD.Race = (() => {
       : false;
     HD.Audio?.raceFinish?.(winnerData, closeFinish);
     HD.UI.render();
-    setTimeout(next, 4300);
+    clearTimeout(nextRaceTimeout);
+    nextRaceTimeout = setTimeout(() => {
+      nextRaceTimeout = null;
+      next();
+    }, 4300);
   }
   function next() {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
@@ -670,8 +675,10 @@ HD.Race = (() => {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
       return HD.UI.announce("Waiting for the lobby host to restart the match.");
     }
+    clearTimeout(nextRaceTimeout);
+    nextRaceTimeout = null;
     Object.assign(S, {
-      money: 100,
+      money: C.startingMoney ?? 100,
       inventory: HD.createInventory(),
       round: 1,
       race: 1,
@@ -692,14 +699,14 @@ HD.Race = (() => {
       horseSpeedBonuses: {},
     });
     clearProjectiles();
-    resetHorses();
+    resetHorses({ forceStart: true });
     HD.AI?.resetMatch?.();
     HD.UI.hideResult();
     HD.UI.showRoundBreak(false);
     HD.Controls.sitDown();
     HD.UI.countdown(String(C.preparationDuration));
     HD.UI.progress(0);
-    HD.UI.addLedger("Round 1 bankroll", 100);
+    HD.UI.addLedger("Round 1 bankroll", C.startingMoney ?? 100);
     HD.UI.announce("A fresh day at Hotdog Downs!");
     HD.UI.render();
   }
@@ -809,12 +816,14 @@ HD.Race = (() => {
   }
 
   function updateAmbientCrowdThrows(dt) {
+    const interval = C.crowdThrowInterval ?? 10;
+    if (interval === 0) return;
     const throwers = HD.world.crowdThrowers || [];
     if (throwers.length !== 3) return;
     if (!S.horses.length) return;
 
-    if (!ambientThrowSchedule.length && S.raceTime >= ambientThrowWindow + 10) {
-      ambientThrowWindow += 10;
+    if (!ambientThrowSchedule.length && S.raceTime >= ambientThrowWindow + interval) {
+      ambientThrowWindow += interval;
       ambientThrowSchedule = createAmbientThrowSchedule(ambientThrowWindow);
     }
 
@@ -847,6 +856,8 @@ HD.Race = (() => {
   }
 
   function createAmbientThrowSchedule(windowStart) {
+    const interval = C.crowdThrowInterval ?? 10;
+    if (interval === 0) return [];
     const throwerOrder = [0, 1, 2];
 
     for (let index = throwerOrder.length - 1; index > 0; index--) {
@@ -862,7 +873,7 @@ HD.Race = (() => {
       3.8 + Math.random() * 1.7,
       6.8 + Math.random() * 1.8,
     ].map((offset, index) => ({
-      time: windowStart + offset,
+      time: windowStart + offset * interval / 10,
       throwerIndex: throwerOrder[index],
     }));
   }
@@ -907,7 +918,7 @@ HD.Race = (() => {
         });
 
         if (!p.visualOnly && !p.ambient) {
-          HD.UI.announce("The throw bounces off the commentator booth glass!");
+          HD.UI.announce("The throw bounces off the stadium glass!");
         }
       }
 

@@ -15,21 +15,64 @@ requirements work together. This avoids calling a partially built feature done.
 - [x] Include opening odds and live probability in host race snapshots.
 - [x] Import and optimize all 18 supplied Tinkercad GLBs.
 - [x] Preserve source exports; generate separate compact game assets.
-- [x] Reuse imported meshes for existing held/remote/thrown item models.
+- [x] Archive the imported-model route after user rejected its appearance.
+- [x] Recreate 17 item models from the September 7 screenshots with editable meshes.
+- [x] Rebuild the basic player shape while retaining its existing animation rig.
+- [x] Batch static item meshes by material and remove GLB downloads from game startup.
+- [x] Angle the first-person hotdog to show its sausage and toppings.
+- [x] F toggles hold/unhold; only left mouse charges/releases throws.
+- [x] Remove the obsolete R rankings key and saved binding.
 - [x] Keep procedural fallbacks for items without supplied models.
 - [x] Add a gallery to inspect all supplied assets.
 - [x] Protect focused text inputs from gameplay keyboard shortcuts.
 
+## Practice setup and race-reset slice
+
+- [x] Add a keyboard-accessible Practice setup screen with Back and Start actions.
+- [x] Configure 4–8 horses, 1–8 laps, and $0–$10,000 starting practice money.
+- [x] Rebuild lane markings when horse count changes and dispose old geometry/materials.
+- [x] Support crowd Off / Relaxed / Normal / Lively; practice defaults to Lively.
+- [x] Keep crowd throws staggered and confined to active racing.
+- [x] Validate rule values and keep practice settings out of online defaults.
+- [x] Reset horse positions to the start when a new run begins.
+- [x] Cancel the previous race's delayed advancement when restarting a run.
+- [x] Test setup/start/cancel in-browser and check narrow-screen overflow.
+- [ ] Add configurable days and races with day-transition/reward dependency tests.
+- [ ] Add host-owned lobby rules with synchronized client display and live two-client tests.
+- [ ] Connect remaining v13 settings only as their underlying systems become functional.
+- [ ] Audit day-screen callbacks and online victory callbacks for stale-run cancellation.
+
+Verification: `npm.cmd test` and `node scripts/review-models.mjs 9338`.
+Visual capture: `artifacts/practice-setup.png`. Whole settings sections below
+remain pending: this is the first working subset, not the complete settings system.
+
+## Section 0 UI and stadium cleanup
+
+- [x] Apply the lobby's race-club visual language to non-phone HUD, overlays,
+  settings, counters, results, rankings, and day-change screens.
+- [x] Keep the phone and its applications on their separate phone-specific design.
+- [x] Remove the commentator booth, commentator NPCs, its special stairs, and
+  its invisible projectile glass collision.
+- [x] Restore the booth's upper-concourse floor, glass railing, tier segments,
+  crowd seats, and nearby decorative-clearance space.
+- [x] Test that the restored upper concourse is continuous away from the four
+  intended public stair openings.
+
+Follow-up: the retired booth construction helpers are intentionally left unused
+until the stadium receives its planned full asset rebuild; no game system calls
+them or exposes a booth walk zone.
+
 ## Asset completion gates
 
-- [ ] Visually approve final edited gold/pillow materials and lighting.
-- [ ] Rig the user's static player model and integrate its animations/customization.
+- [x] Replace rejected gold/pillow materials with screenshot-based colors; render the gallery.
+- [ ] Finish player appearance/customization review against the reference.
 - [ ] Integrate new normal-item assets with the exact v13 effects and inventory.
 - [ ] Integrate gold assets with the legendary economy (not normal concessions).
 - [ ] Model remaining normal and legendary items.
 - [ ] Complete final horse/jockey geometry, rig and animation.
-- [ ] Test hands, ground contact and throws for each imported item in gameplay.
-- [ ] Verify imported props between two live multiplayer clients.
+- [x] Test recreated active-item ground contact and remote prop attachment.
+- [ ] Complete first-person grip review for every item (hotdog checked).
+- [ ] Verify recreated props between two live multiplayer clients.
 
 ## Whole specification sections
 

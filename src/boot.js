@@ -1,11 +1,11 @@
 import * as THREE from "../vendor/three.module.js";
-import { Assets } from "./assets.mjs";
-import { createModelEnvironment } from "./model-lighting.mjs";
 
 window.THREE = THREE;
 
 const gameScripts = [
   "config.js",
+  "match-setup.js",
+  "reference-models.js",
   "models.js",
   "stadium.js",
   "race.js",
@@ -20,11 +20,6 @@ const gameScripts = [
 ];
 
 for (const file of gameScripts) {
-  if (file === "models.js") {
-    window.HD.Assets = Assets;
-    window.HD.createModelEnvironment = createModelEnvironment;
-    await Assets.preload(Object.keys(window.HD.CONFIG.items));
-  }
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = new URL(file, import.meta.url).href;

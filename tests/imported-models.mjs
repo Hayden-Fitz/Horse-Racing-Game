@@ -41,7 +41,6 @@ for (const [id, entry] of Object.entries(Assets.catalog)) {
   assert.ok(meshes > 0);
   first.position.x = 123;
   assert.equal(second.position.x, 0);
-  if (HD.CONFIG.items[id]) assert.equal(HD.Models.throwable(id).userData.importedModel, id);
 }
 
 assert.ok(HD.Models.throwable("pretzel").children.length, "Unmodeled items need a procedural fallback");

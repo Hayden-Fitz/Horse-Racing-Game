@@ -43,7 +43,10 @@ HD.Controls = (() => {
     document.addEventListener("mousemove", look);
     document.addEventListener("keydown", keydown);
     document.addEventListener("keyup", keyup);
-    window.addEventListener("blur", cancelCharge);
+    window.addEventListener("blur", () => {
+      cancelCharge();
+      Object.keys(S.movement).forEach((direction) => { S.movement[direction] = false; });
+    });
     document.addEventListener("pointerlockchange", () => {
       if (!document.pointerLockElement && S.mode !== "phone")
         HD.UI.announce("Click the stadium to resume looking around.");
@@ -69,6 +72,7 @@ HD.Controls = (() => {
     // Typing in Messages, lobby names or settings must never trigger movement,
     // item selection, throwing or the remappable phone shortcut.
     if (isTextEntry(event.target)) return;
+    if (S.paused) return;
     if (setMovementKey(event.code, true)) return;
     if (event.repeat) return;
     if (/^Digit[0-9]$/.test(event.code)) {
@@ -93,20 +97,13 @@ HD.Controls = (() => {
       setMode(S.mode === "phone" ? "look" : "phone");
     }
     if (HD.Settings.matches(event, "throw")) {
-      if (S.mode !== "throw") return setMode("throw");
-      return startCharge("keyboard");
+      return setMode(S.mode === "throw" ? "look" : "throw");
     }
     if (HD.Settings.matches(event, "item")) cycleItem();
-    if (HD.Settings.matches(event, "rankings")) {
-      HD.UI.showRankings(true, `DAY ${S.round} CURRENT RANKINGS`);
-    }
   }
   function keyup(event) {
     setMovementKey(event.code, false);
     if (isTextEntry(event.target)) return;
-    if (HD.Settings.matches(event, "throw") && chargeSource === "keyboard") {
-      releaseThrow();
-    }
   }
   function setMovementKey(code, pressed) {
     const direction = ["forward", "backward", "left", "right"]
@@ -424,13 +421,9 @@ HD.Controls = (() => {
   }
 
   function walkZoneAt(x, z) {
-    if (
-      staircaseProgress(x, z) !== null ||
-      commentatorEntranceProgress(x, z) !== null
-    ) {
+    if (staircaseProgress(x, z) !== null) {
       return "stairs";
     }
-    if (insideCommentatorBooth(x, z)) return "commentator-booth";
     const row = grandstandRowAt(x, z);
     if (row !== null) return `row-${row}`;
 
@@ -441,36 +434,16 @@ HD.Controls = (() => {
     return null;
   }
   function isWalkable(x, z) {
-    const onStairs = staircaseProgress(x, z) !== null ||
-      commentatorEntranceProgress(x, z) !== null;
+    const onStairs = staircaseProgress(x, z) !== null;
     const grandstandRow = grandstandRowAt(x, z);
     const trackWalk = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
     const onTrackWalk = trackWalk >= 0.92 && trackWalk <= 1.08;
     const onUpperConcourse = onUpperConcourseSurface(x, z);
-    return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse ||
-      insideCommentatorBooth(x, z);
+    return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse;
   }
   function walkingEyeHeight(x, z) {
     const stairProgress = staircaseProgress(x, z);
     if (stairProgress !== null) return stairHeightForProgress(stairProgress) + HD.CONFIG.eyeHeight;
-
-    const boothStairProgress = commentatorEntranceProgress(x, z);
-    if (boothStairProgress !== null) {
-      const entrance = HD.world.commentatorBox.entrance;
-      const stairFloor = THREE.MathUtils.lerp(
-        entrance.topY,
-        entrance.bottomY,
-        boothStairProgress,
-      );
-      return stairFloor + HD.CONFIG.eyeHeight;
-    }
-
-    if (insideCommentatorBooth(x, z)) {
-      const boothFloor = Number.isFinite(HD.world.commentatorBox.floorY)
-        ? HD.world.commentatorBox.floorY
-        : 7.75;
-      return boothFloor + HD.CONFIG.eyeHeight;
-    }
 
     const grandstandRow = grandstandRowAt(x, z);
     if (grandstandRow !== null) {
@@ -531,26 +504,7 @@ HD.Controls = (() => {
     );
     if (upperDistance < 0.9 || upperDistance > 1.1) return false;
 
-    const booth = HD.world.commentatorBox;
-    if (!Number.isFinite(booth?.angle)) return true;
-
-    const angle = Math.atan2(z, x);
-    const normalizedAngle = angle < 0 ? angle + Math.PI * 2 : angle;
-    const angularDistance = Math.abs(Math.atan2(
-      Math.sin(normalizedAngle - booth.angle),
-      Math.cos(normalizedAngle - booth.angle),
-    ));
-    const stairHalfAngle = Number.isFinite(booth.stairHalfAngle)
-      ? booth.stairHalfAngle
-      : 0.047;
-    const inStairOpening = angularDistance < stairHalfAngle;
-    if (!inStairOpening) return true;
-
-    const behindOpening = Math.sqrt(
-      (x / 114.15) ** 2 +
-      (z / 78.05) ** 2
-    ) >= 1;
-    return behindOpening;
+    return true;
   }
 
   function grandstandRowAt(x, z) {

@@ -2668,3 +2668,229 @@
     grid-template-columns: 1fr;
   }
 }
+/* Practice setup uses a native modal for keyboard focus and Escape support. */
+.practice-setup {
+  width: min(740px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
+  padding: clamp(22px, 4vw, 42px);
+  border: 2px solid #caa96a;
+  border-radius: 20px;
+  color: #f8f1df;
+  background: #122e38;
+  box-shadow: 0 24px 80px #0009;
+}
+
+.practice-setup::backdrop {
+  background: #091e2bf5;
+  background-image: repeating-linear-gradient(135deg, #ffffff03 0 2px, transparent 2px 20px);
+}
+
+.practice-setup header > small {
+  color: #e5bd74;
+  letter-spacing: 0.14em;
+}
+
+.practice-setup h2 {
+  margin: 12px 0;
+  font-size: clamp(25px, 4vw, 38px);
+}
+
+.practice-setup p,
+.practice-rule-grid small {
+  color: #bbcbd0;
+  line-height: 1.5;
+}
+
+.practice-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 28px 0;
+}
+
+.practice-rule-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.practice-rule-grid input,
+.practice-rule-grid select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #66838b;
+  border-radius: 8px;
+  color: #f8f1df;
+  background: #0a202a;
+  font: inherit;
+}
+
+.practice-rule-grid small {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.practice-setup footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.practice-setup footer button {
+  min-height: 48px;
+  padding: 12px 20px;
+  border-radius: 9px;
+}
+
+.practice-setup footer [data-back] {
+  color: #f8f1df;
+  background: #203f49;
+  border: 1px solid #78939b;
+  white-space: nowrap;
+}
+
+.practice-setup :focus-visible {
+  outline: 3px solid #f6c66a;
+  outline-offset: 3px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Clubhouse UI system — section 0: non-phone screens share the lobby's        */
+/* stamped paper and race-club identity instead of generic dark panels.        */
+/* -------------------------------------------------------------------------- */
+
+.topbar {
+  gap: 0;
+  padding: 4px;
+  border: 2px double #e7c66c;
+  border-radius: 4px 14px 4px 14px;
+  background:
+    linear-gradient(90deg, #a33d2c 0 7px, transparent 7px),
+    repeating-linear-gradient(0deg, #193b2a 0 28px, #142e21 28px 29px);
+  box-shadow: inset 0 0 18px #0009, 4px 5px 0 #07140e;
+}
+
+.topbar div { min-width: 88px; border-right-color: #e7c66c4d; }
+
+.race-progress {
+  height: 10px;
+  padding: 2px;
+  border: 1px solid #dfbc60;
+  border-radius: 3px 9px 3px 9px;
+  background: #07140ecf;
+  box-shadow: 3px 4px 0 #07140e;
+}
+
+.race-progress div {
+  border-radius: 2px 6px 2px 6px;
+  background: repeating-linear-gradient(90deg, #f5d56b 0 16px, #d34a31 16px 23px);
+}
+
+.camera-help,
+.power-meter,
+.race-notice,
+.network-status,
+.performance-status,
+.menu-button {
+  border: 2px double #dfbc60 !important;
+  border-radius: 3px 12px 3px 12px !important;
+  background:
+    linear-gradient(90deg, #a43d2d 0 5px, transparent 5px),
+    repeating-linear-gradient(0deg, #173b29 0 23px, #10291c 23px 24px) !important;
+  box-shadow: inset 0 0 17px #0008, 3px 4px 0 #07140e !important;
+}
+
+.camera-help { color: #d8e3c8; }
+.menu-button { color: #fff0b8; }
+
+.power-meter > div {
+  border: 1px solid #e7c66c80;
+  border-radius: 2px 7px 2px 7px;
+}
+
+.race-notice {
+  border-left: 8px solid #ba4630 !important;
+  color: #fff0b8;
+}
+
+.results,
+.rankings-overlay,
+.vendor-shop,
+.bet-counter,
+.day-transition {
+  background:
+    radial-gradient(ellipse at 50% 110%, #d6a94d28 0 18%, transparent 50%),
+    repeating-radial-gradient(ellipse at 50% 110%, #163726 0 34px, #091a12 35px 68px) !important;
+}
+
+.results > div,
+.rankings-overlay > div,
+.vendor-shop > div,
+.bet-counter > div,
+.settings-panel,
+.day-transition .animated-rankings {
+  border: 4px double #e7c66c !important;
+  border-radius: 8px 24px 8px 24px !important;
+  background:
+    radial-gradient(circle at 14px 14px, #e6c76a 0 3px, transparent 4px),
+    radial-gradient(circle at calc(100% - 14px) 14px, #e6c76a 0 3px, transparent 4px),
+    linear-gradient(145deg, #214b35, #0d2117 68%) !important;
+  box-shadow: 9px 9px 0 #7d3b29, 0 30px 90px #000c !important;
+}
+
+.vendor-shop > div > small,
+.bet-counter > div > small,
+.settings-panel legend,
+.day-transition > span,
+.rankings-overlay > div > small {
+  color: #f0d477 !important;
+  font-family: var(--display-font);
+  letter-spacing: 0.15em;
+}
+
+.settings-panel fieldset,
+.day-transition .ranking-row,
+.vendor-shop .shop-item,
+.bet-counter .horse-card {
+  border: 1px dashed #dfc3728c;
+  border-radius: 3px 12px 3px 12px;
+  background:
+    linear-gradient(90deg, #a13b2b 0 4px, transparent 4px),
+    repeating-linear-gradient(0deg, #173426 0 24px, #142e22 24px 25px) !important;
+}
+
+.settings-panel select,
+.settings-panel input,
+.settings-panel button,
+.vendor-shop button,
+.bet-counter button,
+.results button,
+.rankings-overlay button {
+  border: 1px solid #d9c16e85 !important;
+  border-radius: 3px 10px 3px 10px !important;
+  box-shadow: inset 0 -3px #07140e66, 2px 3px 0 #07140e !important;
+}
+
+.settings-panel select,
+.settings-panel input {
+  background: #091a12 !important;
+  color: #fff0b8 !important;
+}
+
+.day-transition > strong,
+.results h2,
+.rankings-overlay h2 {
+  color: #fff0b8;
+  text-shadow: 3px 3px 0 #9d3829, 6px 6px 0 #08150e;
+}
+
+@media (max-width: 560px) {
+  .practice-rule-grid { grid-template-columns: 1fr; gap: 16px; }
+  .practice-setup footer { flex-direction: column-reverse; }
+}

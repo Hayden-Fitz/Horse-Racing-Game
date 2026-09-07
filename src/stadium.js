@@ -8,9 +8,6 @@ HD.Stadium = (() => {
     (Math.PI * 3) / 2,
   ];
   const GRANDSTAND_COLUMNS = 128;
-  const COMMENTATOR_ANGLE = Math.PI * 2 - 0.18;
-  const COMMENTATOR_HALF_ANGLE = 0.118;
-  const COMMENTATOR_STAIR_HALF_ANGLE = 0.047;
   const UPPER_CONCOURSE_Y = 13.5;
   const STAIR_SURFACE_INSET = 0.055;
   const DETAILED_SEATS = [
@@ -30,6 +27,8 @@ HD.Stadium = (() => {
 
   function build(scene) {
     HD.world.projectileBarriers = [];
+    HD.world.commentatorBox = undefined;
+    HD.world.commentators = [];
 
     const ground = mesh(new THREE.CircleGeometry(190, 72), 0x4b8a45, scene, [0, -0.6, 0]);
     ground.rotation.x = -Math.PI / 2;
@@ -46,15 +45,7 @@ HD.Stadium = (() => {
     track.receiveShadow = true;
     scene.add(track);
     createDetailedInfieldGrass(scene);
-    for (let laneLine = 0; laneLine <= HD.CONFIG.raceHorseCount; laneLine++) {
-      addTrackLine(
-        scene,
-        HD.CONFIG.trackLanes.innerLineX +
-          laneLine * HD.CONFIG.trackLanes.spacingX,
-        HD.CONFIG.trackLanes.innerLineZ +
-          laneLine * HD.CONFIG.trackLanes.spacingZ,
-      );
-    }
+    refreshTrackLayout(scene);
     addFinishLine(scene);
     addOvalRails(scene, 48.5, 21.5);
     addOvalRails(scene, 74, 44);
@@ -130,6 +121,30 @@ HD.Stadium = (() => {
       }
     });
   }
+  function refreshTrackLayout(scene = HD.world.scene) {
+    if (!scene) return;
+    const previous = HD.world.laneMarkings;
+    if (previous) {
+      previous.removeFromParent();
+      previous.traverse((object) => {
+        object.geometry?.dispose();
+        object.material?.dispose();
+      });
+    }
+    const markings = new THREE.Group();
+    markings.name = "Track lane markings";
+    scene.add(markings);
+    HD.world.laneMarkings = markings;
+    const lanes = HD.CONFIG.trackLanes;
+    for (let line = 0; line <= HD.CONFIG.raceHorseCount; line++) {
+      addTrackLine(
+        markings,
+        lanes.innerLineX + line * lanes.spacingX,
+        lanes.innerLineZ + line * lanes.spacingZ,
+      );
+    }
+  }
+
   function addTrackLine(scene, rx, rz) {
     const points = [];
     for (let i = 0; i <= 160; i++) {
@@ -289,13 +304,7 @@ HD.Stadium = (() => {
           (stairAngle) =>
             angleDistance(angle, stairAngle) < stairHalfAngle(rx, rz, stairAngle),
         );
-        const inCommentatorCutout = row >= 4 &&
-          angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE;
-        if (
-          detailedPlayerSeat ||
-          inStairAisle ||
-          inCommentatorCutout
-        ) {
+        if (detailedPlayerSeat || inStairAisle) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
           });
@@ -307,7 +316,6 @@ HD.Stadium = (() => {
     crowdBodies.instanceColor.needsUpdate = true;
     createCrowdThrowers(scene, throwerSeats, colors);
     createOvalCanopy(root);
-    createCommentatorBooth(root);
   }
 
   function chooseCrowdThrowerSeats(rows, columns) {
@@ -321,12 +329,10 @@ HD.Stadium = (() => {
           return angleDistance(angle, stairAngle) <
             stairHalfAngle(rx, rz, stairAngle) + 0.025;
         });
-        const blockedByBooth = row >= 4 &&
-          angleDistance(angle, COMMENTATOR_ANGLE) < COMMENTATOR_HALF_ANGLE + 0.025;
         const playerSeat = DETAILED_SEATS.some((seat) => {
           return seat.row === row && seat.column === column;
         });
-        if (!blockedByStairs && !blockedByBooth && !playerSeat) {
+        if (!blockedByStairs && !playerSeat) {
           candidates.push({ row, column });
         }
       }
@@ -1418,11 +1424,7 @@ HD.Stadium = (() => {
     const clearsStairs = STAIR_ANGLES.every((stairAngle) => {
       return angleDistance(angle, stairAngle) > 0.14;
     });
-    const clearsCommentatorBooth = angleDistance(
-      angle,
-      COMMENTATOR_ANGLE,
-    ) > 0.24;
-    return clearsStairs && clearsCommentatorBooth;
+    return clearsStairs;
   }
 
   function addTierRing(root, row) {
@@ -1447,30 +1449,18 @@ HD.Stadium = (() => {
       const start = current + stairHalfAngle(middleX, middleZ, current);
       const nextAngle = index === sortedAngles.length - 1 ? next + Math.PI * 2 : next;
       const end = nextAngle - stairHalfAngle(middleX, middleZ, next);
-      const boothStart = COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE;
-      const boothEnd = COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE;
-      const spans = row >= 4 && start < boothEnd && end > boothStart
-        ? [
-            [start, Math.max(start, boothStart)],
-            [Math.min(end, boothEnd), end],
-          ]
-        : [[start, end]];
-
-      spans.forEach(([spanStart, spanEnd]) => {
-        if (spanEnd - spanStart < 0.01) return;
-        createSolidOvalSegment(
-          root,
-          outerX,
-          outerZ,
-          innerX,
-          innerZ,
-          height,
-          color,
-          spanStart,
-          spanEnd,
-        );
-        addTierFasciaSegment(root, outerX, outerZ, height, row, spanStart, spanEnd);
-      });
+      createSolidOvalSegment(
+        root,
+        outerX,
+        outerZ,
+        innerX,
+        innerZ,
+        height,
+        color,
+        start,
+        end,
+      );
+      addTierFasciaSegment(root, outerX, outerZ, height, row, start, end);
     }
   }
 
@@ -2145,7 +2135,6 @@ HD.Stadium = (() => {
     HD.world.betCounterPositions = [];
     HD.world.sabotageCounterPositions = [];
     HD.world.barriers = [];
-    createCommentatorBarriers();
     const shopAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4];
     shopAngles.forEach((angle, index) => createUpperShop(scene, angle, index));
     createSabotageCounter(scene, Math.PI + 0.28);
@@ -2153,101 +2142,25 @@ HD.Stadium = (() => {
   }
 
   function createUpperConcourse(scene) {
-    const cutHalfAngle = COMMENTATOR_HALF_ANGLE;
-    const cutStart = COMMENTATOR_ANGLE - cutHalfAngle;
-    const cutEnd = COMMENTATOR_ANGLE + cutHalfAngle;
-    const stairOpeningHalfAngle = COMMENTATOR_STAIR_HALF_ANGLE;
-    const stairOpeningStart = COMMENTATOR_ANGLE - stairOpeningHalfAngle;
-    const stairOpeningEnd = COMMENTATOR_ANGLE + stairOpeningHalfAngle;
     const color = 0xb7a47f;
 
     const shellSegmentCount = 8;
     for (let segment = 0; segment < shellSegmentCount; segment++) {
       const segmentStart = segment / shellSegmentCount * Math.PI * 2;
       const segmentEnd = (segment + 1) / shellSegmentCount * Math.PI * 2;
-      const visibleSpans = [];
-
-      if (segmentStart < cutStart) {
-        visibleSpans.push([
-          segmentStart,
-          Math.min(segmentEnd, cutStart),
-        ]);
-      }
-      if (segmentEnd > cutEnd) {
-        visibleSpans.push([
-          Math.max(segmentStart, cutEnd),
-          segmentEnd,
-        ]);
-      }
-
-      visibleSpans.forEach(([start, end]) => {
-        if (end - start < 0.001) return;
-        createSolidOvalSegment(
-          scene,
-          120,
-          83,
-          103.25,
-          69.75,
-          13.5,
-          color,
-          start,
-          end,
-          14,
-        );
-      });
+      createSolidOvalSegment(
+        scene,
+        120,
+        83,
+        103.25,
+        69.75,
+        13.5,
+        color,
+        segmentStart,
+        segmentEnd,
+        14,
+      );
     }
-    createSolidOvalSegment(
-      scene,
-      120,
-      83,
-      110.55,
-      75.55,
-      13.5,
-      color,
-      cutStart,
-      stairOpeningStart,
-      6,
-      12.48,
-    );
-    createSolidOvalSegment(
-      scene,
-      120,
-      83,
-      110.55,
-      75.55,
-      13.5,
-      color,
-      stairOpeningEnd,
-      cutEnd,
-      6,
-      12.48,
-    );
-    createSolidOvalSegment(
-      scene,
-      120,
-      83,
-      114.15,
-      78.05,
-      13.5,
-      color,
-      stairOpeningStart,
-      stairOpeningEnd,
-      6,
-      12.48,
-    );
-
-    createCommentatorVoidFascia(
-      scene,
-      cutStart,
-      stairOpeningStart,
-      0x29483f,
-    );
-    createCommentatorVoidFascia(
-      scene,
-      stairOpeningEnd,
-      cutEnd,
-      0x29483f,
-    );
   }
 
   function createCommentatorVoidFascia(scene, startAngle, endAngle, color) {
@@ -2628,7 +2541,6 @@ HD.Stadium = (() => {
 
   function createConcourseGlassRails(scene) {
     createCurvedGlassRail(scene, 103.25, 69.75, 13.5, 2.2, 72);
-    createCommentatorStairGlassReturns(scene);
   }
 
   function createCommentatorStairGlassReturns(scene) {
@@ -2805,10 +2717,7 @@ HD.Stadium = (() => {
 
   function glassRailOpenings(radiusX, radiusZ) {
     const fullTurn = Math.PI * 2;
-    const openings = [[
-      COMMENTATOR_ANGLE - COMMENTATOR_HALF_ANGLE,
-      COMMENTATOR_ANGLE + COMMENTATOR_HALF_ANGLE,
-    ]];
+    const openings = [];
 
     STAIR_ANGLES.forEach((angle) => {
       const halfAngle = stairHalfAngle(radiusX, radiusZ, angle);
@@ -2932,6 +2841,11 @@ HD.Stadium = (() => {
       const heldScale = config.heldScale || fallbackScale;
       item.scale.setScalar(heldScale);
       item.position.set(-0.06, 0.24, -0.03);
+      if (type === "hotdog" || type === "goldenHotdog") {
+        // Present the sausage and toppings toward the seated camera.
+        item.rotation.set(1.12, -0.1, 0.08);
+        item.position.set(-0.12, 0.3, -0.02);
+      }
       item.visible = type === HD.state.selectedItem;
       hand.add(item);
       HD.world.heldItems[type] = item;
@@ -3051,10 +2965,6 @@ HD.Stadium = (() => {
       }
     });
     if (HD.world.localPlayer) HD.Models.animateCharacter(HD.world.localPlayer, time, true);
-    (HD.world.commentators || []).forEach((commentator) => {
-      commentator.userData.headTurn = Math.sin(time * 0.45) * 0.32;
-      HD.Models.animateCharacter(commentator, time, true);
-    });
     if (HD.world.raceBoard && time - HD.world.raceBoard.lastUpdate >= 1) {
       HD.world.raceBoard.lastUpdate = time;
       drawRaceBoard();
@@ -3062,6 +2972,7 @@ HD.Stadium = (() => {
   }
   return {
     build,
+    refreshTrackLayout,
     update,
     oval,
     assignLocalSeat,

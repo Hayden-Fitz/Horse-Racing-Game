@@ -51,8 +51,6 @@ HD.Game = (() => {
     sunlight.shadow.camera.right = sunlight.shadow.camera.top = 82;
     scene.add(sunlight);
     HD.Stadium.build(scene);
-    HD.world.modelEnvironment = HD.createModelEnvironment?.(HD.world.renderer);
-    if (HD.world.modelEnvironment) scene.environment = HD.world.modelEnvironment.texture;
     freezeStaticStadium(scene);
     camera.position.copy(HD.CONFIG.seat);
     HD.Race.resetHorses();

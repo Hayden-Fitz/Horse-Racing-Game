@@ -85,7 +85,6 @@ HD.Network = (() => {
     elements.start.addEventListener("click", startOnlineMatch);
     elements.ready.addEventListener("click", toggleReady);
     elements.leave.addEventListener("click", leaveOnlineSession);
-    elements.singlePlayer.addEventListener("click", leaveOnlineSession);
     elements.playerName.addEventListener("change", savePlayerName);
     elements.lobbyCode.addEventListener("input", () => {
       elements.lobbyCode.value = sanitizeLobbyCode(elements.lobbyCode.value);
@@ -118,6 +117,10 @@ HD.Network = (() => {
 
     try {
       if (lobby) await leaveOnlineSession();
+
+      HD.MatchSetup?.resetForOnline();
+      HD.Race.restart();
+      S.matchStarted = false;
 
       const code = await unusedLobbyCode();
       const now = Date.now();
@@ -174,6 +177,10 @@ HD.Network = (() => {
 
     try {
       if (lobby) await leaveOnlineSession();
+
+      HD.MatchSetup?.resetForOnline();
+      HD.Race.restart();
+      S.matchStarted = false;
 
       const data = await firebaseRequest(`lobbies/${safeCode}`);
       if (!data?.meta) throw new Error("That lobby does not exist.");

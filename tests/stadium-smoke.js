@@ -36,6 +36,18 @@ async function run() {
   HD.world.scene = new THREE.Scene();
   HD.world.camera = new THREE.PerspectiveCamera();
   HD.Stadium.build(HD.world.scene);
+  for (const count of [8, 4, 6]) {
+    const previous = HD.world.laneMarkings;
+    let disposed = 0;
+    previous.children.forEach((line) => {
+      line.geometry.addEventListener("dispose", () => disposed++);
+    });
+    HD.CONFIG.raceHorseCount = count;
+    HD.Stadium.refreshTrackLayout();
+    assert.equal(previous.parent, null, "Old markings must leave the scene");
+    assert.equal(disposed, previous.children.length, "Old lane geometry must be released");
+    assert.equal(HD.world.laneMarkings.children.length, count + 1);
+  }
   HD.Race.resetHorses();
 
   assert.equal(HD.state.horses.length, 6, "The race did not build a six-horse field");
@@ -90,84 +102,20 @@ async function run() {
     HD.world.crowdThrowers.every((thrower) => thrower.children.length === 0),
     "Crowd throw origins should not replace lightweight spectators with player models",
   );
-  assert.ok(
-    HD.world.projectileBarriers.length >= 9,
-    "The commentator booth and stair glass need complete projectile collision panels",
-  );
-  assert.ok(
-    HD.world.projectileBarriers.every((barrier) => {
-      return barrier.top > barrier.bottom && barrier.start.length === 2 &&
-        barrier.end.length === 2;
-    }),
-    "A commentator glass collision panel has invalid dimensions",
+  assert.equal(
+    HD.world.projectileBarriers.length,
+    0,
+    "The removed commentator booth must not leave invisible projectile barriers",
   );
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
-  assert.equal(
-    HD.world.commentators.length,
-    2,
-    "The broadcast booth should contain a two-person commentary team",
-  );
-  assert.ok(
-    HD.world.commentatorBox?.polygon?.length === 4,
-    "The broadcast booth walkable footprint is missing",
-  );
-  assert.ok(
-    HD.world.commentatorBox?.desk,
-    "The broadcast desk collision metadata is missing",
-  );
-  assert.ok(
-    HD.world.commentatorBox.angle > Math.PI,
-    "The broadcast booth should sit on the intended side of its staircase",
-  );
-  assert.ok(
-    HD.world.commentatorBox.roofY > HD.world.commentatorBox.rearRoofY,
-    "The broadcast booth roof should slope downward toward the concourse",
-  );
-  assert.ok(
-    HD.world.commentatorBox.roofY - HD.world.commentatorBox.floorY > 6,
-    "The track-side broadcast ceiling is too low for a standing player",
-  );
-  assert.ok(
-    HD.world.commentatorBox.rearRoofY - HD.world.commentatorBox.floorY >
-      HD.CONFIG.eyeHeight + 0.25,
-    "The low end of the broadcast roof clips through the player camera",
-  );
-  assert.ok(
-    HD.world.commentatorBox.entrance?.topY >
-      HD.world.commentatorBox.entrance?.bottomY,
-    "The broadcast booth needs a descending entrance from the upper concourse",
-  );
-  assert.ok(
-    HD.world.commentatorBox.entrance?.width >= 5,
-    "The broadcast booth staircase is too narrow for a player character",
-  );
-  assert.ok(
-    HD.world.commentatorBox.supportBottomY < HD.world.commentatorBox.floorY,
-    "The broadcast booth needs a finished support beneath its floor",
-  );
-  const targetAngle = HD.world.commentatorBox.angle;
-  const mirroredAngle = Math.PI * 2 - targetAngle;
-  const targetFloorHits = upperFloorHitsAt(targetAngle);
-  const mirroredFloorHits = upperFloorHitsAt(mirroredAngle);
-  assert.equal(
-    targetFloorHits,
-    0,
-    "The upper-floor cutout is not on the same side as the broadcast booth",
-  );
-  assert.ok(
-    mirroredFloorHits > 0,
-    "The upper floor was also removed from the booth's opposite side",
-  );
-  assert.ok(
-    upperFloorHitsAt(targetAngle - 0.082) === 0 &&
-      upperFloorHitsAt(targetAngle + 0.082) === 0,
-    "The upper floor is clipping through the broadcast booth",
-  );
-  assert.ok(
-    upperFloorHitsAt(targetAngle - 0.082, 116, 80) > 0 &&
-      upperFloorHitsAt(targetAngle + 0.082, 116, 80) > 0,
-    "The outer concourse beside the broadcast booth was not restored",
-  );
+  assert.equal(HD.world.commentators.length, 0, "The commentary NPCs must be removed");
+  assert.equal(HD.world.commentatorBox, undefined, "The booth walk zone must be removed");
+  for (let step = 0; step < 16; step++) {
+    assert.ok(
+      upperFloorHitsAt((step + 0.5) / 16 * Math.PI * 2) > 0,
+      "The upper concourse must be continuous with no commentator cutout",
+    );
+  }
   const seatBases = HD.world.scene.children
     .flatMap((child) => child.children || [])
     .find((object) =>
@@ -176,37 +124,15 @@ async function run() {
       object.geometry?.parameters?.height === 0.22,
     );
   assert.ok(seatBases, "The stadium seat batch is missing");
-  const boothColumn = Math.round(
-    targetAngle / (Math.PI * 2) * 128,
-  ) % 128;
-  const restoredSeatMatrix = new THREE.Matrix4();
-  const removedSeatMatrix = new THREE.Matrix4();
-  seatBases.getMatrixAt(3 * 128 + boothColumn, restoredSeatMatrix);
-  seatBases.getMatrixAt(4 * 128 + boothColumn, removedSeatMatrix);
-  assert.ok(
-    Math.abs(restoredSeatMatrix.determinant()) > 0.01,
-    "The complete seating row in front of the broadcast booth was not restored",
-  );
-  assert.ok(
-    Math.abs(removedSeatMatrix.determinant()) < 0.001,
-    "Seats are clipping through the broadcast booth interior",
-  );
-  assert.equal(
-    HD.world.commentators.every((commentator) => !commentator.userData.standing),
-    true,
-    "Commentators should be seated at the broadcast desk",
-  );
-  const commentatorYaw = -HD.world.commentatorBox.angle + Math.PI / 2;
-  assert.ok(
-    HD.world.commentators.every((commentator) => {
-      const difference = Math.atan2(
-        Math.sin(commentator.rotation.y - commentatorYaw),
-        Math.cos(commentator.rotation.y - commentatorYaw),
-      );
-      return Math.abs(difference) < 0.001;
-    }),
-    "The commentators should face the racetrack",
-  );
+  const seatMatrix = new THREE.Matrix4();
+  const formerBoothColumn = Math.round((Math.PI * 2 - 0.18) / (Math.PI * 2) * 128) % 128;
+  [4, 5, 6].forEach((row) => {
+    seatBases.getMatrixAt(row * 128 + formerBoothColumn, seatMatrix);
+    assert.ok(
+      Math.abs(seatMatrix.determinant()) > 0.01,
+      "The commentator seat cutout must be restored at every affected row",
+    );
+  });
   assert.ok(
     HD.CONFIG.stairs.startZ < 50.5,
     "The left/right stair entrances must overlap the lower walking ring",
@@ -223,11 +149,6 @@ async function run() {
         stair.concourseY - stair.visualTopY <= 0.08;
     }),
     "A public staircase is coplanar with or too far below the upper concourse",
-  );
-  assert.ok(
-    HD.world.commentatorBox.entrance.topY < 13.5 &&
-      13.5 - HD.world.commentatorBox.entrance.topY <= 0.08,
-    "The commentator staircase is coplanar with or misaligned below the upper floor",
   );
   assert.ok(
     HD.world.scene.children.some((object) => {

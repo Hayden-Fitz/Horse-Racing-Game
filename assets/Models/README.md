@@ -1,5 +1,11 @@
 # Tinkercad model intake
 
+September 7 update: the user rejected the imported appearance. Optimized GLBs
+below are archived, not live assets. The game now uses screenshot-based editable
+meshes in `src/reference-models.js`; the gallery displays those recreations.
+Source screenshots are in Downloads / Photos of models. Do not re-enable the
+GLB route or override the screenshot colors without a new user request.
+
 Place each exported design in its own folder here, using a descriptive name
 such as `hotdog`, `chair`, or `player`. Keep the entire export together, including
 OBJ, MTL and any textures. You can also supply the original export ZIP.

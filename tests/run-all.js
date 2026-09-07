@@ -4,12 +4,14 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const testFiles = [
+  "match-setup.js",
   "ui-contract.js",
   "player-animation.js",
   "stadium-smoke.js",
   "race-simulation.js",
   "ai-behavior.js",
   "imported-models.mjs",
+  "reference-models.mjs",
 ];
 
 for (const testFile of testFiles) {

@@ -38,7 +38,7 @@
         </div>
         <div class="camera-help">
           <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand <kbd>WASD</kbd> Walk <kbd>E</kbd> Interact
-          <kbd>F</kbd> Throw <kbd>Shift</kbd> Phone <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
+          <kbd>F</kbd> Hold / unhold <kbd>Left mouse</kbd> Charge / throw <kbd>Shift</kbd> Phone <kbd>Esc</kbd> Menu
         </div>
         <div id="race-progress" class="race-progress"><div></div></div>
         <div id="hotbar" class="hotbar">
@@ -387,8 +387,8 @@
           </section>
           <div class="menu-controls">
             <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand/sit <kbd>WASD</kbd> Walk
-            <kbd>E</kbd> Shop <kbd>Shift</kbd> Phone <kbd>F</kbd> Throw <kbd>Q</kbd> Item
-            <kbd>R</kbd> Rankings <kbd>Esc</kbd> Menu
+            <kbd>E</kbd> Shop <kbd>Shift</kbd> Phone <kbd>F</kbd> Hold / unhold <kbd>Q</kbd> Item
+            <kbd>Left mouse</kbd> Charge / throw <kbd>Esc</kbd> Menu
           </div>
         </div>
         <aside class="lobby-avatar-card">
@@ -429,6 +429,7 @@
             </label>
             <label>EXPRESSION
               <select id="avatar-expression">
+                <option value="none">No face (original design)</option>
                 <option value="smile">Smile</option>
                 <option value="neutral">Focused</option>
                 <option value="surprised">Surprised</option>
@@ -436,6 +437,7 @@
             </label>
             <label>OUTFIT
               <select id="avatar-outfit">
+                <option value="plain">Original plain shirt</option>
                 <option value="raceday">Raceday shirt</option>
                 <option value="varsity" data-cost="15">Varsity jacket · 15 WC</option>
                 <option value="hoodie" data-cost="20">Track hoodie · 20 WC</option>
@@ -517,6 +519,53 @@
         </div>
       </div>
     </main>
+    <dialog id="practice-setup" class="practice-setup" aria-labelledby="practice-title">
+      <form>
+        <header>
+          <small>HOTDOG DERBY / FREE PRACTICE</small>
+          <h2 id="practice-title">Your track. Your rules.</h2>
+          <p>Try your throws, test a bet, and learn the field. No AI player opponents.</p>
+        </header>
+        <div class="practice-rule-grid">
+          <label>
+            Horses on the track
+            <select name="horses">
+              <option value="4">4 horses</option>
+              <option value="5">5 horses</option>
+              <option value="6">6 horses</option>
+              <option value="7">7 horses</option>
+              <option value="8">8 horses</option>
+            </select>
+            <small>Lane spacing and odds adapt to the field.</small>
+          </label>
+          <label>
+            Laps per race
+            <input name="laps" type="number" min="1" max="8" step="1" required />
+            <small>From a quick sprint to an eight-lap race.</small>
+          </label>
+          <label>
+            Starting bankroll ($)
+            <input name="startingMoney" type="number" min="0" max="10000" step="1" required />
+            <small>Practice money only. Resets when you start.</small>
+          </label>
+          <label>
+            Crowd throwing
+            <select name="crowd">
+              <option value="off">Off — a quiet track</option>
+              <option value="relaxed">Relaxed — 3 throws / 20 seconds</option>
+              <option value="normal">Normal — 3 throws / 10 seconds</option>
+              <option value="lively">Lively — 3 throws / 6 seconds</option>
+            </select>
+            <small>Staggered throws, only while the race is running.</small>
+          </label>
+        </div>
+        <p class="practice-note">Current run: 3 days, 2 races each. More match rules are in development.</p>
+        <footer>
+          <button type="button" data-back>BACK TO LOBBY</button>
+          <button type="submit" class="primary">START PRACTICE →</button>
+        </footer>
+      </form>
+    </dialog>
     <script type="module" src="src/boot.js"></script>
   </body>
 </html>

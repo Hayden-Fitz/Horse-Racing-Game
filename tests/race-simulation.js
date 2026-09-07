@@ -219,7 +219,41 @@ async function run() {
     "Odds changed after the lap-one live book closed",
   );
 
-  console.log("Fixed opening odds, lap-one live betting, and lane-choice checks passed.");
+  HD.Controls.sitDown = () => {};
+  HD.CONFIG.startingMoney = 2500;
+  HD.CONFIG.crowdThrowInterval = 0;
+  HD.CONFIG.raceLaps = 1;
+  HD.Race.restart();
+  assert.equal(HD.state.money, 2500, "Restart must use the selected practice bankroll");
+  HD.state.horses.forEach((horse) => {
+    assert.ok(horse.userData.data.progress <= 0, "New runs must start at the gates, not coast");
+  });
+  HD.Race.begin();
+  for (let frame = 0; frame < 250; frame++) HD.Race.update(0.04);
+  assert.equal(
+    HD.state.projectiles.filter((projectile) => projectile.ambient).length,
+    0,
+    "Crowd Off must suppress all ambient projectiles",
+  );
+
+  HD.CONFIG.crowdThrowInterval = 6;
+  HD.Race.restart();
+  HD.Race.begin();
+  for (let frame = 0; frame < 300; frame++) HD.Race.update(0.04);
+  assert.equal(
+    HD.state.projectiles.filter((projectile) => projectile.ambient).length,
+    6,
+    "Lively practice must produce six staggered throws over twelve seconds",
+  );
+  // Put the whole field just before the selected finish threshold.
+  HD.state.horses.forEach((horse) => { horse.userData.data.progress = 0.99999; });
+  for (let frame = 0; frame < 20; frame++) HD.Race.update(0.04);
+  assert.equal(HD.state.finishOrder.length, 6, "A one-lap field must finish after lap one");
+  HD.Race.restart(); // Also cancels the completed race's delayed next-race callback.
+  assert.equal(HD.state.race, 1);
+  assert.equal(HD.state.phase, "betting");
+
+  console.log("Opening/live odds, lanes, practice rules, crowd frequency, and one-lap finish passed.");
 }
 
 function createUiMock() {

@@ -12,7 +12,6 @@ HD.Settings = (() => {
     phone: "ShiftLeft",
     throw: "KeyF",
     item: "KeyQ",
-    rankings: "KeyR",
     menu: "Escape",
   };
   const ACTION_LABELS = {
@@ -23,9 +22,8 @@ HD.Settings = (() => {
     stand: "Stand / sit",
     interact: "Interact",
     phone: "Phone",
-    throw: "Ready item",
+    throw: "Hold / unhold item",
     item: "Next item",
-    rankings: "Current rankings",
     menu: "Game menu",
   };
   let values = load();
@@ -67,9 +65,9 @@ HD.Settings = (() => {
       showPerformance: true,
       avatar: {
         skin: "f1c7a5",
-        hat: "cap",
-        expression: "smile",
-        outfit: "raceday",
+        hat: "none",
+        expression: "none",
+        outfit: "plain",
         trousers: "252525",
         shoes: "sneakers",
         accessory: "none",
@@ -81,6 +79,7 @@ HD.Settings = (() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       const savedBindings = { ...DEFAULT_BINDINGS, ...(saved.bindings || {}) };
+      delete savedBindings.rankings;
       if (savedBindings.phone === "KeyP") savedBindings.phone = "ShiftLeft";
       return {
         ...defaults,

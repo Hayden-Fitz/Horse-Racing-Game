@@ -12,6 +12,24 @@ specification, FOLLOW THIS SPECIFICATION.
 Do not silently re-add removed mechanics.
 Do not invent replacement mechanics unless explicitly requested.
 
+
+
+
+
+
+
+
+==================================================
+0.NOTES
+==================================================
+
+i dont want generic ui. I honestly like how the ui is set
+up with the lobby screen and what not so i want you to apply that
+general ui look to everything (except for phone and phone apps)
+that includes settings, game settings, actual user interface in Game
+etc.
+
+
 ===============================================================
 1. GAME NAME
 ===============================================================
@@ -274,6 +292,9 @@ At the end of an appropriate day:
 
 The number of possible Upgrade opportunities scales with the number of
 days in the run.
+
+On another note, the entire commentator area needs to be removed.
+and fill in the empty space and what not.
 
 ===============================================================
 10. LEADERBOARD / DAY CHANGE

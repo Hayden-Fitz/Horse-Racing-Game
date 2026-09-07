@@ -62,27 +62,28 @@ HD.Models = (() => {
     const skin = options.skin ?? skinTones[(options.variant || 0) % skinTones.length];
     const trousers = options.trousers || 0x252525;
     const shoeColor = options.shoeColor || 0x20201f;
-    const outfit = options.outfit || "raceday";
+    const outfit = options.outfit || "plain";
 
     const torso = mesh(
-      new THREE.CapsuleGeometry(0.61, 0.72, 5, 14),
+      new THREE.CylinderGeometry(0.43, 0.75, 1.9, 20),
       color,
       bodyRig,
-      [0, 1.62, 0],
+      [0, 1.52, 0],
     );
-    torso.scale.z = 0.72;
-    torso.userData.baseY = 1.62;
-    cylinder(0.13, 0.15, 0.16, skin, bodyRig, [0, 2.52, -0.02], 12);
-    addPlayerOutfit(bodyRig, outfit, color);
+    torso.scale.z = 0.85;
+    torso.userData.baseY = 1.52;
+    if (outfit !== "plain") addPlayerOutfit(bodyRig, outfit, color);
 
     const head = sphere(0.64, skin, bodyRig, [0, 3.25, -0.02]);
     head.scale.set(0.95, 1.02, 0.94);
     [-1, 1].forEach((side) => {
       const ear = sphere(0.13, skin, bodyRig, [side * 0.62, 3.26, -0.01]);
       ear.scale.set(0.45, 0.9, 0.65);
+      ear.visible = false;
     });
     const nose = sphere(0.095, skin, bodyRig, [0, 3.22, -0.625]);
     nose.scale.set(0.72, 0.95, 0.62);
+    nose.visible = false;
 
     const faceMaterial = new THREE.MeshBasicMaterial({
       color: 0x171717,
@@ -110,8 +111,11 @@ HD.Models = (() => {
       faceParts.push(brow);
     });
     faceParts.push(
-      ...createPlayerExpression(bodyRig, options.expression || "smile", faceMaterial),
+      ...createPlayerExpression(bodyRig, options.expression || "none", faceMaterial),
     );
+    if (!options.expression || options.expression === "none") {
+      faceParts.forEach((part) => { part.visible = false; });
+    }
 
     const hair = mesh(
       new THREE.SphereGeometry(0.65, 14, 8, 0, Math.PI * 2, 0, 1.25),
@@ -120,7 +124,8 @@ HD.Models = (() => {
       [0, 3.58, 0],
     );
     hair.scale.set(0.96, 0.6, 0.96);
-    const hatParts = createPlayerHat(bodyRig, options.hat || "cap", color);
+    hair.visible = false;
+    const hatParts = createPlayerHat(bodyRig, options.hat || "none", color);
     const accessoryParts = createPlayerAccessory(
       bodyRig,
       options.accessory || "none",
@@ -153,7 +158,7 @@ HD.Models = (() => {
       forearm.position.set(0, -0.83, 0);
       forearm.rotation.x = 1.05;
       arm.add(forearm);
-      cylinder(0.11, 0.14, 0.72, 0x282725, forearm, [0, -0.34, 0], 11);
+      cylinder(0.14, 0.17, 0.72, color, forearm, [0, -0.34, 0], 11);
       cylinder(0.14, 0.14, 0.12, color, forearm, [0, -0.69, 0], 10);
       sphere(0.18, skin, forearm, [0, -0.79, 0]);
       arms.push(arm);
@@ -917,8 +922,8 @@ HD.Models = (() => {
   }
 
   function throwable(type) {
-    const imported = HD.Assets?.create(type);
-    if (imported) return imported;
+    const recreated = HD.ReferenceModels?.create(type);
+    if (recreated) return recreated;
     if (type === "soda") return soda();
     if (type === "horseshoe") return horseshoe();
     if (type === "carrot") return carrot();
@@ -974,6 +979,9 @@ HD.Models = (() => {
       });
       prop.userData.equipScale = scale;
       prop.rotation.set(propKey === "phone" ? 0.1 : -0.25, 0, propKey === "phone" ? 0 : -0.5);
+      if (itemType === "hotdog" && propKey !== "phone") {
+        prop.rotation.set(0.65, 0, -0.2);
+      }
       prop.traverse((object) => {
         if (object.isMesh) object.castShadow = false;
       });

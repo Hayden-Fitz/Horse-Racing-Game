@@ -881,7 +881,7 @@ HD.UI = (() => {
   }
   el.bet.onclick = placeOnlineBet;
   el.toggle.onclick = () => HD.Controls.setMode(S.mode === "phone" ? "look" : "phone");
-  el.menuPlay.onclick = () => HD.Controls.closeMenu();
+  el.menuPlay.onclick = () => HD.MatchSetup.open();
   el.menuResume.onclick = () => HD.Controls.closeMenu();
   el.resultContinue.onclick = () => (S.phase === "matchOver" ? HD.Race.restart() : HD.Race.next());
   el.vendorClose.onclick = () => HD.Controls.closeVendor();

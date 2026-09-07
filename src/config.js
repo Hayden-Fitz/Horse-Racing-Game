@@ -530,6 +530,8 @@ HD.CONFIG = {
   totalRaces: 6,
   raceLaps: 3,
   raceHorseCount: 6,
+  startingMoney: 100,
+  crowdThrowInterval: 10,
   horseFieldRaces: 2,
   trackLanes: {
     // Keep every lane inside the existing 49/22 to 72/43 dirt oval.
