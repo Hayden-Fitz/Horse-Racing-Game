@@ -124,18 +124,41 @@ const practiceStarted = await call("Runtime.evaluate", {
     HD.world.renderer.domElement.requestPointerLock = () => {};
     const panel = document.querySelector('#practice-setup');
     panel.querySelector('[name=horses]').value = '8';
+    panel.querySelector('[name=days]').value = '5';
+    panel.querySelector('[name=racesPerDay]').value = '3';
+    panel.querySelector('[name=days]').dispatchEvent(new Event('input', { bubbles: true }));
+    const summary = panel.querySelector('.practice-note').textContent.includes('15 total races');
     panel.querySelector('[name=laps]').value = '1';
-    panel.querySelector('[name=startingMoney]').value = '2500';
+    panel.querySelector('[name=startingMoney]').value = '1000';
     panel.querySelector('[name=crowd]').value = 'off';
     panel.querySelector('form').requestSubmit();
-    return !panel.open && HD.state.horses.length === 8 &&
+    return summary && HD.CONFIG.totalRaces === 15 && HD.CONFIG.racesPerRound === 3 &&
+      document.querySelector('#round').textContent === '1 / 5' &&
+      !panel.open && HD.state.horses.length === 8 &&
       HD.world.laneMarkings.children.length === 9 &&
-      HD.state.money === 2500 && HD.CONFIG.raceLaps === 1 &&
+      HD.state.money === 1000 && HD.CONFIG.raceLaps === 1 &&
       HD.CONFIG.crowdThrowInterval === 0;
   })()`, returnByValue: true,
 });
 if (!practiceStarted.result?.value) throw new Error('Practice rules did not reach the simulation');
-console.log(JSON.stringify({ practiceSetupAndStart: true }));
+const practiceUi = await call("Runtime.evaluate", {
+  expression: `(() => {
+    const leadersButton = document.querySelector('[data-app=leaders]');
+    const leadersPanel = document.querySelector('[data-panel=leaders]');
+    const settings = document.querySelector('#settings-panel');
+    const heading = settings.querySelector('.settings-heading');
+    settings.hidden = false;
+    settings.scrollTop = 10000;
+    const sticky = getComputedStyle(heading).position === 'sticky' &&
+      heading.getBoundingClientRect().top >= settings.getBoundingClientRect().top - 2;
+    settings.hidden = true;
+    return leadersButton.hidden && leadersPanel.hidden && sticky &&
+      HD.state.money === 1000 && HD.MatchSetup.normalize({ startingMoney: 0 }).startingMoney === 100 &&
+      HD.MatchSetup.normalize({ startingMoney: 5000 }).startingMoney === 1000;
+  })()`, returnByValue: true,
+});
+if (!practiceUi.result?.value) throw new Error('Practice leaderboard, bankroll bounds, or sticky settings header failed');
+console.log(JSON.stringify({ practiceSetupAndStart: true, practiceUi: true }));
 await call("Runtime.evaluate", {
   expression: `(() => {
     HD.world.renderer.domElement.requestPointerLock = () => {};
@@ -171,6 +194,31 @@ const throwing = await call("Runtime.evaluate", {
   })()`, returnByValue: true,
 });
 console.log(JSON.stringify({ holdToggleAndMouseThrow: throwing.result?.value }));
-await call("Page.close");
+const replacement = await call("Runtime.evaluate", {
+  expression: `(() => {
+    const canvas = HD.world.renderer.domElement;
+    HD.state.inventory = { ...HD.createInventory(), hotdog: 1, horseshoe: 1, carrot: 1 };
+    HD.Controls.selectItem('hotdog');
+    HD.Controls.setMode('throw');
+    const throwOnce = () => {
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
+      HD.Controls.update(0.4);
+      document.dispatchEvent(new PointerEvent('pointerup', { button: 0, bubbles: true }));
+    };
+    throwOnce();
+    const sameCategory = HD.state.selectedItem === 'carrot' && HD.world.heldItem.visible;
+    throwOnce();
+    const fallback = HD.state.selectedItem === 'horseshoe' && HD.world.heldItem.visible;
+    throwOnce();
+    return sameCategory && fallback && HD.state.mode === 'look' && !HD.world.heldItem.visible;
+  })()`, returnByValue: true,
+});
+console.log(JSON.stringify({ categoryReplacementAndEmptyHands: replacement.result?.value }));
+if (!replacement.result?.value) throw new Error('Category replacement or empty-hands cleanup failed');
+// Close through the browser endpoint: Page.close can drop its own connection
+// before the reply reaches us, leaving an otherwise successful review hanging.
+await fetch(`http://127.0.0.1:${port}/json/close/${page.id}`, {
+  signal: AbortSignal.timeout(5000),
+});
 socket.close();
 if (errors.length || !throwing.result?.value || !typing.result?.value || !state.result?.value?.includes('"recreatedHotdog":"hotdog"')) process.exitCode = 1;

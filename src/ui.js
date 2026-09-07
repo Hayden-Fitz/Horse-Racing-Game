@@ -78,6 +78,8 @@ HD.UI = (() => {
     rankingsClose: $("#rankings-close"),
   };
   let deliveryRenderTimer = 0;
+  let dayTimeout;
+  let dayGeneration = 0;
   const rankingRowHeight = 44;
 
   // ---------------------------------------------------------------------------
@@ -86,7 +88,7 @@ HD.UI = (() => {
 
   function render() {
     el.money.textContent = el.bank.textContent = `$${S.money}`;
-    el.round.textContent = `${S.round} / 3`;
+    el.round.textContent = `${S.round} / ${Math.ceil(C.totalRaces / C.racesPerRound)}`;
     el.race.textContent = `${S.race} / ${C.totalRaces}`;
     el.inventory.textContent = Object.values(S.inventory).reduce(
       (total, count) => total + count,
@@ -150,6 +152,12 @@ HD.UI = (() => {
   }
 
   function renderLeaderboard() {
+    if (!hasOnlineLeaderboard()) {
+      [el.leaderboard, el.rankingsChart, el.dayRankings].forEach((container) => {
+        if (container) container.replaceChildren();
+      });
+      return;
+    }
     const rankings = rankingEntries();
     renderAnimatedRankings(el.leaderboard, rankings);
     if (!el.rankingsOverlay.hidden) renderAnimatedRankings(el.rankingsChart, rankings);
@@ -158,26 +166,20 @@ HD.UI = (() => {
 
   function rankingEntries() {
     const online = HD.Network?.rankingPlayers?.() || [];
-    if (online.length) return online.sort((a, b) => b.money - a.money);
+    return online.sort((a, b) => b.money - a.money);
+  }
 
-    const computerPlayers = HD.AI?.rankingPlayers?.() || [];
-    if (computerPlayers.length) {
-      return [
-        { id: "you", name: "YOU", money: S.money },
-        ...computerPlayers,
-      ].sort((a, b) => b.money - a.money);
-    }
+  function hasOnlineLeaderboard() {
+    return Boolean(HD.Network?.isConnected?.() && HD.Network?.isPlaying?.());
+  }
 
-    return [
-      { id: "you", name: "YOU", money: S.money },
-      { id: "maya", name: "Maya", money: 80 + S.race * 28 },
-      { id: "dex", name: "Dex", money: 135 + S.race * 12 },
-      { id: "rin", name: "Rin", money: 105 + S.race * 19 },
-      { id: "sol", name: "Sol", money: 92 + S.race * 21 },
-      { id: "nia", name: "Nia", money: 145 + S.race * 8 },
-      { id: "bo", name: "Bo", money: 70 + S.race * 24 },
-      { id: "kit", name: "Kit", money: 118 + S.race * 14 },
-    ].sort((a, b) => b.money - a.money);
+  function updateLeaderboardAvailability() {
+    const available = hasOnlineLeaderboard();
+    const appButton = document.querySelector('[data-app="leaders"]');
+    const appPanel = document.querySelector('[data-panel="leaders"]');
+    if (appButton) appButton.hidden = !available;
+    if (appPanel) appPanel.hidden = !available;
+    if (!available) showRankings(false);
   }
 
   function renderAnimatedRankings(container, rankings) {
@@ -486,6 +488,7 @@ HD.UI = (() => {
               <span>
                 <strong>${item.name}</strong>
                 <small><b class="item-effect">${itemEffectSummary(item)}</b>${item.description}</small>
+                <small class="item-traits">${itemTraitSummary(item)}</small>
               </span>
               <em>x${S.inventory[id]}</em>
             </button>
@@ -771,8 +774,12 @@ HD.UI = (() => {
   }
   function showRoundBreak(show) {
     el.roundBreak.hidden = !show;
-    el.rankingsButton.hidden = !show;
+    el.rankingsButton.hidden = !show || !hasOnlineLeaderboard();
     if (!show) showRankings(false);
+  }
+  function itemTraitSummary(item) {
+    const traits = HD.itemThrowProfile(item);
+    return `${item.category.toUpperCase()} · WEIGHT ${traits.weight}/5 · EASE ${traits.throwingEase}/5`;
   }
   function updateBreakTimer(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -780,23 +787,42 @@ HD.UI = (() => {
     el.breakTimer.textContent = `${minutes}:${String(remainder).padStart(2, "0")}`;
   }
   function showDay(day, onComplete) {
+    cancelDayTransition();
+    const generation = dayGeneration;
+    const online = hasOnlineLeaderboard();
     el.dayTitle.textContent = `DAY ${day}`;
-    el.daySubtitle.textContent = day === 1
+    el.daySubtitle.textContent = !online
+      ? "PRACTICE RUN"
+      : day === 1
       ? "PLAYERS AT THE TRACK"
       : "CURRENT BANKROLL STANDINGS";
-    renderAnimatedRankings(el.dayRankings, rankingEntries());
+    el.dayRankings.hidden = !online;
+    if (online) renderAnimatedRankings(el.dayRankings, rankingEntries());
     el.dayTransition.hidden = false;
-    requestAnimationFrame(() => el.dayTransition.classList.add("visible"));
-    setTimeout(() => {
+    requestAnimationFrame(() => {
+      if (generation === dayGeneration) el.dayTransition.classList.add("visible");
+    });
+    dayTimeout = setTimeout(() => {
       el.dayTransition.classList.remove("visible");
-      setTimeout(() => {
+      dayTimeout = setTimeout(() => {
         el.dayTransition.hidden = true;
         onComplete();
       }, 500);
     }, day === 1 ? 4200 : 3800);
   }
 
+  function cancelDayTransition() {
+    dayGeneration++;
+    clearTimeout(dayTimeout);
+    el.dayTransition.hidden = true;
+    el.dayTransition.classList.remove("visible");
+  }
+
   function showRankings(show, title = "CURRENT RANKINGS") {
+    if (!hasOnlineLeaderboard()) {
+      el.rankingsOverlay.hidden = true;
+      return;
+    }
     el.rankingsOverlay.hidden = !show;
     if (!show) return;
 
@@ -851,7 +877,8 @@ HD.UI = (() => {
             <span class="item-icon">${item.icon}</span>
             <span>
               <strong>${item.name}</strong>
-              <small>${itemEffectSummary(item)}Instant pickup · x${S.inventory[id]}</small>
+            <small>${itemEffectSummary(item)}Instant pickup · x${S.inventory[id]}</small>
+            <small class="item-traits">${itemTraitSummary(item)}</small>
             </span>
             <button class="item-buy" data-vendor-buy="${id}" ${disabled}>BUY $${price}</button>
           </article>
@@ -908,11 +935,13 @@ HD.UI = (() => {
   el.phoneHome.onclick = showPhoneHome;
   el.messageThread.onchange = renderChat;
   el.messageCompose.onsubmit = sendChatMessage;
+  updateLeaderboardAvailability();
   return {
     render,
     renderCards,
     renderOddsWatch,
     renderLeaderboard,
+    updateLeaderboardAvailability,
     renderChat,
     receiveChatMessage,
     phone,
@@ -928,6 +957,7 @@ HD.UI = (() => {
     showRoundBreak,
     updateBreakTimer,
     showDay,
+    cancelDayTransition,
     showRankings,
     vendor,
     betCounter,

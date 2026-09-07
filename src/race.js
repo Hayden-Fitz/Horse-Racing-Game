@@ -9,6 +9,7 @@ HD.Race = (() => {
   let ambientThrowSchedule = [];
   let ambientThrowWindow = 0;
   let nextRaceTimeout = null;
+  let runGeneration = 0;
   const restingBounds = new THREE.Box3();
 
   // ---------------------------------------------------------------------------
@@ -161,7 +162,10 @@ HD.Race = (() => {
     HD.UI.announce(S.raceAnnouncement);
     if (sabotageReport) HD.UI.showRaceNotice(sabotageReport.replace("PADDOCK ALERT: ", ""));
     HD.Audio?.raceStart?.(S.raceAnnouncement);
-    setTimeout(() => HD.UI.countdown(""), 700);
+    const generation = runGeneration;
+    setTimeout(() => {
+      if (generation === runGeneration && S.phase === "racing") HD.UI.countdown("");
+    }, 700);
     HD.UI.render();
   }
   function purchaseSabotage(horseIndex, optionId) {
@@ -645,14 +649,16 @@ HD.Race = (() => {
     HD.UI.showRoundBreak(false);
     HD.Controls.sitDown();
     const nextRound = S.round + 1;
+    const generation = runGeneration;
     HD.UI.showDay(nextRound, () => {
+      if (generation !== runGeneration || S.phase !== "dayTransition") return;
       S.round = nextRound;
       S.race++;
-      const bonus = C.roundBonuses[nextRound - 1];
+      const bonus = C.roundBonuses[nextRound - 1] ?? 0;
       S.money += bonus;
-      HD.UI.addLedger(`Day ${nextRound} bankroll`, bonus);
+      if (bonus) HD.UI.addLedger(`Day ${nextRound} bankroll`, bonus);
       prepareRace({ forceStart: true });
-      HD.UI.announce(`Day ${nextRound} begins. $${bonus} added to your wallet.`);
+      HD.UI.announce(`Day ${nextRound} begins.` + (bonus ? ` $${bonus} added to your wallet.` : ""));
     });
   }
   function finishMatch() {
@@ -669,7 +675,16 @@ HD.Race = (() => {
       "PLAY AGAIN",
     );
     HD.UI.showRankings(true, "FINAL MATCH RANKINGS");
-    setTimeout(() => HD.Network?.claimMatchWinReward?.(), 600);
+    scheduleMatchWinReward();
+  }
+
+  function scheduleMatchWinReward() {
+    const generation = runGeneration;
+    setTimeout(() => {
+      if (generation !== runGeneration || S.phase !== "matchOver") return;
+      if (!HD.Network?.isConnected() || !HD.Network?.isPlaying?.()) return;
+      HD.Network.claimMatchWinReward?.();
+    }, 600);
   }
   function restart() {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
@@ -677,6 +692,8 @@ HD.Race = (() => {
     }
     clearTimeout(nextRaceTimeout);
     nextRaceTimeout = null;
+    runGeneration++;
+    HD.UI.cancelDayTransition?.();
     Object.assign(S, {
       money: C.startingMoney ?? 100,
       inventory: HD.createInventory(),
@@ -1402,7 +1419,7 @@ HD.Race = (() => {
         `You leave Hotdog Downs with $${S.money}.`,
         "WAITING FOR HOST",
       );
-      setTimeout(() => HD.Network?.claimMatchWinReward?.(), 600);
+      scheduleMatchWinReward();
     }
     if (S.phase === "racing" && previousPhase === "betting") {
       HD.UI.announce(

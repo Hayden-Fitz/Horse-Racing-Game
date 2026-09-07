@@ -15,10 +15,15 @@ already exist. Older conversation requests yield to v13.
   ticket-locked payout behavior remain in place.
 
 Practice now has a dedicated setup screen for horse count (4–8), laps (1–8),
-starting bankroll ($0–$10,000), and four crowd frequencies. Rules update the
+starting bankroll ($100–$1,000), days (1–10), races per day (1–6), and four crowd frequencies. Rules update the
 starting field, odds, lane markings, finish threshold and crowd scheduler.
 Cancelled edits do not affect the game. Online entry restores online defaults;
 host-editable synchronized rules are not implemented yet.
+
+Run length is days multiplied by races per day. The HUD and final-race checks
+use that total. Existing day-two/day-three allowances remain; later days grant
+no automatic allowance until the v13 daily reward system is implemented.
+Restarting cancels the current day screen and invalidates delayed progression.
 
 Still required in Phase 1: the remaining configurable, synchronized match settings; stronger
 field/stat odds calibration; expanded bet types; full multiplayer economy audit;

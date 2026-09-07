@@ -2169,10 +2169,20 @@
 }
 
 .settings-heading {
+  position: sticky;
+  z-index: 5;
+  top: -20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  min-height: 67px;
+  margin: -20px -20px 18px;
+  padding: 13px 18px;
+  border-bottom: 2px double #dfbc60;
+  background:
+    linear-gradient(90deg, #a33d2c 0 7px, transparent 7px),
+    repeating-linear-gradient(0deg, #193b2a 0 28px, #142e21 28px 29px);
+  box-shadow: 0 6px 14px #07140e9c;
 }
 
 .settings-heading span {
@@ -2180,7 +2190,19 @@
 }
 
 .settings-heading strong {
+  color: #fff0b8;
+  font-family: var(--display-font);
   font-size: 25px;
+  letter-spacing: 0.06em;
+}
+
+#settings-close {
+  min-width: 92px;
+  border: 2px solid #f0d477 !important;
+  background: #b74630 !important;
+  color: #fff0b8;
+  font-family: var(--display-font);
+  letter-spacing: 0.12em;
 }
 
 .settings-grid {
@@ -2674,11 +2696,14 @@
   max-height: calc(100dvh - 40px);
   box-sizing: border-box;
   padding: clamp(22px, 4vw, 42px);
-  border: 2px solid #caa96a;
-  border-radius: 20px;
+  border: 4px double #e7c66c;
+  border-radius: 8px 24px 8px 24px;
   color: #f8f1df;
-  background: #122e38;
-  box-shadow: 0 24px 80px #0009;
+  background:
+    radial-gradient(circle at 14px 14px, #e6c76a 0 3px, transparent 4px),
+    radial-gradient(circle at calc(100% - 14px) 14px, #e6c76a 0 3px, transparent 4px),
+    linear-gradient(145deg, #214b35, #0d2117 68%);
+  box-shadow: 9px 9px 0 #7d3b29, 0 24px 80px #000c;
 }
 
 .practice-setup::backdrop {
@@ -2723,10 +2748,10 @@
   min-height: 48px;
   box-sizing: border-box;
   padding: 10px;
-  border: 1px solid #66838b;
-  border-radius: 8px;
-  color: #f8f1df;
-  background: #0a202a;
+  border: 1px solid #dfc372;
+  border-radius: 3px 10px 3px 10px;
+  color: #fff0b8;
+  background: #091a12;
   font: inherit;
 }
 
@@ -2749,9 +2774,9 @@
 }
 
 .practice-setup footer [data-back] {
-  color: #f8f1df;
-  background: #203f49;
-  border: 1px solid #78939b;
+  color: #fff0b8;
+  background: #214b35;
+  border: 1px solid #dfc372;
   white-space: nowrap;
 }
 
@@ -2881,6 +2906,15 @@
 .settings-panel input {
   background: #091a12 !important;
   color: #fff0b8 !important;
+}
+
+.item-traits {
+  display: inline-block;
+  margin-top: 4px;
+  color: #f0d477 !important;
+  font-family: var(--display-font);
+  font-size: 8px;
+  letter-spacing: 0.1em;
 }
 
 .day-transition > strong,

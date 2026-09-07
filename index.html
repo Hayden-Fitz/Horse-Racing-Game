@@ -528,6 +528,16 @@
         </header>
         <div class="practice-rule-grid">
           <label>
+            Days in the run
+            <input name="days" type="number" min="1" max="10" step="1" required />
+            <small>Choose a quick visit or up to ten race days.</small>
+          </label>
+          <label>
+            Races per day
+            <input name="racesPerDay" type="number" min="1" max="6" step="1" required />
+            <small>A one-minute shop break separates race days.</small>
+          </label>
+          <label>
             Horses on the track
             <select name="horses">
               <option value="4">4 horses</option>
@@ -545,8 +555,8 @@
           </label>
           <label>
             Starting bankroll ($)
-            <input name="startingMoney" type="number" min="0" max="10000" step="1" required />
-            <small>Practice money only. Resets when you start.</small>
+            <input name="startingMoney" type="number" min="100" max="1000" step="50" required />
+            <small>Choose $100–$1,000. Practice money resets when you start.</small>
           </label>
           <label>
             Crowd throwing
@@ -559,7 +569,7 @@
             <small>Staggered throws, only while the race is running.</small>
           </label>
         </div>
-        <p class="practice-note">Current run: 3 days, 2 races each. More match rules are in development.</p>
+        <p class="practice-note" role="status">3 days · 2 races per day · 6 total races</p>
         <footer>
           <button type="button" data-back>BACK TO LOBBY</button>
           <button type="submit" class="primary">START PRACTICE →</button>

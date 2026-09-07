@@ -641,6 +641,7 @@ HD.Controls = (() => {
   }
 
   function calculateThrowLaunch(item, power, start, velocity) {
+    const profile = HD.itemThrowProfile(item);
     camera.getWorldPosition(start);
     throwOffset
       .set(0.55, -0.35, -1)
@@ -651,8 +652,13 @@ HD.Controls = (() => {
       .set(0, 0, -1)
       .applyQuaternion(camera.quaternion)
       .normalize()
-      .multiplyScalar(item.speed * power * HD.CONFIG.throwVelocityMultiplier);
-    velocity.y += item.lift * power * HD.CONFIG.throwVelocityMultiplier;
+      .multiplyScalar(
+        item.speed * power * HD.CONFIG.throwVelocityMultiplier,
+      );
+    velocity.x *= profile.rangeMultiplier;
+    velocity.z *= profile.rangeMultiplier;
+    velocity.y = (velocity.y + item.lift * power * HD.CONFIG.throwVelocityMultiplier) *
+      profile.liftMultiplier;
   }
 
   function setTrajectoryVisible(visible) {
@@ -696,13 +702,7 @@ HD.Controls = (() => {
   }
 
   function nextOwnedItem(afterType) {
-    const ids = Object.keys(HD.CONFIG.items);
-    const start = Math.max(0, ids.indexOf(afterType));
-    for (let offset = 1; offset <= ids.length; offset++) {
-      const candidate = ids[(start + offset) % ids.length];
-      if (S.inventory[candidate] > 0) return candidate;
-    }
-    return null;
+    return HD.nextInventoryItem(S.inventory, afterType);
   }
 
   function autoSwapAfterThrow(thrownType) {

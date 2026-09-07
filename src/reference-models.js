@@ -61,21 +61,25 @@ HD.ReferenceModels = (() => {
 
   function cushion(parent, color, y = 0) {
     const shape = new T.Shape();
-    shape.moveTo(-0.4, -0.5);
-    shape.lineTo(0.4, -0.5);
-    shape.quadraticCurveTo(0.57, -0.5, 0.57, -0.32);
-    shape.lineTo(0.57, 0.32);
-    shape.quadraticCurveTo(0.57, 0.5, 0.38, 0.5);
-    shape.lineTo(-0.38, 0.5);
-    shape.quadraticCurveTo(-0.57, 0.5, -0.57, 0.32);
-    shape.lineTo(-0.57, -0.32);
-    shape.quadraticCurveTo(-0.57, -0.5, -0.4, -0.5);
+    shape.moveTo(-0.3, -0.5);
+    shape.lineTo(0.3, -0.5);
+    shape.quadraticCurveTo(0.57, -0.5, 0.57, -0.23);
+    shape.lineTo(0.57, 0.23);
+    shape.quadraticCurveTo(0.57, 0.5, 0.3, 0.5);
+    shape.lineTo(-0.3, 0.5);
+    shape.quadraticCurveTo(-0.57, 0.5, -0.57, 0.23);
+    shape.lineTo(-0.57, -0.23);
+    shape.quadraticCurveTo(-0.57, -0.5, -0.3, -0.5);
     const geometry = new T.ExtrudeGeometry(shape, {
       depth: 0.1, bevelEnabled: true, bevelSize: 0.045,
       bevelThickness: 0.04, bevelSegments: 2, curveSegments: 5,
     });
     geometry.rotateX(-Math.PI / 2);
     add(parent, geometry, color, 0, y, 0);
+    const seam = shape.getPoints(8).map((point) =>
+      new T.Vector3(point.x * 1.065, y + 0.045, -point.y * 1.075),
+    );
+    tube(parent, seam, 0.006, 0x082990, 64);
     const button = cylinder(parent, 0.075, 0.075, 0.015, color, 0, y + 0.146, 0);
     button.userData.detail = "center-button";
   }
@@ -135,13 +139,20 @@ HD.ReferenceModels = (() => {
     add(root, geometry, gold ? palette.gold : palette.foam);
   }
 
-  function label(root, text, foreground, background, width, height, position) {
+  function label(root, text, foreground, background, width, height, position, oval = false) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 160;
     const c = canvas.getContext("2d");
     c.fillStyle = background;
-    c.fillRect(0, 0, 256, 160);
+    if (oval) {
+      c.beginPath();
+      c.ellipse(128, 80, 124, 76, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = foreground;
+      c.lineWidth = 7;
+      c.stroke();
+    } else c.fillRect(0, 0, 256, 160);
     c.fillStyle = foreground;
     c.textAlign = "center";
     c.textBaseline = "middle";
@@ -150,7 +161,9 @@ HD.ReferenceModels = (() => {
     lines.forEach((line, i) => c.fillText(line, 128, 80 + (i - (lines.length - 1) / 2) * 58));
     const texture = new T.CanvasTexture(canvas);
     texture.colorSpace = T.SRGBColorSpace;
-    const mesh = new T.Mesh(new T.PlaneGeometry(width, height), new T.MeshBasicMaterial({ map: texture, toneMapped: false }));
+    const mesh = new T.Mesh(new T.PlaneGeometry(width, height), new T.MeshBasicMaterial({
+      map: texture, toneMapped: false, transparent: oval, depthWrite: !oval,
+    }));
     mesh.position.set(...position);
     root.add(mesh);
   }
@@ -185,7 +198,22 @@ HD.ReferenceModels = (() => {
     box(root, 0.58, 0.82, 0.42, palette.white);
     for (let i = 0; i < 7; i++) {
       for (const side of [-1, 1]) {
-        box(root, 0.043, 0.82, 0.006, palette.red, -0.26 + i * 0.086, 0, side * 0.214);
+        box(root, 0.58 / 7, 0.82, 0.006, i % 2 ? palette.white : palette.red,
+          -0.29 + (i + 0.5) * 0.58 / 7, 0, side * 0.214);
+      }
+    }
+    // Rounded tabs continue the stripes over all four sides of the carton.
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 7; i++) {
+        const x = -0.29 + (i + 0.5) * 0.58 / 7;
+        const tab = sphere(root, 0.58 / 14, i % 2 ? palette.white : palette.red, x, 0.41, side * 0.213);
+        tab.scale.set(1, 1.65, 0.1);
+      }
+      for (let i = 0; i < 5; i++) {
+        const z = -0.21 + (i + 0.5) * 0.42 / 5;
+        box(root, 0.006, 0.82, 0.42 / 5, i % 2 ? palette.white : palette.red, side * 0.294, 0, z);
+        const tab = sphere(root, 0.042, i % 2 ? palette.white : palette.red, side * 0.294, 0.41, z);
+        tab.scale.set(0.1, 1.65, 1);
       }
     }
     for (let i = 0; i < 18; i++) {
@@ -194,7 +222,7 @@ HD.ReferenceModels = (() => {
         0.43 + (i % 3) * 0.036,
         ((i * 11) % 17) / 17 * 0.3 - 0.15);
     }
-    label(root, "POP\nCORN", "#b31526", "#f1f1eb", 0.4, 0.25, [0, 0.04, 0.223]);
+    label(root, "POP\nCORN", "#b31526", "#f1f1eb", 0.48, 0.3, [0, 0.04, 0.223], true);
   }
 
   function soda(root) {
@@ -241,6 +269,7 @@ HD.ReferenceModels = (() => {
 
   function chair(root) {
     cushion(root, palette.blue);
+    box(root, 0.96, 0.13, 0.86, palette.wood, 0, -0.09);
     for (const x of [-0.43, 0.43]) {
       for (const z of [-0.35, 0.35]) {
         const leg = cylinder(root, 0.065, 0.07, 0.85, palette.wood, x, -0.46, z);
@@ -248,7 +277,20 @@ HD.ReferenceModels = (() => {
       }
       cylinder(root, 0.065, 0.065, 0.95, palette.wood, x, 0.58, -0.36);
     }
-    box(root, 1, 0.4, 0.11, palette.wood, 0, 0.85, -0.36);
+    const back = new T.Shape();
+    back.moveTo(-0.48, -0.17);
+    back.quadraticCurveTo(-0.53, -0.17, -0.53, -0.08);
+    back.lineTo(-0.53, 0.13);
+    back.quadraticCurveTo(-0.53, 0.27, -0.34, 0.28);
+    back.quadraticCurveTo(0, 0.35, 0.34, 0.28);
+    back.quadraticCurveTo(0.53, 0.27, 0.53, 0.13);
+    back.lineTo(0.53, -0.08);
+    back.quadraticCurveTo(0.53, -0.17, 0.48, -0.17);
+    back.closePath();
+    add(root, new T.ExtrudeGeometry(back, {
+      depth: 0.075, bevelEnabled: true, bevelSize: 0.014,
+      bevelThickness: 0.014, bevelSegments: 2, curveSegments: 8,
+    }), palette.wood, 0, 0.85, -0.405);
   }
 
   function hurdle(root) {

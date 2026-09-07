@@ -3,6 +3,8 @@
 // Match rules are separate from graphics, audio, and accessibility preferences.
 HD.MatchSetup = (() => {
   const defaults = Object.freeze({
+    days: 3,
+    racesPerDay: 2,
     horses: 6,
     laps: 3,
     startingMoney: 100,
@@ -23,15 +25,19 @@ HD.MatchSetup = (() => {
     };
 
     return {
+      days: integer(input.days, 1, 10, defaults.days),
+      racesPerDay: integer(input.racesPerDay, 1, 6, defaults.racesPerDay),
       horses: integer(input.horses, 4, 8, defaults.horses),
       laps: integer(input.laps, 1, 8, defaults.laps),
-      startingMoney: integer(input.startingMoney, 0, 10000, defaults.startingMoney),
+      startingMoney: integer(input.startingMoney, 100, 1000, defaults.startingMoney),
       crowd: Object.hasOwn(crowdIntervals, input.crowd) ? input.crowd : defaults.crowd,
     };
   }
 
   function apply(input) {
     const rules = normalize(input);
+    HD.CONFIG.racesPerRound = rules.racesPerDay;
+    HD.CONFIG.totalRaces = rules.days * rules.racesPerDay;
     HD.CONFIG.raceHorseCount = rules.horses;
     HD.CONFIG.raceLaps = rules.laps;
     HD.CONFIG.startingMoney = rules.startingMoney;
@@ -56,6 +62,8 @@ HD.MatchSetup = (() => {
       panel.querySelector(`[name="${key}"]`).value = value;
     }
     panel.querySelector("form").onsubmit = start;
+    panel.querySelector("form").oninput = updateSummary;
+    updateSummary();
     panel.querySelector("[data-back]").onclick = () => panel.close();
     panel.onclose = () => previousFocus?.focus?.();
     panel.showModal();
@@ -71,6 +79,15 @@ HD.MatchSetup = (() => {
     HD.state.matchStarted = false;
     panel.close();
     HD.Controls.closeMenu();
+  }
+
+  function updateSummary() {
+    const rules = normalize(Object.fromEntries(new FormData(panel.querySelector("form"))));
+    const total = rules.days * rules.racesPerDay;
+    panel.querySelector(".practice-note").textContent =
+      `${rules.days} ${rules.days === 1 ? "day" : "days"} · ` +
+      `${rules.racesPerDay} ${rules.racesPerDay === 1 ? "race" : "races"} per day · ` +
+      `${total} total ${total === 1 ? "race" : "races"}`;
   }
 
   return { defaults, normalize, apply, resetForOnline, open };

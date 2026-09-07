@@ -972,6 +972,8 @@ HD.Network = (() => {
   function beginOnlinePlay() {
     playing = true;
     setMessage("Online match in progress. The host controls race timing.");
+    HD.UI.updateLeaderboardAvailability?.();
+    HD.UI.render?.();
     HD.Controls.closeMenu();
   }
 
@@ -985,6 +987,7 @@ HD.Network = (() => {
 
     closeStream();
     resetLobbyState();
+    HD.UI.updateLeaderboardAvailability?.();
 
     if (!oldLobby) return;
 

@@ -220,11 +220,11 @@ async function run() {
   );
 
   HD.Controls.sitDown = () => {};
-  HD.CONFIG.startingMoney = 2500;
+  HD.CONFIG.startingMoney = 1000;
   HD.CONFIG.crowdThrowInterval = 0;
   HD.CONFIG.raceLaps = 1;
   HD.Race.restart();
-  assert.equal(HD.state.money, 2500, "Restart must use the selected practice bankroll");
+  assert.equal(HD.state.money, 1000, "Restart must use the selected practice bankroll");
   HD.state.horses.forEach((horse) => {
     assert.ok(horse.userData.data.progress <= 0, "New runs must start at the gates, not coast");
   });
@@ -253,15 +253,52 @@ async function run() {
   assert.equal(HD.state.race, 1);
   assert.equal(HD.state.phase, "betting");
 
-  console.log("Opening/live odds, lanes, practice rules, crowd frequency, and one-lap finish passed.");
+  let completeDay;
+  HD.UI.showDay = (day, callback) => { completeDay = callback; };
+  HD.Controls.forceStand = () => {};
+  for (const [days, racesPerDay] of [[1, 1], [2, 3], [4, 1], [10, 6]]) {
+    HD.CONFIG.totalRaces = days * racesPerDay;
+    HD.CONFIG.racesPerRound = racesPerDay;
+    HD.Race.restart();
+    for (let race = 1; race <= days * racesPerDay; race++) {
+      assert.equal(HD.state.race, race);
+      assert.equal(HD.state.round, Math.ceil(race / racesPerDay));
+      HD.Race.next();
+      if (race === days * racesPerDay) {
+        assert.equal(HD.state.phase, "matchOver", "Final race must end the run without another shop break");
+      } else if (race % racesPerDay === 0) {
+        assert.equal(HD.state.phase, "roundBreak");
+        HD.Race.updateIntermission(HD.CONFIG.roundBreakDuration + 1);
+        assert.equal(HD.state.phase, "dayTransition");
+        const priorMoney = HD.state.money;
+        const expectedAllowance = HD.CONFIG.roundBonuses[HD.state.round] ?? 0;
+        completeDay();
+        assert.equal(HD.state.money, priorMoney + expectedAllowance);
+        assert.equal(HD.state.phase, "betting");
+        assert.ok(Number.isFinite(HD.state.money), "Later days must not corrupt the bankroll");
+      } else assert.equal(HD.state.phase, "betting");
+    }
+  }
+  HD.Race.restart();
+  HD.state.race = HD.CONFIG.racesPerRound;
+  HD.Race.next();
+  HD.Race.updateIntermission(HD.CONFIG.roundBreakDuration + 1);
+  const staleDayCallback = completeDay;
+  HD.Race.restart();
+  staleDayCallback();
+  assert.equal(HD.state.round, 1, "An old day callback must not change a restarted run");
+  assert.equal(HD.state.race, 1);
+  assert.equal(HD.state.money, HD.CONFIG.startingMoney);
+
+  console.log("Odds, lanes, crowd, one-lap finish, 1–60 race progression, allowances, and stale day callbacks passed.");
 }
 
 function createUiMock() {
   return new Proxy(
     {},
     {
-      get() {
-        return () => {};
+      get(target, key) {
+        return target[key] ?? (() => {});
       },
     },
   );

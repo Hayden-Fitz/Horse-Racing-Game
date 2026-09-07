@@ -384,54 +384,69 @@ HD.CONFIG = {
   playerColors: [0xef476f, 0x3a86ff, 0xffbe0b, 0x9b5de5, 0x22b573, 0xff7b22, 0x42d4d4, 0xf06cad],
   items: {
     hotdog: {
+      category: "Food",
       name: "Ballpark Hotdog",
       icon: "🌭",
       price: 8,
       speed: 36,
       lift: 8,
       gravity: 19,
+      weight: 2,
+      throwingEase: 4,
       ragdollDuration: 1.8,
       description: "Startles a horse into rearing and briefly stops its stride.",
     },
     soda: {
+      category: "Food",
       name: "Mega Soda",
       icon: "🥤",
       price: 14,
       speed: 42,
       lift: 7,
       gravity: 21,
+      weight: 3,
+      throwingEase: 3,
       slowDuration: 3.6,
       description: "Travels quickly and gives a horse a sticky surprise.",
     },
     horseshoe: {
+      category: "Bounce",
       name: "Foam Horseshoe",
       icon: "🧲",
       price: 24,
       speed: 31,
       lift: 10,
       gravity: 16,
+      weight: 3,
+      throwingEase: 3,
       slowDuration: 5,
       ragdollDuration: 2.4,
       description: "A heavy hit that startles and slows the target.",
     },
     carrot: {
+      category: "Food",
       name: "Turbo Carrot",
       icon: "🥕",
       price: 20,
       speed: 38,
       lift: 8,
       gravity: 18,
+      weight: 2,
+      throwingEase: 5,
       boostDuration: 5,
       resistanceDuration: 8,
       description: "Boosts a horse and grants temporary interference resistance.",
     },
     hurdle: {
+      category: "Placable",
       name: "Foam Hurdle",
       icon: "🚧",
       price: 18,
       speed: 30,
       lift: 11,
       gravity: 17,
+      weight: 4,
+      throwingEase: 2,
       slowDuration: 1.2,
       forceLaneChange: true,
       trap: true,
@@ -439,59 +454,74 @@ HD.CONFIG = {
       description: "Stays on the track and forces the first horse it catches to change lanes.",
     },
     pillow: {
+      category: "Impact",
       name: "Throw Pillow",
       icon: "🛏️",
       price: 16,
       speed: 27,
       lift: 12,
       gravity: 13,
+      weight: 3,
+      throwingEase: 4,
       ragdollDuration: 1.4,
       vendorOnly: true,
       description: "Concourse exclusive. Light, floaty, and startling.",
     },
     chair: {
+      category: "Impact",
       name: "Folding Chair",
       icon: "🪑",
       price: 42,
       speed: 25,
       lift: 9,
       gravity: 20,
+      weight: 5,
+      throwingEase: 1,
       slowDuration: 4,
       ragdollDuration: 3.5,
       vendorOnly: true,
       description: "Concourse exclusive. Heavy, slow, and a powerful startle.",
     },
     pretzel: {
+      category: "Food",
       name: "Giant Pretzel",
       icon: "🥨",
       price: 10,
       speed: 35,
       lift: 8,
       gravity: 18,
+      weight: 1,
+      throwingEase: 5,
       slowDuration: 1.6,
       ragdollDuration: 1.1,
       heldScale: 0.78,
       description: "A bendy snack with a balanced arc and a short startle.",
     },
     performanceOats: {
+      category: "Food",
       name: "Champion Oats",
       icon: "🌾",
       price: 24,
       speed: 32,
       lift: 9,
       gravity: 16,
+      weight: 2,
+      throwingEase: 4,
       maxSpeedBonus: 0.01,
       maxSpeedBonusCap: 0.05,
       heldScale: 0.76,
       description: "Permanently raises a horse's maximum speed by 1%, stacking up to 5%.",
     },
     airHorn: {
+      category: "Special",
       name: "Air Horn",
       icon: "\ud83d\udce3",
       price: 28,
       speed: 39,
       lift: 7,
       gravity: 19,
+      weight: 3,
+      throwingEase: 3,
       panicDuration: 3.2,
       heldScale: 0.78,
       vendorOnly: true,
@@ -581,6 +611,38 @@ HD.CONFIG = {
 
 HD.createInventory = () =>
   Object.fromEntries(Object.keys(HD.CONFIG.items).map((itemId) => [itemId, 0]));
+
+// Scan after the depleted slot, preferring the same inventory category.
+HD.nextInventoryItem = (inventory, afterType) => {
+  const ids = Object.keys(HD.CONFIG.items);
+  const start = ids.indexOf(afterType);
+  const category = HD.CONFIG.items[afterType]?.category;
+  const available = [];
+
+  for (let offset = 1; offset <= ids.length; offset++) {
+    const candidate = ids[(start + offset) % ids.length];
+    if (Number.isFinite(inventory[candidate]) && inventory[candidate] > 0) {
+      available.push(candidate);
+    }
+  }
+
+  return available.find((id) => HD.CONFIG.items[id].category === category) ??
+    available[0] ?? null;
+};
+
+// Weight controls lift; throwing ease controls horizontal reach. Both stay
+// deliberately modest so an item's unique physics and aim remain important.
+HD.itemThrowProfile = (item) => {
+  const weight = THREE.MathUtils.clamp(Number(item?.weight) || 3, 1, 5);
+  const throwingEase = THREE.MathUtils.clamp(Number(item?.throwingEase) || 3, 1, 5);
+
+  return {
+    weight,
+    throwingEase,
+    liftMultiplier: Number((1.1 - weight * 0.06).toFixed(3)),
+    rangeMultiplier: Number((0.76 + throwingEase * 0.08).toFixed(3)),
+  };
+};
 
 HD.state = {
   money: 100,

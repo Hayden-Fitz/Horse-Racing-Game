@@ -97,6 +97,29 @@ assert.ok(ids.includes("message-thread"), "The messaging conversation picker is 
 assert.ok(ids.includes("message-history"), "The messaging history is missing");
 assert.ok(ids.includes("message-compose"), "The messaging composer is missing");
 assert.ok(
+  html.includes('name="startingMoney" type="number" min="100" max="1000"'),
+  "Practice bankroll must be limited to $100–$1,000",
+);
+assert.ok(
+  read("src/match-setup.js").includes("integer(input.startingMoney, 100, 1000"),
+  "Practice bankroll bounds must also be enforced in JavaScript",
+);
+assert.ok(
+  read("src/ui.js").includes("function itemTraitSummary(item)") &&
+    read("src/controls.js").includes("HD.itemThrowProfile(item)"),
+  "Item weight and throwing ease must be visible and applied to throws",
+);
+assert.ok(
+  read("src/ui.js").includes("function hasOnlineLeaderboard()") &&
+    !read("src/ui.js").includes('{ id: "maya", name: "Maya"'),
+  "Practice Mode must not fabricate leaderboard players",
+);
+assert.ok(
+  read("polish.css").includes("position: sticky;") &&
+    read("polish.css").includes("#settings-close"),
+  "Settings needs a sticky Done button while scrolling",
+);
+assert.ok(
   html.includes('data-app="messages"'),
   "The phone home screen is missing the Messages app",
 );
