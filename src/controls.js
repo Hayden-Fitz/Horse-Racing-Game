@@ -387,12 +387,15 @@ HD.Controls = (() => {
     const insideFence = Math.sqrt((S.playerPosition.x / 73.2) ** 2 + (S.playerPosition.z / 43.2) ** 2);
     const blocked = collidesWithBarrier(S.playerPosition.x, S.playerPosition.z);
     const nextZone = walkZoneAt(S.playerPosition.x, S.playerPosition.z);
+    const nextHeight = walkingEyeHeight(S.playerPosition.x, S.playerPosition.z);
+    const unsafeDrop = Math.abs(nextHeight - walkPrevious.y) > 0.85;
     const skippedStairs = previousZone !== nextZone &&
       previousZone !== "stairs" &&
       nextZone !== "stairs";
     if (
       insideFence < 1.03 ||
       blocked ||
+      unsafeDrop ||
       !isWalkable(S.playerPosition.x, S.playerPosition.z) ||
       skippedStairs
     ) {
@@ -400,12 +403,14 @@ HD.Controls = (() => {
       S.playerPosition.z = walkPrevious.z;
     }
     S.playerPosition.x = THREE.MathUtils.clamp(S.playerPosition.x, -128, 128);
-    S.playerPosition.z = THREE.MathUtils.clamp(S.playerPosition.z, -89, 89);
+    S.playerPosition.z = THREE.MathUtils.clamp(S.playerPosition.z, -136, 89);
     S.playerPosition.y = walkingEyeHeight(S.playerPosition.x, S.playerPosition.z);
     camera.position.copy(S.playerPosition);
   }
   function collidesWithBarrier(x, z) {
     return (HD.world.barriers || []).some((barrier) => {
+      const floorY = S.playerPosition.y - HD.CONFIG.eyeHeight;
+      if (floorY > (barrier.maxY ?? 19) || floorY + HD.CONFIG.eyeHeight < (barrier.minY ?? 13.5)) return false;
       const dx = x - barrier.x;
       const dz = z - barrier.z;
       if (barrier.type === "box") {
@@ -421,6 +426,9 @@ HD.Controls = (() => {
   }
 
   function walkZoneAt(x, z) {
+    const upper = HD.Stadium.upperWalkSurfaceAt?.(x, z, S.playerPosition.y - HD.CONFIG.eyeHeight);
+    if (upper) return upper.zone;
+    if (HD.Stadium.horsePassageAt?.(x, z) && S.playerPosition.y - HD.CONFIG.eyeHeight < 9) return null;
     if (staircaseProgress(x, z) !== null) {
       return "stairs";
     }
@@ -434,6 +442,8 @@ HD.Controls = (() => {
     return null;
   }
   function isWalkable(x, z) {
+    if (HD.Stadium.upperWalkSurfaceAt?.(x, z, S.playerPosition.y - HD.CONFIG.eyeHeight)) return true;
+    if (HD.Stadium.horsePassageAt?.(x, z) && S.playerPosition.y - HD.CONFIG.eyeHeight < 9) return false;
     const onStairs = staircaseProgress(x, z) !== null;
     const grandstandRow = grandstandRowAt(x, z);
     const trackWalk = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
@@ -442,6 +452,8 @@ HD.Controls = (() => {
     return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse;
   }
   function walkingEyeHeight(x, z) {
+    const upper = HD.Stadium.upperWalkSurfaceAt?.(x, z, S.playerPosition.y - HD.CONFIG.eyeHeight);
+    if (upper) return upper.y + HD.CONFIG.eyeHeight;
     const stairProgress = staircaseProgress(x, z);
     if (stairProgress !== null) return stairHeightForProgress(stairProgress) + HD.CONFIG.eyeHeight;
 
@@ -498,13 +510,9 @@ HD.Controls = (() => {
   }
 
   function onUpperConcourseSurface(x, z) {
-    const upperDistance = Math.sqrt(
-      (x / 110.6) ** 2 +
-      (z / 75.4) ** 2
-    );
-    if (upperDistance < 0.9 || upperDistance > 1.1) return false;
-
-    return true;
+    const insideOuterEdge = (x / 120) ** 2 + (z / 83) ** 2 <= 1;
+    const outsideInnerEdge = (x / 103.25) ** 2 + (z / 69.75) ** 2 >= 1;
+    return insideOuterEdge && outsideInnerEdge;
   }
 
   function grandstandRowAt(x, z) {

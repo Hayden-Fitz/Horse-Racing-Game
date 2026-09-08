@@ -6,6 +6,10 @@ const path = require("path");
 const vm = require("vm");
 
 const root = path.resolve(__dirname, "..");
+for (const file of ["src/ui.js", "src/race.js", "src/stadium.js"]) {
+  assert.ok(!/#\$\{[^}]*\+\s*1\}/.test(read(file)),
+    `${file}: displayed horse identity must not come from a field index`);
+}
 const html = read("index.html");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
@@ -118,6 +122,12 @@ assert.ok(
   read("polish.css").includes("position: sticky;") &&
     read("polish.css").includes("#settings-close"),
   "Settings needs a sticky Done button while scrolling",
+);
+assert.ok(
+  read("polish.css").includes("#viewport > :not(canvas)") &&
+    read("polish.css").includes(".menu-shell") &&
+    read("polish.css").includes(".results > div"),
+  "Global UI scale must cover the HUD, menu, results, phone and interaction panels",
 );
 assert.ok(
   html.includes('data-app="messages"'),

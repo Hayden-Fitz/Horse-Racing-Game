@@ -119,9 +119,9 @@ HD.UI = (() => {
       .map((horse) => {
         const active = runningById.get(horse.id);
         const odds = active?.odds || horse.odds;
-        const chance = active?.liveChance
-          ? Math.round(active.liveChance * 100)
-          : Math.max(3, Math.round(100 / (odds + 1)));
+        const chance = active && Number.isFinite(active.liveChance)
+          ? `${Math.round(active.liveChance * 100)}%`
+          : "NOT ENTERED";
         const rating = Math.round(
           horse.speed * 0.45 +
           horse.stamina * 0.25 +
@@ -133,11 +133,12 @@ HD.UI = (() => {
           <article class="odds-profile ${active ? "active" : "reserve"}">
             <header>
               <i style="background:#${color}"></i>
-              <span><strong>${horse.name}</strong><small>${horse.style.toUpperCase()}</small></span>
-              <em>${odds}:1</em>
+              <span><strong>#${HD.horseNumber(horse)} ${horse.name}</strong><small>${horse.style.toUpperCase()}</small></span>
+              <em>${active ? `${odds}:1` : "RESERVE"}</em>
             </header>
             <div>
-              <span>WIN CHANCE <b>${chance}%</b></span>
+              <span>RACE CHANCE <b>${chance}</b></span>
+              <span>BASE TENDENCY <b>${horse.odds}:1</b></span>
               <span>OVERALL <b>${rating}</b></span>
               <span>SPEED <b>${horse.speed}</b></span>
               <span>STAMINA <b>${horse.stamina}</b></span>
@@ -265,12 +266,18 @@ HD.UI = (() => {
     const [horseIndex, amount] = top;
     el.bestBet.innerHTML = `
       <small>MOST BACKED</small>
-      <strong>#${horseIndex + 1} ${S.horses[horseIndex].userData.data.name}</strong>
+      <strong>#${HD.horseNumber(horseIndex)} ${S.horses[horseIndex].userData.data.name}</strong>
       <span>$${amount} total stake</span>
     `;
   }
 
   function renderSabotage() {
+    if (C.sabotageEnabled === false) {
+      el.sabotageTargets.replaceChildren();
+      el.sabotageOptions.replaceChildren();
+      el.sabotageStatus.textContent = "Fixer services are disabled for this run.";
+      return;
+    }
     if (!S.horses.length) return;
     const playerPlan = S.sabotagePlans.find((plan) => !plan.ai && !plan.remote);
     const canHire = S.phase === "betting" && !playerPlan;
@@ -280,7 +287,7 @@ HD.UI = (() => {
         const selected = S.selected === index ? "selected" : "";
         return `
           <button class="horse-choice ${selected}" data-sabotage-horse="${index}">
-            <strong>#${index + 1} · ${data.odds}:1</strong>
+            <strong>#${HD.horseNumber(data)} · ${data.odds}:1</strong>
             <span>${data.name}</span>
           </button>
         `;
@@ -308,11 +315,11 @@ HD.UI = (() => {
     if (!plan) el.sabotageStatus.textContent = "No fixer hired for this race.";
     else if (!plan.resolved) {
       el.sabotageStatus.textContent =
-        `Fixer hired for #${plan.horse + 1}. Outcome sealed until race start.`;
+        `Fixer hired for #${HD.horseNumber(plan.horse)}. Outcome sealed until race start.`;
     } else {
       el.sabotageStatus.textContent = plan.failed
-        ? `Attempt against #${plan.horse + 1}: FAILED.`
-        : `Attempt against #${plan.horse + 1}: SUCCESSFUL.`;
+        ? `Attempt against #${HD.horseNumber(plan.horse)}: FAILED.`
+        : `Attempt against #${HD.horseNumber(plan.horse)}: SUCCESSFUL.`;
     }
     el.sabotageTargets.querySelectorAll("[data-sabotage-horse]").forEach((button) => {
       button.onclick = () => {
@@ -522,7 +529,15 @@ HD.UI = (() => {
       ? S.deliveries
           .map((delivery) => {
             const seconds = Math.max(0, Math.ceil(delivery.remaining));
-            return `<span>${C.items[delivery.id].icon} ${seconds}s</span>`;
+            const duration = delivery.duration || C.phoneDeliveryDuration;
+            const progress = Math.round(100 * (1 - seconds / duration));
+            const status = delivery.complete ? "DELIVERED" :
+              seconds === duration ? "ORDERED" : "DELIVERING";
+            return `<div class="delivery-card ${delivery.complete ? "is-delivered" : ""}">
+              <span>${C.items[delivery.id].icon} ${C.items[delivery.id].name}</span>
+              <strong>${status}${delivery.complete ? "" : ` · ${seconds}s`}</strong>
+              <progress max="100" value="${progress}" aria-label="Delivery progress"></progress>
+            </div>`;
           })
           .join("")
       : "No active deliveries.";
@@ -534,7 +549,7 @@ HD.UI = (() => {
     const source = bet.source === "counter" ? "COUNTER" : "ONLINE";
     return `
       <div class="ticket">
-        <span>#${bet.horse + 1} ${horseName} · ${source}</span>
+        <span>#${HD.horseNumber(bet.horse)} ${horseName} · ${source}</span>
         <strong>$${bet.amount} @ ${bet.odds}:1</strong>
       </div>
     `;
@@ -568,7 +583,7 @@ HD.UI = (() => {
           <button class="horse-choice ${selectedClass}" data-horse="${i}">
             <strong>
               <i class="dot" style="background:#${color}"></i>
-              #${i + 1} &middot; ${d.odds}:1
+              #${HD.horseNumber(d)} &middot; ${d.odds}:1
             </strong>
             <span>${d.name}</span>
             <small>${rank}${suffix} &middot; Lap ${lap}/${C.raceLaps} &middot; ${lapProgress}%</small>
@@ -616,7 +631,7 @@ HD.UI = (() => {
     if (d.finished) return announce("That horse has already finished.");
     S.money -= amount + fee;
     S.bets.push({ horse: S.selected, amount, odds: d.odds, fee, source });
-    addLedger(`Bet: #${S.selected + 1}`, -amount);
+    addLedger(`Bet: #${HD.horseNumber(S.selected)}`, -amount);
     if (fee) addLedger("RaceBet service fee", -fee);
     const feeMessage = fee ? ` plus a $${fee} online fee` : " with no counter fee";
     announce(`$${amount} on ${d.name} at ${d.odds}:1${feeMessage}.`);
@@ -626,14 +641,12 @@ HD.UI = (() => {
     if (S.counterOpen) renderBetCounter();
   }
   function buy(id) {
-    const item = C.items[id];
-    if (S.money < item.price) {
+    const { item, price, error } = HD.Concessions.purchase(id);
+    if (error) {
       HD.Audio?.cue?.("error");
-      return announce(`You need $${item.price}.`);
+      return announce(error);
     }
-    S.money -= item.price;
-    S.deliveries.push({ id, remaining: C.phoneDeliveryDuration });
-    addLedger(`TrackMart order: ${item.name}`, -item.price);
+    addLedger(`TrackMart order: ${item.name}`, -price);
     announce(`${item.name} ordered. Delivery in ${C.phoneDeliveryDuration} seconds.`);
     HD.Audio?.cue?.("purchase");
     HD.Audio?.cue?.("moneySpend");
@@ -642,18 +655,12 @@ HD.UI = (() => {
 
   function updateDeliveries(dt) {
     deliveryRenderTimer -= dt;
-    S.deliveries.forEach((delivery) => {
-      delivery.remaining -= dt;
-      if (delivery.remaining <= 0 && !delivery.complete) {
-        delivery.complete = true;
-        S.inventory[delivery.id]++;
-        HD.Controls.selectItem(delivery.id);
-        announce(`${C.items[delivery.id].name} delivered to your seat!`);
-        HD.Audio?.cue?.("delivery");
-        render();
-      }
+    const arrived = HD.Concessions.update(dt);
+    arrived.forEach((id) => {
+      announce(`${C.items[id].name} added to your inventory.`);
+      HD.Audio?.cue?.("delivery");
     });
-    S.deliveries = S.deliveries.filter((delivery) => !delivery.complete);
+    if (arrived.length) render();
     if (deliveryRenderTimer <= 0) {
       deliveryRenderTimer = 0.25;
       renderDeliveries();
@@ -851,7 +858,7 @@ HD.UI = (() => {
         const selected = S.selected === index ? "selected" : "";
         return `
           <button class="horse-choice ${selected}" data-counter-horse="${index}">
-            <strong>#${index + 1} · ${data.odds}:1</strong>
+            <strong>#${HD.horseNumber(data)} · ${data.odds}:1</strong>
             <span>${data.name}</span>
             <small>Official fee-free window</small>
           </button>
@@ -870,7 +877,7 @@ HD.UI = (() => {
   function renderVendor() {
     el.vendorItems.innerHTML = Object.entries(C.items)
       .map(([id, item]) => {
-        const price = Math.ceil(item.price * (1 - C.vendorDiscount));
+        const { price } = HD.Concessions.quote(id, "vendor");
         const disabled = S.money < price ? "disabled" : "";
         return `
           <article class="shop-item">
@@ -890,14 +897,11 @@ HD.UI = (() => {
     });
   }
   function buyFromVendor(id) {
-    const item = C.items[id];
-    const price = Math.ceil(item.price * (1 - C.vendorDiscount));
-    if (S.money < price) {
+    const { item, price, error } = HD.Concessions.purchase(id, "vendor");
+    if (error) {
       HD.Audio?.cue?.("error");
-      return announce("Not enough money.");
+      return announce(error);
     }
-    S.money -= price;
-    S.inventory[id]++;
     HD.Controls.selectItem(id);
     addLedger(`Concourse pickup: ${item.name}`, -price);
     announce(`${item.name} picked up instantly.`);

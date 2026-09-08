@@ -28,6 +28,6 @@ export const MODEL_CATALOG = {
   },
   playerBase: {
     source: "Base Player, no accessories. TODO_ add accessories.glb",
-    size: 4.8, triangles: 4500, requiresRig: true,
+    size: 5.6, triangles: 4500, requiresRig: true,
   },
 };

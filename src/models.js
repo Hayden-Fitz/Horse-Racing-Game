@@ -53,7 +53,7 @@ HD.Models = (() => {
     return root;
   }
 
-  function playerCharacter(color, options = {}) {
+  function buildPlayerCharacter(color, options = {}) {
     const root = new THREE.Group();
     const bodyRig = new THREE.Group();
     root.add(bodyRig);
@@ -72,7 +72,9 @@ HD.Models = (() => {
     );
     torso.scale.z = 0.85;
     torso.userData.baseY = 1.52;
+    const outfitStart = bodyRig.children.length;
     if (outfit !== "plain") addPlayerOutfit(bodyRig, outfit, color);
+    const outfitParts = bodyRig.children.slice(outfitStart);
 
     const head = sphere(0.64, skin, bodyRig, [0, 3.25, -0.02]);
     head.scale.set(0.95, 1.02, 0.94);
@@ -217,9 +219,13 @@ HD.Models = (() => {
       shins,
       shoes,
       torso,
+      baseHead: head,
       bodyRig,
       head: headRig,
       hatParts,
+      faceParts,
+      accessoryParts,
+      outfitParts,
       activity: options.activity || "watch",
       seatedActivity: options.activity || "watch",
       phase: Math.random() * 10,
@@ -237,6 +243,151 @@ HD.Models = (() => {
       headPitch: 0,
     };
     return root;
+  }
+
+  function playerCharacter(color, options = {}) {
+    const player = buildPlayerCharacter(color, options);
+    const suppliedBase = HD.Assets?.create("playerBase");
+    if (!suppliedBase?.getObjectByName("HDPlayer_torso")) return player;
+    return applySuppliedPlayerBase(player, suppliedBase, color, options);
+  }
+
+  function applySuppliedPlayerBase(player, suppliedBase, color, options) {
+    const data = player.userData;
+    const skin = options.skin ?? 0xf1c7a5;
+    const trousers = options.trousers || 0x252525;
+    const shoes = options.shoeColor || 0x20201f;
+
+    // The source character faces +X. Turn it toward the game's -Z and align
+    // its original shoes/head with the stadium floor and first-person camera.
+    suppliedBase.rotation.y = Math.PI / 2;
+    suppliedBase.position.y = 1.27;
+    player.add(suppliedBase);
+    player.updateMatrixWorld(true);
+
+    const sourceParts = {};
+    suppliedBase.traverse((object) => {
+      if (!object.name.startsWith("HDPlayer_")) return;
+      const id = object.name.slice("HDPlayer_".length);
+      sourceParts[id] = object;
+      object.userData.sourcePlayerPart = id;
+      object.traverse((child) => {
+        if (!child.isMesh) return;
+        child.material = child.material.clone();
+        if (child.material.name === "Player shirt") child.material.color.setHex(color);
+        if (child.material.name === "Player skin") child.material.color.setHex(skin);
+        if (child.material.name === "Player dark") {
+          child.material.color.setHex(id.startsWith("shoe") ? shoes : trousers);
+        }
+        child.castShadow = false;
+        child.receiveShadow = true;
+      });
+    });
+
+    removeMesh(data.torso);
+    removeMesh(data.baseHead);
+    data.arms.forEach(removeDirectMeshes);
+    data.forearms.forEach(removeDirectMeshes);
+    data.legs.forEach(removeDirectMeshes);
+    data.shins.forEach(removeDirectMeshes);
+    data.shoes.forEach(removeDirectMeshes);
+
+    attachParts(data.bodyRig, sourceParts, ["torso", "waist", "collar"]);
+    attachParts(data.head, sourceParts, ["head"]);
+    attachParts(data.arms[0], sourceParts, ["armLeft", "sleeveLeft"]);
+    attachParts(data.arms[1], sourceParts, ["armRight", "sleeveRight"]);
+    attachParts(data.legs[0], sourceParts, ["legLeft"]);
+    attachParts(data.legs[1], sourceParts, ["legRight"]);
+    attachParts(data.shoes[0], sourceParts, ["shoeLeft"]);
+    attachParts(data.shoes[1], sourceParts, ["shoeRight"]);
+    suppliedBase.removeFromParent();
+    addImportedFootwear(data.shoes, options.shoes || "sneakers", shoes);
+
+    data.importedBase = true;
+    data.importedParts = sourceParts;
+    data.torso = sourceParts.torso;
+    data.baseHead = sourceParts.head;
+    adjustImportedCosmetics(data, options);
+    return player;
+  }
+
+  function adjustImportedCosmetics(data, options) {
+    data.faceParts.forEach((part) => {
+      part.position.z = -0.8;
+      part.scale.multiplyScalar(1.08);
+    });
+
+    if (options.accessory === "glasses") {
+      data.accessoryParts.forEach((part) => {
+        part.position.z = -0.84;
+        part.scale.multiplyScalar(1.12);
+      });
+    }
+    if (options.accessory === "headphones") {
+      data.accessoryParts.forEach((part) => {
+        if (Math.abs(part.position.x) > 0.2) part.position.x = Math.sign(part.position.x) * 0.78;
+        part.scale.multiplyScalar(1.12);
+      });
+    }
+
+    if (options.hat === "cap" || options.hat === "beanie") {
+      const [crown, brimOrBand] = data.hatParts;
+      if (crown) {
+        crown.position.y += 0.13;
+        crown.scale.x *= 1.18;
+        crown.scale.z *= 1.18;
+      }
+      if (brimOrBand) {
+        brimOrBand.position.y += 0.1;
+        if (options.hat === "cap") brimOrBand.position.z = -0.73;
+        brimOrBand.scale.x *= 1.24;
+        brimOrBand.scale.z *= 1.15;
+      }
+    } else if (["fedora", "cowboy", "crown"].includes(options.hat)) {
+      data.hatParts.forEach((part) => {
+        part.scale.x *= 1.18;
+        part.scale.z *= 1.18;
+        part.position.y += 0.1;
+      });
+    }
+
+    data.outfitParts.forEach((part) => {
+      if (part.position.z < -0.3) {
+        part.position.z = -0.94;
+        part.scale.x *= 1.18;
+      }
+    });
+  }
+
+  function addImportedFootwear(feet, style, color) {
+    if (style === "boots") {
+      feet.forEach((foot) => {
+        cylinder(0.25, 0.27, 0.48, color, foot, [0, 0.12, 0.05], 12);
+      });
+    }
+    if (style === "high-tops") {
+      feet.forEach((foot) => {
+        box([0.5, 0.44, 0.46], color, foot, [0, 0.08, 0.02]);
+        box([0.3, 0.24, 0.035], 0xf4f1e8, foot, [0, 0.1, -0.22]);
+      });
+    }
+  }
+
+  function attachParts(parent, parts, names) {
+    parent.updateMatrixWorld(true);
+    names.forEach((name) => {
+      if (parts[name]) parent.attach(parts[name]);
+    });
+  }
+
+  function removeMesh(object) {
+    object?.removeFromParent();
+  }
+
+  function removeDirectMeshes(group) {
+    [...(group?.children || [])].forEach((child) => {
+      if (child.isMesh) group.remove(child);
+    });
   }
 
   function addPlayerOutfit(parent, outfit, color) {
@@ -384,7 +535,17 @@ HD.Models = (() => {
 
   function setPlayerColor(person, color) {
     if (!person?.userData?.torso) return;
-    person.userData.torso.material.color.setHex(color);
+    if (person.userData.importedBase) {
+      Object.values(person.userData.importedParts || {}).forEach((part) => {
+        part?.traverse((object) => {
+          if (object.isMesh && object.material.name === "Player shirt") {
+            object.material.color.setHex(color);
+          }
+        });
+      });
+    } else {
+      person.userData.torso.material.color.setHex(color);
+    }
     person.userData.hatParts.forEach((part) => part.material.color.setHex(color));
   }
 
@@ -581,7 +742,7 @@ HD.Models = (() => {
     jockey.position.set(-0.15, 3.2, 0);
     jockey.rotation.y = -Math.PI / 2;
     body.add(jockey);
-    const label = numberSprite(index + 1);
+    const label = numberSprite(HD.horseNumber(data));
     label.position.set(0, 6.15, 0);
     root.add(label);
     root.userData = {

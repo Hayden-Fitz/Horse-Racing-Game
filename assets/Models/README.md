@@ -16,8 +16,11 @@ finishes. A red/white wave texture repairs the soda's silver exported wrapper.
 These are screenshot-matched materials, not a guarantee of identical lighting
 between Tinkercad and the game.
 
-`model-gallery.html` previews all 18 restored models. The player export is
-unrigged and remains a gallery asset; the animated in-game player is unchanged.
+`model-gallery.html` previews the restored models and a customized player. The
+player arrived unrigged, so the restoration build separates its exact connected
+head, torso, arm, hand, leg and shoe geometry into named pieces. The game mounts
+those pieces on its walking/looking/throwing rig and adds cosmetics as removable
+layers; it does not remodel the supplied base.
 Inactive props are not downloaded during game startup. Original high-resolution
 geometry costs more memory/download size than the old simplified models.
 

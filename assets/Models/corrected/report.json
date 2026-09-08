@@ -174,7 +174,7 @@
     "source": "Base Player, no accessories. TODO_ add accessories.glb",
     "sourceSha256": "2ca63a0c4afb83071b9e1762dd8c6a56b096c7c809b6810689b0db75981ddc02",
     "triangles": 18972,
-    "bytes": 350576,
+    "bytes": 351500,
     "originalGeometry": "be59a7a7963aaef97ce52bd8c9354269281be58a8aab9e8edbccd9f0d8b40f6e",
     "geometry": "original, unsimplified",
     "requiresRig": true

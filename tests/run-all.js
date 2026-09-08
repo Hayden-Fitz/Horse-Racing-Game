@@ -5,6 +5,7 @@ const { spawnSync } = require("child_process");
 
 const testFiles = [
   "match-setup.js",
+  "concessions.js",
   "item-traits.js",
   "ui-contract.js",
   "player-animation.js",

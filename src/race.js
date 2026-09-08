@@ -169,6 +169,10 @@ HD.Race = (() => {
     HD.UI.render();
   }
   function purchaseSabotage(horseIndex, optionId) {
+    if (C.sabotageEnabled === false) {
+      return HD.UI.announce("Fixer services are disabled for this run.");
+    }
+    if (!Number.isInteger(horseIndex) || !S.horses[horseIndex]) return;
     if (S.phase !== "betting") {
       HD.Audio?.cue?.("error");
       return HD.UI.announce("The fixer only works before the race.");
@@ -189,7 +193,7 @@ HD.Race = (() => {
     S.money -= price;
     S.sabotagePlans.push({ horse: horseIndex, optionId });
     HD.Network?.sendSabotage(horseIndex, optionId);
-    HD.UI.addLedger(`Secret fixer: #${horseIndex + 1}`, -price);
+    HD.UI.addLedger(`Secret fixer: #${HD.horseNumber(horseIndex)}`, -price);
     HD.UI.announce("The fixer accepted the job. The outcome remains sealed until race start.");
     HD.Audio?.cue?.("sabotage");
     HD.Audio?.cue?.("moneySpend");
@@ -197,6 +201,10 @@ HD.Race = (() => {
   }
 
   function resolveSabotage() {
+    if (C.sabotageEnabled === false) {
+      S.sabotagePlans = [];
+      return "";
+    }
     if (!S.sabotagePlans.length) return "";
     const reports = S.sabotagePlans.map((plan) => {
       const horse = S.horses[plan.horse];
@@ -205,26 +213,27 @@ HD.Race = (() => {
       plan.failed = failed;
       plan.resolved = true;
 
-      if (failed) return `attempt on #${plan.horse + 1} failed`;
+      if (failed) return `attempt on #${HD.horseNumber(plan.horse)} failed`;
       if (option.startDelay) {
         horse.userData.data.startDelay = option.startDelay;
-        return `#${plan.horse + 1} will leave ${option.startDelay}s late`;
+        return `#${HD.horseNumber(plan.horse)} will leave ${option.startDelay}s late`;
       }
       if (option.boostDuration) {
         horse.userData.data.boost = option.boostDuration;
-        return `#${plan.horse + 1} received a ${option.boostDuration}s opening boost`;
+        return `#${HD.horseNumber(plan.horse)} received a ${option.boostDuration}s opening boost`;
       }
       horse.userData.data.sabotagePenalty = Math.min(
         0.65,
         horse.userData.data.sabotagePenalty + option.penalty,
       );
       const percent = Math.round(option.penalty * 100);
-      return `#${plan.horse + 1} carries a permanent ${percent}% slowdown`;
+      return `#${HD.horseNumber(plan.horse)} carries a permanent ${percent}% slowdown`;
     });
     return `PADDOCK ALERT: ${reports.join("; ")}. They're off!`;
   }
 
   function addNetworkSabotage(sabotage) {
+    if (C.sabotageEnabled === false) return;
     if (!sabotage || !Number.isInteger(sabotage.horse)) return;
     if (!S.horses[sabotage.horse] || !C.sabotageOptions[sabotage.optionId]) return;
     if (S.phase !== "betting") return;
@@ -236,6 +245,7 @@ HD.Race = (() => {
   }
 
   function addAISabotage(horse, optionId, actor) {
+    if (C.sabotageEnabled === false) return;
     if (S.phase !== "betting" || !S.horses[horse] || !C.sabotageOptions[optionId]) return;
     S.sabotagePlans.push({ horse, optionId, actor, ai: true });
   }
@@ -584,7 +594,7 @@ HD.Race = (() => {
       HD.Audio?.cue?.("moneyGain");
     }
     HD.Controls.setMode("look");
-    HD.UI.showRaceWinner(`#${winner + 1} ${winnerData.name} WINS!`);
+    HD.UI.showRaceWinner(`#${HD.horseNumber(winnerData)} ${winnerData.name} WINS!`);
     const runnerUp = S.horses[S.finishOrder[1]]?.userData.data;
     const closeFinish = runnerUp
       ? Math.abs((runnerUp.finishTime || S.raceTime) - winnerData.finishTime) < 0.5
@@ -647,7 +657,6 @@ HD.Race = (() => {
 
     S.phase = "dayTransition";
     HD.UI.showRoundBreak(false);
-    HD.Controls.sitDown();
     const nextRound = S.round + 1;
     const generation = runGeneration;
     HD.UI.showDay(nextRound, () => {
@@ -720,7 +729,8 @@ HD.Race = (() => {
     HD.AI?.resetMatch?.();
     HD.UI.hideResult();
     HD.UI.showRoundBreak(false);
-    HD.Controls.sitDown();
+    HD.Controls.forceStand?.();
+    S.playerPosition.copy(C.seat);
     HD.UI.countdown(String(C.preparationDuration));
     HD.UI.progress(0);
     HD.UI.addLedger("Round 1 bankroll", C.startingMoney ?? 100);
@@ -1441,7 +1451,7 @@ HD.Race = (() => {
     }
     HD.Controls.setMode("look");
     HD.UI.showRaceWinner(
-      `#${winner + 1} ${S.horses[winner].userData.data.name} WINS!`,
+      `#${HD.horseNumber(winner)} ${S.horses[winner].userData.data.name} WINS!`,
     );
   }
 

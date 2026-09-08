@@ -92,15 +92,15 @@
   top: 46%;
   right: auto;
   left: 50%;
-  width: min(430px, 92vw);
-  height: min(720px, 88vh);
-  max-height: 88vh;
+  width: min(430px, calc(92vw / var(--ui-scale, 1)));
+  height: min(720px, calc(88dvh / var(--ui-scale, 1)));
+  max-height: calc(88dvh / var(--ui-scale, 1));
   translate: -50% -50%;
   border-width: 8px;
   border-radius: 38px;
   box-shadow: 0 35px 100px #000d, inset 0 0 0 2px #87958c;
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0) scale(var(--ui-scale, 1));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -315,7 +315,7 @@
 
 .phone-open .phone.closed {
   opacity: 0;
-  transform: translateY(90px) scale(0.9);
+  transform: translateY(90px) scale(calc(var(--ui-scale, 1) * 0.9));
   pointer-events: none;
 }
 
@@ -341,11 +341,55 @@
   font-size: 10px;
 }
 
+#deliveries {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.delivery-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  padding: 10px;
+  margin: 6px 0;
+  border: 1px solid #a5bbc1;
+  border-radius: 12px;
+  background: #edf4f6;
+  color: #19343b;
+}
+
+.delivery-card strong {
+  align-self: center;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.delivery-card progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 6px;
+  accent-color: #227b91;
+}
+
+.delivery-card.is-delivered {
+  border-color: #74a285;
+  background: #e9f5ed;
+}
+
 .deliveries span {
   padding: 4px 7px;
   border-radius: 12px;
   background: #31513e;
   color: white;
+}
+
+#deliveries .delivery-card > span {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 720px) {
   .mode-badge {
@@ -2660,7 +2704,17 @@
   animation-duration: 0.001ms !important;
 }
 
-.phone,
+/* Scale every interface surface while leaving the WebGL canvas and pointer
+   coordinates untouched. New HUD children inherit this automatically. */
+#viewport > :not(canvas),
+.phone-toggle,
+.menu-shell,
+.practice-setup,
+.results > div,
+.round-break,
+.day-transition > :not(.animated-rankings),
+.day-transition .animated-rankings,
+.rankings-overlay > div,
 .vendor-shop > div,
 .bet-counter > div {
   zoom: var(--ui-scale, 1);
@@ -2692,8 +2746,8 @@
 }
 /* Practice setup uses a native modal for keyboard focus and Escape support. */
 .practice-setup {
-  width: min(740px, calc(100vw - 32px));
-  max-height: calc(100dvh - 40px);
+  width: min(740px, calc((100vw - 32px) / var(--ui-scale, 1)));
+  max-height: calc((100dvh - 40px) / var(--ui-scale, 1));
   box-sizing: border-box;
   padding: clamp(22px, 4vw, 42px);
   border: 4px double #e7c66c;

@@ -35,6 +35,31 @@ async function run() {
   require("../src/race.js");
 
   HD.Race.resetHorses();
+  const identities = new Map(HD.CONFIG.horses.map((horse) => [horse.id, horse.number]));
+  assert.equal(new Set(identities.values()).size, identities.size, "Horse numbers must be unique");
+  for (const horse of HD.CONFIG.horses) {
+    assert.ok(Number.isInteger(horse.number) && horse.number >= 0);
+    assert.equal(HD.horseNumber(horse), String(horse.number).padStart(2, "0"));
+  }
+  assert.equal(HD.horseNumber(-1), "??");
+  const firstIdentity = HD.state.horses[0].userData.data.id;
+  const firstNumber = HD.horseNumber(0);
+  HD.state.activeHorseIds.reverse();
+  HD.state.horseFieldRacesRemaining = 2;
+  HD.Race.resetHorses({ forceStart: true });
+  const relocated = HD.state.horses.find((horse) => horse.userData.data.id === firstIdentity);
+  assert.equal(HD.horseNumber(relocated), firstNumber, "Moving field slots must not renumber a horse");
+  HD.state.phase = "betting";
+  HD.CONFIG.sabotageEnabled = false;
+  const originalBankroll = HD.state.money;
+  HD.Race.purchaseSabotage(0, "looseShoe");
+  HD.Race.addNetworkSabotage({ horse: 0, optionId: "looseShoe" });
+  HD.Race.addAISabotage(0, "looseShoe", "test");
+  assert.equal(HD.state.money, originalBankroll, "Disabled fixer must not charge money");
+  assert.equal(HD.state.sabotagePlans.length, 0, "All fixer entry points must honor the rule");
+  HD.CONFIG.sabotageEnabled = true;
+  HD.Race.purchaseSabotage(-1, "looseShoe");
+  assert.equal(HD.state.sabotagePlans.length, 0, "Invalid horses must never accept fixer jobs");
   for (let count = 4; count <= 8; count++) {
     HD.CONFIG.raceHorseCount = count;
     HD.Race.resetHorses({ forceStart: true });
@@ -44,6 +69,7 @@ async function run() {
     );
     assert.ok(Math.abs(probability - 1) < 1e-10, "Active field probabilities must total one");
     HD.state.horses.forEach((horse, lane) => {
+      assert.equal(horse.userData.data.number, identities.get(horse.userData.data.id));
       assert.equal(horse.userData.data.lane, lane, "Starting lanes must never wrap");
       for (let step = 0; step < 64; step++) {
         const position = HD.Race.trackPoint(step / 64, lane).position;

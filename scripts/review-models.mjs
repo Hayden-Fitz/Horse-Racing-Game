@@ -47,6 +47,15 @@ if (!ready) throw new Error(`Model gallery did not load: ${JSON.stringify(errors
 const screenshot = await call("Page.captureScreenshot", { format: "png" });
 await fs.mkdir("artifacts", { recursive: true });
 await fs.writeFile("artifacts/model-gallery.png", Buffer.from(screenshot.data, "base64"));
+await call("Runtime.evaluate", {
+  expression: "window.scrollTo(0, document.documentElement.scrollHeight)",
+});
+await new Promise((resolve) => setTimeout(resolve, 180));
+const playerScreenshot = await call("Page.captureScreenshot", { format: "png" });
+await fs.writeFile(
+  "artifacts/player-customization.png",
+  Buffer.from(playerScreenshot.data, "base64"),
+);
 console.log(JSON.stringify({ galleryReady: ready, errors }));
 await call("Page.navigate", { url: "http://127.0.0.1:8080/index.html" });
 let booted = false;
@@ -66,6 +75,47 @@ const state = await call("Runtime.evaluate", {
   })`, returnByValue: true,
 });
 console.log(JSON.stringify({ game: state.result?.value, errors }));
+await call("Runtime.evaluate", {
+  expression: `(() => {
+    HD.state.paused = true;
+    document.querySelectorAll('#viewport > :not(canvas)').forEach(node => { node.style.display = 'none'; });
+    document.querySelector('#game-menu').style.display = 'none';
+    document.querySelector('#phone').style.display = 'none';
+    document.querySelector('#phone-toggle').style.display = 'none';
+    const camera = HD.world.camera;
+    window.__arenaReviewCamera = {
+      position: camera.position.toArray(),
+      quaternion: camera.quaternion.toArray(),
+    };
+    camera.position.set(148, 132, 156);
+    camera.lookAt(0, 8, 0);
+    camera.updateProjectionMatrix();
+    HD.world.renderer.render(HD.world.scene, camera);
+    return {
+      secondFloor: [...HD.world.scene.children].some(root => root.traverse && (() => {
+        let found = false; root.traverse(node => { found ||= node.userData?.seatingFloor === 2; }); return found;
+      })()),
+      tunnel: Boolean(HD.world.horseTunnel),
+    };
+  })()`, returnByValue: true,
+});
+const arenaScreenshot = await call("Page.captureScreenshot", { format: "png" });
+await fs.writeFile("artifacts/arena-isometric.png", Buffer.from(arenaScreenshot.data, "base64"));
+await call("Runtime.evaluate", {
+  expression: `(() => {
+    document.querySelectorAll('#viewport > :not(canvas)').forEach(node => { node.style.display = ''; });
+    document.querySelector('#game-menu').style.display = '';
+    document.querySelector('#phone').style.display = '';
+    document.querySelector('#phone-toggle').style.display = '';
+    const saved = window.__arenaReviewCamera;
+    if (saved) {
+      HD.world.camera.position.fromArray(saved.position);
+      HD.world.camera.quaternion.fromArray(saved.quaternion);
+      HD.world.camera.updateProjectionMatrix();
+      delete window.__arenaReviewCamera;
+    }
+  })()`,
+});
 const typing = await call("Runtime.evaluate", {
   expression: `(() => {
     const input = document.createElement('textarea');
@@ -131,13 +181,16 @@ const practiceStarted = await call("Runtime.evaluate", {
     panel.querySelector('[name=laps]').value = '1';
     panel.querySelector('[name=startingMoney]').value = '1000';
     panel.querySelector('[name=crowd]').value = 'off';
+    panel.querySelector('[name=sabotage]').value = 'false';
     panel.querySelector('form').requestSubmit();
     return summary && HD.CONFIG.totalRaces === 15 && HD.CONFIG.racesPerRound === 3 &&
       document.querySelector('#round').textContent === '1 / 5' &&
       !panel.open && HD.state.horses.length === 8 &&
       HD.world.laneMarkings.children.length === 9 &&
       HD.state.money === 1000 && HD.CONFIG.raceLaps === 1 &&
-      HD.CONFIG.crowdThrowInterval === 0;
+      HD.CONFIG.crowdThrowInterval === 0 && HD.CONFIG.sabotageEnabled === false &&
+      document.querySelector('#sabotage-status').textContent.includes('disabled') &&
+      !document.querySelector('#sabotage-options button');
   })()`, returnByValue: true,
 });
 if (!practiceStarted.result?.value) throw new Error('Practice rules did not reach the simulation');
@@ -152,12 +205,39 @@ const practiceUi = await call("Runtime.evaluate", {
     const sticky = getComputedStyle(heading).position === 'sticky' &&
       heading.getBoundingClientRect().top >= settings.getBoundingClientRect().top - 2;
     settings.hidden = true;
-    return leadersButton.hidden && leadersPanel.hidden && sticky &&
+    document.documentElement.style.setProperty('--ui-scale', '1.25');
+    const scaleSelectors = [
+      '#menu-button', '.topbar', '.hotbar', '.menu-shell', '.results > div',
+      '.vendor-shop > div', '.bet-counter > div', '.practice-setup'
+    ];
+    const scaleValues = Object.fromEntries(scaleSelectors.map((selector) => [
+      selector,
+      Number.parseFloat(getComputedStyle(document.querySelector(selector)).zoom)
+    ]));
+    const phone = document.querySelector('#phone');
+    const phoneWasClosed = phone.classList.contains('closed');
+    const phoneWasOpen = document.body.classList.contains('phone-open');
+    const previousTransition = phone.style.transition;
+    document.body.classList.add('phone-open');
+    phone.classList.remove('closed');
+    phone.style.transition = 'none';
+    const phoneScale = Math.abs(new DOMMatrix(getComputedStyle(phone).transform).a);
+    phone.classList.toggle('closed', phoneWasClosed);
+    document.body.classList.toggle('phone-open', phoneWasOpen);
+    phone.style.transition = previousTransition;
+    const globallyScaled = Object.values(scaleValues).every((zoom) => zoom === 1.25) &&
+      phoneScale === 1.25;
+    document.documentElement.style.setProperty('--ui-scale', '1');
+    return { ok: leadersButton.hidden && leadersPanel.hidden && sticky &&
+      globallyScaled &&
       HD.state.money === 1000 && HD.MatchSetup.normalize({ startingMoney: 0 }).startingMoney === 100 &&
-      HD.MatchSetup.normalize({ startingMoney: 5000 }).startingMoney === 1000;
+      HD.MatchSetup.normalize({ startingMoney: 5000 }).startingMoney === 1000,
+      sticky, globallyScaled, phoneScale, scaleValues };
   })()`, returnByValue: true,
 });
-if (!practiceUi.result?.value) throw new Error('Practice leaderboard, bankroll bounds, or sticky settings header failed');
+if (!practiceUi.result?.value?.ok) {
+  throw new Error(`Practice UI review failed: ${JSON.stringify(practiceUi.result?.value)}`);
+}
 console.log(JSON.stringify({ practiceSetupAndStart: true, practiceUi: true }));
 await call("Runtime.evaluate", {
   expression: `(() => {
@@ -215,6 +295,71 @@ const replacement = await call("Runtime.evaluate", {
 });
 console.log(JSON.stringify({ categoryReplacementAndEmptyHands: replacement.result?.value }));
 if (!replacement.result?.value) throw new Error('Category replacement or empty-hands cleanup failed');
+const horseIdentities = await call("Runtime.evaluate", {
+  expression: `(() => {
+    HD.UI.render();
+    const cards = [...document.querySelectorAll('[data-horse]')];
+    const identitiesMatch = cards.every(card => {
+      const index = Number(card.dataset.horse);
+      return card.textContent.includes('#' + HD.horseNumber(index));
+    });
+    const profiles = [...document.querySelectorAll('.odds-profile')];
+    const reserves = profiles.filter(profile => profile.classList.contains('reserve'));
+    return cards.length === HD.state.horses.length && identitiesMatch &&
+      profiles.length === HD.CONFIG.horses.length && reserves.length > 0 &&
+      reserves.every(profile => profile.textContent.includes('NOT ENTERED') &&
+        !profile.textContent.includes('%'));
+  })()`, returnByValue: true,
+});
+console.log(JSON.stringify({ horseIdentitiesAndReserveOdds: horseIdentities.result?.value }));
+if (!horseIdentities.result?.value) throw new Error('Horse identity/odds UI check failed');
+const concessions = await call("Runtime.evaluate", {
+  expression: `(() => {
+    HD.state.paused = true;
+    HD.state.money = 1000;
+    HD.state.deliveries = [];
+    const selected = HD.state.selectedItem;
+    const before = HD.state.inventory.hotdog || 0;
+    document.querySelector('[data-buy-item="hotdog"]').click();
+    const ordered = HD.state.deliveries.length === 1 &&
+      (HD.state.inventory.hotdog || 0) === before &&
+      document.querySelector('#deliveries').textContent.includes('ORDERED');
+    HD.UI.updateDeliveries(6);
+    const delivering = document.querySelector('#deliveries').textContent.includes('DELIVERING') &&
+      document.querySelector('#deliveries progress').value === 50;
+    HD.UI.updateDeliveries(6);
+    const delivered = HD.state.inventory.hotdog === before + 1 &&
+      HD.state.selectedItem === selected &&
+      document.querySelector('#deliveries').textContent.includes('DELIVERED');
+    HD.UI.updateDeliveries(4);
+    return ordered && delivering && delivered && HD.state.deliveries.length === 0;
+  })()`, returnByValue: true,
+});
+console.log(JSON.stringify({ concessionsFlow: concessions.result?.value }));
+if (!concessions.result?.value) throw new Error('Concessions UI flow failed');
+await call("Runtime.evaluate", {
+  expression: `(() => {
+    HD.UI.countdown('');
+    HD.UI.menu(false);
+    HD.Controls.setMode('phone');
+    document.querySelector('[data-app="shop"]').click();
+    document.querySelector('[data-buy-item="hotdog"]').click();
+    document.querySelector('[data-buy-item="soda"]').click();
+    HD.UI.updateDeliveries(5);
+  })()`, returnByValue: true,
+});
+await new Promise(resolve => setTimeout(resolve, 400));
+const deliveryLayout = await call("Runtime.evaluate", {
+  expression: `(() => {
+    const panel = document.querySelector('#deliveries');
+    const cards = [...panel.querySelectorAll('.delivery-card')];
+    return cards.length === 2 && panel.scrollWidth <= panel.clientWidth + 1 &&
+      cards[1].getBoundingClientRect().top >= cards[0].getBoundingClientRect().bottom;
+  })()`, returnByValue: true,
+});
+if (!deliveryLayout.result?.value) throw new Error('Multiple delivery cards overlap or overflow');
+const deliveryScreenshot = await call("Page.captureScreenshot", { format: "png" });
+await fs.writeFile("artifacts/concessions-deliveries.png", Buffer.from(deliveryScreenshot.data, "base64"));
 // Close through the browser endpoint: Page.close can drop its own connection
 // before the reply reaches us, leaving an otherwise successful review hanging.
 await fetch(`http://127.0.0.1:${port}/json/close/${page.id}`, {

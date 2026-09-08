@@ -9,6 +9,7 @@ HD.MatchSetup = (() => {
     laps: 3,
     startingMoney: 100,
     crowd: "normal",
+    sabotage: true,
   });
   const crowdIntervals = Object.freeze({ off: 0, relaxed: 20, normal: 10, lively: 6 });
   let practice = { ...defaults, crowd: "lively" };
@@ -31,6 +32,7 @@ HD.MatchSetup = (() => {
       laps: integer(input.laps, 1, 8, defaults.laps),
       startingMoney: integer(input.startingMoney, 100, 1000, defaults.startingMoney),
       crowd: Object.hasOwn(crowdIntervals, input.crowd) ? input.crowd : defaults.crowd,
+      sabotage: input.sabotage === false || input.sabotage === "false" ? false : true,
     };
   }
 
@@ -42,6 +44,7 @@ HD.MatchSetup = (() => {
     HD.CONFIG.raceLaps = rules.laps;
     HD.CONFIG.startingMoney = rules.startingMoney;
     HD.CONFIG.crowdThrowInterval = crowdIntervals[rules.crowd];
+    HD.CONFIG.sabotageEnabled = rules.sabotage;
     HD.Stadium?.refreshTrackLayout?.();
     return rules;
   }

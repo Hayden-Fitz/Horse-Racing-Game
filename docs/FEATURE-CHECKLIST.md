@@ -15,7 +15,11 @@ requirements work together. This avoids calling a partially built feature done.
 - [x] Restore a red/white wave label on the soda's exported silver wrapper.
 - [x] Keep the hotdog's sausage/toppings visible in the first-person hand pose.
 - [x] Preview all 18 corrected exports in the model gallery.
-- [ ] Rig the original player export before replacing the animated in-game character.
+- [x] Split the original player export into named animation parts without changing its geometry.
+- [ ] Finish supplied-base movement, phone and throwing animation review; the
+  model is live, but imported elbow/knee deformation remains incomplete.
+- [x] Layer hats, expressions, outfits, pants, shoes and accessories over the supplied base.
+- [x] Keep lobby-seat shirt colors and selected skin/pants/shoe colors working on the supplied materials.
 - [ ] Confirm material matching with the user under their display/game lighting.
 
 Earlier screenshot-recreation and GLB-archiving tasks below are historical and
@@ -134,7 +138,93 @@ them or exposes a booth walk zone.
 - [ ] Complete first-person grip review for every item (hotdog checked).
 - [ ] Verify recreated props between two live multiplayer clients.
 
-## Whole specification sections
+## Supplied player model slice
+
+- [x] Make the supplied base-player GLB the live local and multiplayer model.
+- [x] Preserve its exact floating head, cone body, arms, hands, legs and shoes.
+- [ ] Finish rigging its disconnected original pieces without decimating or
+  remodeling them; original parts are attached, elbow/knee deformation is pending.
+- [x] Attach selectable hats, facial expressions, outfits, pants, footwear and accessories.
+- [x] Preserve seat-color identification and synchronized avatar selections.
+- [x] Align the original head with the first-person eye level and shoes with the floor.
+- [x] Start each run standing in the seating area as required by section 81.
+- [x] Keep players standing at their current intermission position across day transitions.
+
+Verification: imported-player structure/material tests, character animation tests,
+full browser startup/Practice/throw tests, and `artifacts/player-customization.png`.
+
+## Permanent horse identity and reserve-odds slice (sections 95–96)
+
+- [x] Assign explicit permanent numbers to all 30 currently implemented horses;
+  keep these values separate from lane slots and finishing positions.
+- [x] Show matching identities above horses, on the stadium standings board,
+  betting cards, tickets, wager tracker, ledger, fixer messages and winner notices.
+- [x] Keep betting/network target indices unchanged; never index a race by its
+  displayed horse number.
+- [x] Show reserve horses as NOT ENTERED in OddsWatch instead of inventing a
+  probability for a race they are not participating in.
+- [x] Label base odds tendency separately from active-field odds.
+- [x] Test number uniqueness and preservation across reordered fields and
+  4–8 horse counts; browser-check identity cards and reserve probabilities.
+- [ ] Expand the full normal roster to 48 with the complete specified stats,
+  appearance, personality behavior, rarity and discovery system.
+- [ ] Verify these identities between two live multiplayer clients.
+
+Verification: `npm.cmd test`, `npm.cmd run check`, and
+`node scripts/review-models.mjs 9344`. Whole roster/discovery sections remain open.
+
+## Concessions delivery and purchase slice (section 19)
+
+- [x] Extract shared purchase/delivery rules into a separately tested module.
+- [x] Keep phone orders out of inventory until the full 12-second delivery ends.
+- [x] Show item names, ORDERED / DELIVERING / DELIVERED states, remaining
+  seconds and individual progress bars; retain delivered receipts briefly.
+- [x] Stack multiple delivery cards without overlapping or stretching the phone.
+- [x] Preserve the selected/held item when an order arrives.
+- [x] Reject unknown items, stand-only phone orders, unaffordable purchases and
+  instant-pickup requests outside an open stand.
+- [x] Preserve discounted, instant stand purchases with shared price validation.
+- [x] Verify duplicate-delivery protection, simultaneous arrivals, invalid time
+  steps and cleared orders after restarting.
+
+Verification: `npm.cmd test`, syntax checks, and
+`node scripts/review-models.mjs 9343` (real order buttons, complete delivery flow,
+unchanged held item and stacked-card bounds). Visual review:
+`artifacts/concessions-deliveries.png`. The full new food roster and auction
+system remain separate unfinished tasks.
+
+## Customization materials and optional fixer services
+
+- [x] Neutralize imported player vertex tints so selected shirt, skin and trouser
+  colors render without being multiplied by the original blue/tan palette.
+- [x] Preserve the original player geometry fingerprint during this correction.
+- [x] Add a Practice fixer-services toggle, with validation and online-default reset.
+- [x] Enforce the toggle at purchase, remote/AI submission and race resolution;
+  blocked purchases do not spend money. Reject invalid target horses.
+- [x] Show a clear disabled-services state in the Fixer app/counter content.
+- [x] Include Practice setup in accessibility UI scaling.
+- [x] Validate a complete requested asset batch before replacing its working files;
+  allow focused rebuilds of individual assets while retaining the full manifest.
+- [ ] Recheck the final scaled phone/setup bounds at 150% on a narrow screen.
+- [ ] Finish imported elbow/knee deformation and check hands against held props;
+  hierarchy tests alone do not establish natural-looking animation.
+- [ ] Investigate the intermittent full-batch asset rebuild fingerprint failure;
+  focused single-model rebuilds and all checked-in asset geometry tests pass.
+
+Verification: `npm.cmd test`, `npm.cmd run check`, and
+`node scripts/review-models.mjs 9341`: model gallery, startup, typing, Practice
+setup including the fixer toggle, 125% UI scaling and throwing smoke checks.
+Maximum-size/narrow-screen combinations remain a separate pending check above.
+
+### Section 0: requested migration away from Firebase
+
+- [ ] Implement and test a replacement realtime lobby/game transport locally.
+- [ ] Add two-client reconnect, membership and host-permission checks.
+- [ ] Select hosting after checking its actual free-tier limits; do not assume
+  a free server provides unlimited simultaneous players.
+- [ ] Deploy and verify the replacement before removing the working transport.
+
+## Whole specification section completion gates
 
 These include existing partial systems. They are not marked complete merely
 because a UI or prototype exists. Follow the ten phases in section 131.
@@ -220,7 +310,8 @@ because a UI or prototype exists. Follow the ten phases in section 131.
 - [ ] 78. DERBYNEWS
 - [ ] 79. SABOTAGE APP
 - [ ] 80. CHARACTER CUSTOMIZATION
-- [ ] 81. PLAYER CHARACTER
+- [ ] 81. PLAYER CHARACTER — supplied model and cosmetic layers integrated;
+  imported limb deformation and full animation/eye-floor review remain pending.
 - [ ] 82. PERSONAL HORSE
 - [ ] 83. PERSONAL HORSE ARCHETYPES
 - [ ] 84. PERSONAL HORSE NAMING
@@ -253,7 +344,9 @@ because a UI or prototype exists. Follow the ten phases in section 131.
 - [ ] 111. MAIN MENU
 - [ ] 112. LOBBY
 - [ ] 113. SETTINGS SCREEN
-- [ ] 114. GLOBAL UI SCALE
+- [ ] 114. GLOBAL UI SCALE — persistent 70–150% control now covers the menu,
+  phone/apps, betting, shops, HUD, notifications, results and popups without
+  scaling the 3D canvas or changing pointer coordinates.
 - [ ] 115. REPLAY SYSTEM
 - [ ] 116. REPLAY DATA
 - [ ] 117. DAILY HIGHLIGHTS
@@ -276,6 +369,20 @@ because a UI or prototype exists. Follow the ten phases in section 131.
 - [ ] 134. FINAL DESIGN PHILOSOPHY
 - [ ] 135. CORE SUCCESS CRITERIA
 - [ ] 136. FINAL IMPLEMENTATION RULE
+
+## Arena follow-up
+
+- [x] Add three infield camera crews and two elevated camera crews, with named
+  perspective-camera transforms available for future replay work.
+- [x] Add collision footprints for elevated camera equipment.
+- [x] Correct pond-rim orientation, floating sectional rail bases, and upper-roof
+  headroom. Keep roof supports connected to the raised roof.
+- [x] Complete connected navigation to all new seating floors, with two-way
+  height-continuity checks for the added stair flights.
+- [x] Add a horse-tunnel opening, service corridor, and separate pedestrian bridge.
+- [x] Visually review overview, opposite, upper-stair and camera-crew elevations;
+  no runtime exceptions were reported.
+- [ ] Finish the arena reference pass; camera viewpoints are not replay playback.
 
 ## Verification record
 

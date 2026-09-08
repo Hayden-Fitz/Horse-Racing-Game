@@ -29,6 +29,10 @@ general ui look to everything (except for phone and phone apps)
 that includes settings, game settings, actual user interface in Game
 etc.
 
+on another note, i do want to switch away from firebase entirely and
+move to a cheaper free server that is better and what not. cus i dont 
+want my game limited to 100 connections.
+
 
 ===============================================================
 1. GAME NAME

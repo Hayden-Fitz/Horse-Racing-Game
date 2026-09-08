@@ -43,6 +43,11 @@ for (const [id, entry] of Object.entries(Assets.catalog)) {
     if (!object.isMesh) return;
     meshes++;
     assert.ok(object.geometry.attributes.color, `${id} lost Tinkercad vertex colors`);
+    if (id === "playerBase") {
+      for (const value of object.geometry.attributes.color.array) {
+        assert.equal(value, 1, "Customizable player materials must not multiply the original palette");
+      }
+    }
     for (const value of object.geometry.attributes.position.array) assert.ok(Number.isFinite(value));
   });
   assert.ok(meshes > 0);
@@ -63,6 +68,32 @@ Assets.create("soda").traverse((mesh) => {
   if (mesh.isMesh && mesh.material.map) printedSoda = true;
 });
 assert.ok(printedSoda, "The original soda wrapper must have its red/white label");
+const player = HD.Models.playerCharacter(0xef476f, {
+  skin: 0xc88962,
+  hat: "cap",
+  expression: "smile",
+  outfit: "varsity",
+  trousers: 0x24344d,
+  shoes: "high-tops",
+  accessory: "glasses",
+});
+assert.equal(player.userData.importedBase, true, "The live player should use the supplied base");
+assert.deepEqual(
+  Object.keys(player.userData.importedParts).sort(),
+  ["armLeft", "armRight", "collar", "head", "legLeft", "legRight", "shoeLeft",
+    "shoeRight", "sleeveLeft", "sleeveRight", "torso", "waist"],
+);
+assert.equal(player.userData.importedParts.head.parent, player.userData.head);
+assert.equal(player.userData.importedParts.armRight.parent, player.userData.arms[1]);
+assert.equal(player.userData.importedParts.shoeLeft.parent, player.userData.shoes[0]);
+HD.Models.setPlayerStanding(player, true);
+player.userData.moving = true;
+HD.Models.animateCharacter(player, 1.2, true);
+assert.notEqual(player.userData.legs[0].rotation.x, player.userData.legs[1].rotation.x);
+HD.Models.equipPlayer(player, "phone", "hotdog");
+HD.Models.playPlayerThrow(player, "hotdog");
+HD.Models.animateCharacter(player, HD.state.elapsed + 0.1, true);
+assert.equal(player.userData.props.get("item:hotdog").visible, true);
 HD.world.scene = new THREE.Scene();
 HD.UI = new Proxy({}, { get: () => () => {} });
 HD.Network = { isConnected: () => false };
@@ -77,4 +108,4 @@ for (const projectile of HD.state.projectiles) {
   assert.ok(Math.abs(bottom - 0.05) < 0.0001, `${projectile.type} clips into or floats above the dirt`);
 }
 globalThis.fetch = originalFetch;
-console.log("18 restored GLBs: original geometry fingerprints, materials, transparency, pivots, independent instances and item ground contact passed.");
+console.log("18 restored GLBs and supplied-base player rig: geometry, materials, customization, animation, props and ground contact passed.");

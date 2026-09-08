@@ -36,6 +36,36 @@ async function run() {
   HD.world.scene = new THREE.Scene();
   HD.world.camera = new THREE.PerspectiveCamera();
   HD.Stadium.build(HD.world.scene);
+  const broadcast = HD.world.broadcastCameras;
+  const upperFlights = HD.world.arenaSurfaces.filter(surface => surface.stairs);
+  assert.equal(upperFlights.length, 9, 'Elevated sections, entrance, and horse crossing need connected routes');
+  for (const flight of upperFlights) {
+    for (const reverse of [false, true]) {
+      let floorY = reverse ? flight.endPoint.y : flight.startPoint.y;
+      for (let step = 0; step <= 100; step++) {
+        const t = reverse ? 1 - step / 100 : step / 100;
+        const point = flight.startPoint.clone().lerp(flight.endPoint, t);
+        const surface = HD.Stadium.upperWalkSurfaceAt(point.x, point.z, floorY);
+        assert.ok(surface, 'Stair route has a navigation gap: ' + flight.id);
+        assert.ok(Math.abs(surface.y - point.y) < 0.1, 'Stair walking height does not follow the flight: ' + flight.id);
+        floorY = surface.y;
+      }
+    }
+  }
+  assert.equal(broadcast.length, 5);
+  assert.equal(new Set(broadcast.map((station) => station.id)).size, 5);
+  for (const station of broadcast) {
+    assert.ok(station.camera.isPerspectiveCamera);
+    const direction = station.camera.getWorldDirection(new THREE.Vector3());
+    const towardTrack = station.target.clone().sub(station.camera.position).normalize();
+    assert.ok(direction.dot(towardTrack) > 0.999, 'Replay camera must face its track target');
+    const { x, y, z } = station.root.position;
+    if (y < 1) {
+      assert.ok((x / 49) ** 2 + (z / 22) ** 2 < 0.9, 'Infield crew must stay off the racing surface');
+    } else {
+      assert.ok(HD.world.barriers.some((barrier) => barrier.x === x && barrier.z === z));
+    }
+  }
   for (const count of [8, 4, 6]) {
     const previous = HD.world.laneMarkings;
     let disposed = 0;
@@ -110,6 +140,20 @@ async function run() {
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
   assert.equal(HD.world.commentators.length, 0, "The commentary NPCs must be removed");
   assert.equal(HD.world.commentatorBox, undefined, "The booth walk zone must be removed");
+  assert.ok(HD.world.horseTunnel, "The stadium must have a visible horse service tunnel");
+  [
+    "Landscaped infield pond and fountain",
+    "Horse entry and service tunnel",
+    "Stadium floodlight towers",
+    "Main public entrance plaza",
+  ].forEach((name) => {
+    assert.ok(HD.world.scene.getObjectByName(name), `Arena landmark missing: ${name}`);
+  });
+  const elevatedFloors = new Set();
+  HD.world.scene.traverse((object) => {
+    if (object.userData?.seatingFloor) elevatedFloors.add(object.userData.seatingFloor);
+  });
+  assert.deepEqual([...elevatedFloors].sort(), [2, 3], "Green and blue elevated seating floors are missing");
   for (let step = 0; step < 16; step++) {
     assert.ok(
       upperFloorHitsAt((step + 0.5) / 16 * Math.PI * 2) > 0,

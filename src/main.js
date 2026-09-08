@@ -19,12 +19,12 @@ HD.Game = (() => {
     renderScale = desiredRenderScale();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x83cee8);
-    scene.fog = new THREE.Fog(0xb8d9dc, 155, 320);
+    scene.fog = new THREE.Fog(0xb8d9dc, 245, 480);
     const camera = new THREE.PerspectiveCamera(
       HD.Settings.fov(),
       innerWidth / innerHeight,
       0.08,
-      500,
+      1000,
     );
     camera.position.copy(HD.CONFIG.seat);
     const renderer = new THREE.WebGLRenderer({
@@ -60,7 +60,7 @@ HD.Game = (() => {
     HD.UI.addLedger("Round 1 bankroll", 100);
     HD.UI.render();
     HD.UI.countdown(String(HD.CONFIG.preparationDuration));
-    HD.UI.setMode("look");
+    HD.UI.setMode(S.standing ? "walking" : "look");
     bindGraphicsControl();
     addEventListener("resize", resize);
     document.addEventListener("visibilitychange", () => {

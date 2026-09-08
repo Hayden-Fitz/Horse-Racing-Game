@@ -1,15 +1,67 @@
 "use strict";
 window.HD = window.HD || {};
 
+// Display identity is permanent; numeric references still address the active
+// field for bets and network events. Never use a display number as an index.
+HD.horseNumber = function (reference) {
+  const horse = typeof reference === "number"
+    ? HD.state.horses[reference]
+    : reference;
+  const data = horse?.userData?.data || horse;
+  return Number.isInteger(data?.number)
+    ? String(data.number).padStart(2, "0")
+    : "??";
+};
+
 function makeHorseProfile(profile) {
+  const personalityByStyle = {
+    "Front Runner": "Front-runner",
+    Closer: "Comeback",
+    Stalker: "Cautious",
+    Balanced: "Unpredictable",
+  };
+  const personality = profile.personality || personalityByStyle[profile.style] || "Balanced";
+  const number = profile.number || 0;
+  const clampStat = (value) => Math.max(35, Math.min(100, Math.round(value)));
+  const maximumSpeed = clampStat(profile.maximumSpeed ?? profile.speed + 4 + (number % 4));
+  const defense = clampStat(profile.defense ?? profile.resistance);
+  const cornering = clampStat(profile.cornering ?? profile.stamina - 3 + ((number * 7) % 9));
+  const recovery = clampStat(profile.recovery ?? profile.stamina - 5 + ((number * 5) % 11));
+  const intelligence = clampStat(profile.intelligence ?? profile.acceleration - 4 + ((number * 3) % 12));
+  const laneSwitching = clampStat(profile.laneSwitching ?? 58 + ((number * 11) % 34));
+  const overtaking = clampStat(profile.overtaking ?? profile.acceleration - 2 + ((number * 7) % 10));
+  const startPerformance = clampStat(profile.startPerformance ?? profile.acceleration - 6 + ((number * 5) % 13));
+  const finalStretch = clampStat(profile.finalStretch ?? profile.stamina - 4 + ((number * 9) % 12));
+  const consistency = clampStat(profile.consistency ?? 67 + ((number * 13) % 27));
+  const interferenceResistance = clampStat(
+    profile.interferenceResistance ?? profile.resistance - 3 + ((number * 5) % 10),
+  );
   const rating =
-    profile.speed * 0.45 +
+    maximumSpeed * 0.25 +
+    profile.speed * 0.2 +
     profile.stamina * 0.25 +
-    profile.acceleration * 0.2 +
-    profile.resistance * 0.1;
+    profile.acceleration * 0.15 +
+    defense * 0.08 +
+    intelligence * 0.04 +
+    consistency * 0.03;
 
   return {
     ...profile,
+    personality,
+    rarity: profile.rarity || "Common",
+    appearance: profile.appearance || "Classic race coat",
+    maximumSpeed,
+    defense,
+    cornering,
+    recovery,
+    intelligence,
+    laneSwitching,
+    overtaking,
+    startPerformance,
+    finalStretch,
+    consistency,
+    interferenceResistance,
+    baseOddsTendency: profile.baseOddsTendency ?? profile.odds,
     ability: 0.84 + rating * 0.0024,
   };
 }
@@ -22,6 +74,7 @@ HD.CONFIG = {
   horses: [
     makeHorseProfile({
       id: "midnight-sovereign",
+      number: 1,
       name: "Midnight Sovereign",
       color: 0xef476f,
       coat: 0x241c1a,
@@ -34,6 +87,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "silver-comet",
+      number: 2,
       name: "Silver Comet",
       color: 0x3a86ff,
       coat: 0xb8b9b4,
@@ -46,6 +100,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "autumn-valor",
+      number: 3,
       name: "Autumn Valor",
       color: 0xffbe0b,
       coat: 0x9b4e29,
@@ -58,6 +113,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "northern-tempest",
+      number: 4,
       name: "Northern Tempest",
       color: 0x9b5de5,
       coat: 0x4c3b35,
@@ -70,6 +126,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "crimson-banner",
+      number: 5,
       name: "Crimson Banner",
       color: 0x22b573,
       coat: 0x6f3926,
@@ -82,6 +139,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "golden-promise",
+      number: 6,
       name: "Golden Promise",
       color: 0xff7b22,
       coat: 0xc18a4c,
@@ -94,6 +152,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "blue-meridian",
+      number: 7,
       name: "Blue Meridian",
       color: 0x42d4d4,
       coat: 0x3f302b,
@@ -106,6 +165,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "royal-ember",
+      number: 8,
       name: "Royal Ember",
       color: 0xf06cad,
       coat: 0x7d4128,
@@ -118,6 +178,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "willow-creek",
+      number: 9,
       name: "Willow Creek",
       color: 0xe84a5f,
       coat: 0xb18b64,
@@ -130,6 +191,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "iron-resolve",
+      number: 10,
       name: "Iron Resolve",
       color: 0x5c7cfa,
       coat: 0x34302d,
@@ -142,6 +204,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "velvet-thunder",
+      number: 11,
       name: "Velvet Thunder",
       color: 0xf4a261,
       coat: 0x221d1d,
@@ -154,6 +217,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "coastal-wind",
+      number: 12,
       name: "Coastal Wind",
       color: 0x845ec2,
       coat: 0xd0c4ae,
@@ -166,6 +230,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "scarlet-horizon",
+      number: 13,
       name: "Scarlet Horizon",
       color: 0x2a9d8f,
       coat: 0xa96136,
@@ -178,6 +243,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "noble-pursuit",
+      number: 14,
       name: "Noble Pursuit",
       color: 0xe9c46a,
       coat: 0x5c382c,
@@ -190,6 +256,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "dancing-shadow",
+      number: 15,
       name: "Dancing Shadow",
       color: 0x00b4d8,
       coat: 0x2c2523,
@@ -202,6 +269,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "western-legend",
+      number: 16,
       name: "Western Legend",
       color: 0xf28482,
       coat: 0x8c512f,
@@ -214,6 +282,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "emerald-bay",
+      number: 17,
       name: "Emerald Bay",
       color: 0x84a59d,
       coat: 0xc0aa87,
@@ -226,6 +295,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "storm-lantern",
+      number: 18,
       name: "Storm Lantern",
       color: 0xf6bd60,
       coat: 0x514039,
@@ -238,6 +308,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "quiet-majesty",
+      number: 19,
       name: "Quiet Majesty",
       color: 0x577590,
       coat: 0xd7d0c4,
@@ -250,6 +321,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "copper-ridge",
+      number: 20,
       name: "Copper Ridge",
       color: 0x90be6d,
       coat: 0xa75f32,
@@ -262,6 +334,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "moonlit-harbor",
+      number: 21,
       name: "Moonlit Harbor",
       color: 0xf94144,
       coat: 0x302927,
@@ -274,6 +347,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "grand-alliance",
+      number: 22,
       name: "Grand Alliance",
       color: 0x277da1,
       coat: 0x74452f,
@@ -286,6 +360,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "summer-anthem",
+      number: 23,
       name: "Summer Anthem",
       color: 0xf8961e,
       coat: 0xccaa76,
@@ -298,6 +373,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "blackwater-belle",
+      number: 24,
       name: "Blackwater Belle",
       color: 0x6a4c93,
       coat: 0x1e1b1b,
@@ -310,6 +386,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "highland-echo",
+      number: 25,
       name: "Highland Echo",
       color: 0x43aa8b,
       coat: 0x8b725e,
@@ -322,6 +399,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "riverstone",
+      number: 26,
       name: "Riverstone",
       color: 0xf3722c,
       coat: 0x6a4737,
@@ -334,6 +412,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "bold-venture",
+      number: 27,
       name: "Bold Venture",
       color: 0x4d908e,
       coat: 0x9a5c36,
@@ -346,6 +425,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "winter-rose",
+      number: 28,
       name: "Winter Rose",
       color: 0xf9844a,
       coat: 0xe0d9ca,
@@ -358,6 +438,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "sunset-courier",
+      number: 29,
       name: "Sunset Courier",
       color: 0x9b5de5,
       coat: 0xb76f3d,
@@ -370,6 +451,7 @@ HD.CONFIG = {
     }),
     makeHorseProfile({
       id: "cedar-run",
+      number: 30,
       name: "Cedar Run",
       color: 0x2d6a4f,
       coat: 0x65402d,
@@ -555,6 +637,7 @@ HD.CONFIG = {
     },
   },
   sabotageFailureChance: 0.33,
+  sabotageEnabled: true,
   roundBonuses: [100, 150, 250],
   racesPerRound: 2,
   totalRaces: 6,
@@ -672,7 +755,7 @@ HD.state = {
   throwPower: 0,
   charging: false,
   deliveries: [],
-  standing: false,
+  standing: true,
   playerPosition: new THREE.Vector3(8, 12.73, 60.85),
   movement: { forward: false, backward: false, left: false, right: false },
   vendorOpen: false,
