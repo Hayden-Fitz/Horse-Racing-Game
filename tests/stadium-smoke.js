@@ -36,22 +36,70 @@ async function run() {
   HD.world.scene = new THREE.Scene();
   HD.world.camera = new THREE.PerspectiveCamera();
   HD.Stadium.build(HD.world.scene);
-  const broadcast = HD.world.broadcastCameras;
-  const upperFlights = HD.world.arenaSurfaces.filter(surface => surface.stairs);
-  assert.equal(upperFlights.length, 9, 'Elevated sections, entrance, and horse crossing need connected routes');
-  for (const flight of upperFlights) {
-    for (const reverse of [false, true]) {
-      let floorY = reverse ? flight.endPoint.y : flight.startPoint.y;
-      for (let step = 0; step <= 100; step++) {
-        const t = reverse ? 1 - step / 100 : step / 100;
-        const point = flight.startPoint.clone().lerp(flight.endPoint, t);
-        const surface = HD.Stadium.upperWalkSurfaceAt(point.x, point.z, floorY);
-        assert.ok(surface, 'Stair route has a navigation gap: ' + flight.id);
-        assert.ok(Math.abs(surface.y - point.y) < 0.1, 'Stair walking height does not follow the flight: ' + flight.id);
-        floorY = surface.y;
-      }
-    }
+  const concessionDetails = { menus: 0, bins: 0 };
+  HD.world.scene.traverse(object => {
+    if (object.name === 'Concession menu board') concessionDetails.menus++;
+    if (object.name === 'Concession waste station') concessionDetails.bins++;
+  });
+  assert.equal(concessionDetails.menus, 8, 'Every stall needs two readable menu boards');
+  assert.equal(concessionDetails.bins, 8, 'Every stall needs recessed waste and recycling stations');
+  const facilityLabels = [];
+  HD.world.scene.traverse(object => {
+    if (object.name.startsWith('Facility label: ')) facilityLabels.push(object.name);
+  });
+  for (const label of ['MEN', 'WOMEN', 'ACCESSIBLE']) {
+    assert.equal(facilityLabels.filter(name => name === `Facility label: ${label}`).length,
+      2, `Both restroom buildings need a labeled ${label} entrance`);
   }
+  const broadcast = HD.world.broadcastCameras;
+  const firstAid = HD.world.scene.getObjectByName('FIRST AID concourse building');
+  for (const shop of HD.world.shopPositions) {
+    assert.ok(Math.hypot(firstAid.position.x - shop.x, firstAid.position.z - shop.z) > 12.5,
+      'First aid must remain separated from concession storefronts');
+  }
+  const fixer = HD.world.sabotageCounterPositions[0];
+  assert.equal(HD.world.shopPositions.length, 4,
+    'All four concession storefronts must be available');
+  assert.equal(HD.world.betCounterPositions.length, 4,
+    'Every concession quarter needs a betting counter');
+  assert.equal(HD.world.sabotageCounterPositions.length, 1,
+    'The always-on Fixer Hub must be available');
+  for (const vendor of [
+    ...HD.world.shopPositions,
+    ...HD.world.betCounterPositions,
+    ...HD.world.sabotageCounterPositions,
+  ]) {
+    assert.ok(
+      HD.world.barriers.some((barrier) => {
+        return Math.hypot(barrier.x - vendor.x, barrier.z - vendor.z) < 0.01;
+      }),
+      'Every vendor needs a matching collision barrier',
+    );
+  }
+  const fixerOuter = (fixer.x / 120) ** 2 + (fixer.z / 83) ** 2;
+  const fixerInner = (fixer.x / 103.25) ** 2 + (fixer.z / 69.75) ** 2;
+  assert.ok(fixerOuter < 0.98 && fixerInner > 1.02,
+    'The Fixer Hub must sit fully within the shop concourse');
+  for (const shop of HD.world.shopPositions) {
+    assert.ok(Math.hypot(fixer.x - shop.x, fixer.z - shop.z) > 18,
+      'The Fixer Hub must not overlap a concession storefront');
+  }
+  const upperFlights = HD.world.arenaSurfaces.filter(surface => surface.stairs);
+  const terraces = HD.world.arenaSurfaces.filter(surface => surface.terrace);
+  assert.equal(
+    upperFlights.filter(surface => surface.id.includes('spine-')).length,
+    0,
+    'Removed upper stair towers returned',
+  );
+  assert.ok(
+    upperFlights.some(surface => surface.id.includes('main-entrance')),
+    'The retained public entrance route is missing',
+  );
+  assert.equal(terraces.length, 0, 'Removed elevated seating terraces returned');
+  assert.equal(HD.world.stairArrivalMarkers.length, 0,
+    'Decorative arches must not return above the stairs');
+  assert.ok(HD.world.scene.getObjectByName('Single-bowl stadium canopy'),
+    'The single-bowl roof is missing');
   assert.equal(broadcast.length, 5);
   assert.equal(new Set(broadcast.map((station) => station.id)).size, 5);
   for (const station of broadcast) {
@@ -81,6 +129,33 @@ async function run() {
   HD.Race.resetHorses();
 
   assert.equal(HD.state.horses.length, 6, "The race did not build a six-horse field");
+  const savedPhase = HD.state.phase;
+  const runner = HD.state.horses[0].userData.data;
+  const savedOdds = runner.odds;
+  const savedProgress = runner.progress;
+  HD.state.phase = 'betting';
+  HD.Stadium.refreshBettingDisplays();
+  const displays = HD.world.bettingDisplays;
+  assert.equal(displays.length, 3, 'Counters should share only three odds textures');
+  assert.equal(displays.flatMap(display => display.rows).length, 6, 'Screens must include the full field');
+  assert.ok(displays.every(display => display.status === 'BETTING OPEN'));
+  const textureVersion = displays[0].texture.version;
+  HD.Stadium.refreshBettingDisplays();
+  assert.equal(displays[0].texture.version, textureVersion, 'Unchanged odds must not upload textures');
+  runner.odds = 9.5;
+  HD.Stadium.refreshBettingDisplays();
+  assert.equal(displays[0].rows[0].odds, 9.5, 'Counter odds must track actual betting data');
+  HD.state.phase = 'racing';
+  runner.progress = 0.5;
+  HD.Stadium.refreshBettingDisplays();
+  assert.equal(displays[0].status, 'LIVE BETTING');
+  runner.progress = 1;
+  HD.Stadium.refreshBettingDisplays();
+  assert.ok(displays.every(display => display.status === 'BETTING CLOSED'));
+  runner.odds = savedOdds;
+  runner.progress = savedProgress;
+  HD.state.phase = savedPhase;
+  HD.Stadium.refreshBettingDisplays();
   const horseNumber = HD.state.horses[0].userData.numberLabel;
   assert.ok(horseNumber.position.y > 6, "Horse numbers should float above the jockey");
   assert.equal(
@@ -140,10 +215,10 @@ async function run() {
   assert.ok(HD.world.barriers.length >= 8, "Shop and counter barriers are incomplete");
   assert.equal(HD.world.commentators.length, 0, "The commentary NPCs must be removed");
   assert.equal(HD.world.commentatorBox, undefined, "The booth walk zone must be removed");
-  assert.ok(HD.world.horseTunnel, "The stadium must have a visible horse service tunnel");
+  assert.equal(HD.world.horseTunnel, undefined, "The removed horse tunnel returned");
+  assert.equal(HD.world.horseServiceRoute, undefined, "The removed service route returned");
   [
     "Landscaped infield pond and fountain",
-    "Horse entry and service tunnel",
     "Stadium floodlight towers",
     "Main public entrance plaza",
   ].forEach((name) => {
@@ -153,25 +228,31 @@ async function run() {
   HD.world.scene.traverse((object) => {
     if (object.userData?.seatingFloor) elevatedFloors.add(object.userData.seatingFloor);
   });
-  assert.deepEqual([...elevatedFloors].sort(), [2, 3], "Green and blue elevated seating floors are missing");
+  assert.equal(elevatedFloors.size, 0, 'Removed elevated seating floors returned');
   for (let step = 0; step < 16; step++) {
     assert.ok(
       upperFloorHitsAt((step + 0.5) / 16 * Math.PI * 2) > 0,
       "The upper concourse must be continuous with no commentator cutout",
     );
   }
-  const seatBases = HD.world.scene.children
+  const seatBatches = HD.world.scene.children
     .flatMap((child) => child.children || [])
-    .find((object) =>
+    .filter((object) =>
       object.isInstancedMesh &&
-      object.geometry?.parameters?.width === 1.35 &&
-      object.geometry?.parameters?.height === 0.22,
+      object.userData.seatingSector &&
+      object.geometry.userData.seatCushion,
     );
-  assert.ok(seatBases, "The stadium seat batch is missing");
+  assert.equal(seatBatches.length, 8, "The lower bowl should cull seating in separate sectors");
   const seatMatrix = new THREE.Matrix4();
-  const formerBoothColumn = Math.round((Math.PI * 2 - 0.18) / (Math.PI * 2) * 128) % 128;
+  const columns = seatBatches[0].userData.seatingSector.columns;
+  const formerBoothColumn = Math.round((Math.PI * 2 - 0.18) / (Math.PI * 2) * columns) % columns;
+  const seatBases = seatBatches.find(batch => {
+    const sector = batch.userData.seatingSector;
+    return formerBoothColumn >= sector.firstColumn && formerBoothColumn < sector.firstColumn + sector.sectorColumns;
+  });
   [4, 5, 6].forEach((row) => {
-    seatBases.getMatrixAt(row * 128 + formerBoothColumn, seatMatrix);
+    const sector = seatBases.userData.seatingSector;
+    seatBases.getMatrixAt(row * sector.sectorColumns + formerBoothColumn - sector.firstColumn, seatMatrix);
     assert.ok(
       Math.abs(seatMatrix.determinant()) > 0.01,
       "The commentator seat cutout must be restored at every affected row",
@@ -184,7 +265,32 @@ async function run() {
   assert.equal(
     HD.world.staircases?.length,
     4,
-    "The stadium should have exactly four aligned public staircases",
+    "The stadium should have four aligned public staircases",
+  );
+  assert.ok(
+    HD.world.staircases.every((staircase) => {
+      const data = staircase.userData.staircase;
+      return data.treadCount === 16 &&
+        data.treadsPerSeatRow === 2 &&
+        data.connectorShare === 0.42;
+    }),
+    'Each stair must use two treads between adjacent seating-row floors',
+  );
+  assert.equal(
+    HD.world.scene.getObjectByName('Solid lower stair retaining wall'),
+    undefined,
+    'Triangular stair side walls must remain removed',
+  );
+  assert.equal(
+    HD.world.staircases.filter((staircase) => {
+      return staircase.getObjectByName('Visual-only center stair handrail');
+    }).length,
+    4,
+    'Every public staircase needs one centered visual-only handrail',
+  );
+  assert.ok(
+    HD.world.scene.getObjectByName('Solid upper-concourse foundation'),
+    'The upper concourse must not expose open ground beneath its floor',
   );
   assert.ok(
     HD.world.staircases.every((staircase) => {
@@ -194,6 +300,18 @@ async function run() {
     }),
     "A public staircase is coplanar with or too far below the upper concourse",
   );
+  assert.equal(HD.world.publicEntrances?.length, 2);
+  assert.ok(HD.world.replayBillboard?.replayReady, 'The replay billboard surface is unavailable');
+  assert.equal(HD.world.replayBillboard.canvas.width, 1024);
+  assert.equal(HD.world.replayBillboard.canvas.height, 576);
+  assert.ok(
+    HD.world.replayBillboard.angle > 4.3 && HD.world.replayBillboard.angle < 4.7,
+    'The replay billboard must remain on the far side without covering a stair',
+  );
+  assert.ok(
+    HD.world.scene.getObjectByName('Instant replay video surface'),
+    'The future replay system has no named video surface',
+  );
   assert.ok(
     HD.world.scene.children.some((object) => {
       return object.isInstancedMesh &&
@@ -201,6 +319,14 @@ async function run() {
         object.userData.panelCount > 60;
     }),
     "The upper-concourse glass fence is incomplete",
+  );
+  const outerGlass = HD.world.scene.children.find((object) => {
+    return object.isInstancedMesh && object.userData.completeOuterRing;
+  });
+  assert.equal(
+    outerGlass?.userData.panelCount,
+    96,
+    'The outside stadium glass must form one complete ring',
   );
   assert.ok(
     HD.world.scene.children.some((object) => object.isInstancedMesh && object.count === 120),

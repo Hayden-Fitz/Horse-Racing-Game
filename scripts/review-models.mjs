@@ -181,16 +181,14 @@ const practiceStarted = await call("Runtime.evaluate", {
     panel.querySelector('[name=laps]').value = '1';
     panel.querySelector('[name=startingMoney]').value = '1000';
     panel.querySelector('[name=crowd]').value = 'off';
-    panel.querySelector('[name=sabotage]').value = 'false';
     panel.querySelector('form').requestSubmit();
     return summary && HD.CONFIG.totalRaces === 15 && HD.CONFIG.racesPerRound === 3 &&
       document.querySelector('#round').textContent === '1 / 5' &&
       !panel.open && HD.state.horses.length === 8 &&
       HD.world.laneMarkings.children.length === 9 &&
       HD.state.money === 1000 && HD.CONFIG.raceLaps === 1 &&
-      HD.CONFIG.crowdThrowInterval === 0 && HD.CONFIG.sabotageEnabled === false &&
-      document.querySelector('#sabotage-status').textContent.includes('disabled') &&
-      !document.querySelector('#sabotage-options button');
+      HD.CONFIG.crowdThrowInterval === 0 && HD.CONFIG.sabotageEnabled === true &&
+      document.querySelector('#sabotage-options button');
   })()`, returnByValue: true,
 });
 if (!practiceStarted.result?.value) throw new Error('Practice rules did not reach the simulation');

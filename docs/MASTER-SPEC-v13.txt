@@ -108,9 +108,9 @@ Items primarily interact with:
 
 Single-player is called:
 
-PRACTICE MODE
+SINGLE PLAYER
 
-Practice Mode is NOT an AI multiplayer match.
+Single Player is NOT an AI multiplayer match.
 
 There are NO AI player characters.
 
@@ -118,7 +118,7 @@ Horse AI still exists for normal horses.
 
 I no longer want the fake players in. 
 
-Practice Mode supports:
+Single Player supports:
 
 - Movement
 - Jumping
@@ -137,12 +137,12 @@ Practice Mode supports:
 - Different horse counts
 - Different race counts
 - Crowd chaos
-- Practice concessions
-- Practice item testing
+- Single-player concessions
+- Single-player item testing
 
-Crowd throwing should generally happen MORE OFTEN in Practice Mode.
+Crowd throwing should generally happen MORE OFTEN in Single Player.
 
-Practice should function as a configurable sandbox.
+Single Player should function as a configurable sandbox.
 
 ===============================================================
 5. CORE GAME LOOP
@@ -180,13 +180,13 @@ PREPARE
 Game settings must exist in BOTH:
 
 - Multiplayer
-- Practice Mode
+- Single Player
 
 MULTIPLAYER:
 
 The HOST controls game settings.
 
-PRACTICE MODE:
+SINGLE PLAYER:
 
 The player controls game settings.
 
@@ -212,7 +212,7 @@ Include settings for:
 - Player-race payout
 - Item availability
 - Legendary item availability
-- Sabotage availability
+- Fixer services are always available
 - Upgrade availability
 
 The system should support adding additional reasonable settings later.
@@ -3415,7 +3415,7 @@ Fix:
 56. Stadium must have the horse entry/exit tunnel.
 57. Stadium must have the fenced player interaction ring.
 58. Player interaction ring must be outside the racing surface.
-59. Game settings must work in both Multiplayer and Practice Mode.
+59. Game settings must work in both Multiplayer and Single Player.
 60. Game settings must include days, races, horses per race, laps,
     crowd chaos, and Allow Player Horses.
 
@@ -3633,7 +3633,7 @@ When implementing or modifying the game:
 9. Keep game settings synchronized.
 10. Keep the stadium physically consistent.
 11. Keep the final horse model on the required asset list until complete.
-12. Test each feature in both Practice Mode and Multiplayer when applicable.
+12. Test each feature in both Single Player and Multiplayer when applicable.
 13. Test different game-setting combinations.
 14. Test different horse counts.
 15. Test different lap counts.

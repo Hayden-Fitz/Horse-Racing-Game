@@ -384,11 +384,23 @@ HD.Controls = (() => {
       walkInput.normalize().multiplyScalar(HD.CONFIG.walkSpeed * dt);
       S.playerPosition.add(walkInput);
     }
+
+    const stairSnap = stairCollisionSnap(
+      S.playerPosition.x,
+      S.playerPosition.z,
+    );
+    if (stairSnap && previousZone !== 'stairs') {
+      S.playerPosition.x = stairSnap.x;
+      S.playerPosition.z = stairSnap.z;
+    }
+
     const insideFence = Math.sqrt((S.playerPosition.x / 73.2) ** 2 + (S.playerPosition.z / 43.2) ** 2);
-    const blocked = collidesWithBarrier(S.playerPosition.x, S.playerPosition.z);
     const nextZone = walkZoneAt(S.playerPosition.x, S.playerPosition.z);
+    const blocked = collidesWithBarrier(S.playerPosition.x, S.playerPosition.z);
     const nextHeight = walkingEyeHeight(S.playerPosition.x, S.playerPosition.z);
-    const unsafeDrop = Math.abs(nextHeight - walkPrevious.y) > 0.85;
+    const stairTransition = previousZone === 'stairs' || nextZone === 'stairs';
+    const maximumStepHeight = stairTransition ? 1.2 : 0.85;
+    const unsafeDrop = Math.abs(nextHeight - walkPrevious.y) > maximumStepHeight;
     const skippedStairs = previousZone !== nextZone &&
       previousZone !== "stairs" &&
       nextZone !== "stairs";
@@ -408,7 +420,7 @@ HD.Controls = (() => {
     camera.position.copy(S.playerPosition);
   }
   function collidesWithBarrier(x, z) {
-    return (HD.world.barriers || []).some((barrier) => {
+    return [...(HD.world.barriers || []), ...(HD.world.structuralBarriers || [])].some((barrier) => {
       const floorY = S.playerPosition.y - HD.CONFIG.eyeHeight;
       if (floorY > (barrier.maxY ?? 19) || floorY + HD.CONFIG.eyeHeight < (barrier.minY ?? 13.5)) return false;
       const dx = x - barrier.x;
@@ -426,9 +438,13 @@ HD.Controls = (() => {
   }
 
   function walkZoneAt(x, z) {
-    const upper = HD.Stadium.upperWalkSurfaceAt?.(x, z, S.playerPosition.y - HD.CONFIG.eyeHeight);
-    if (upper) return upper.zone;
-    if (HD.Stadium.horsePassageAt?.(x, z) && S.playerPosition.y - HD.CONFIG.eyeHeight < 9) return null;
+    if (staircaseProgress(x, z) !== null) {
+      return 'stairs';
+    }
+    const upper = HD.Stadium.upperWalkSurfaceAt?.(
+      x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
+    );
+    if (upper) return upper.stairs ? 'stairs' : upper.zone;
     if (staircaseProgress(x, z) !== null) {
       return "stairs";
     }
@@ -442,8 +458,9 @@ HD.Controls = (() => {
     return null;
   }
   function isWalkable(x, z) {
-    if (HD.Stadium.upperWalkSurfaceAt?.(x, z, S.playerPosition.y - HD.CONFIG.eyeHeight)) return true;
-    if (HD.Stadium.horsePassageAt?.(x, z) && S.playerPosition.y - HD.CONFIG.eyeHeight < 9) return false;
+    if (HD.Stadium.upperWalkSurfaceAt?.(
+      x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
+    )) return true;
     const onStairs = staircaseProgress(x, z) !== null;
     const grandstandRow = grandstandRowAt(x, z);
     const trackWalk = Math.sqrt((x / 77.25) ** 2 + (z / 47.25) ** 2);
@@ -452,11 +469,14 @@ HD.Controls = (() => {
     return onStairs || grandstandRow !== null || onTrackWalk || onUpperConcourse;
   }
   function walkingEyeHeight(x, z) {
-    const upper = HD.Stadium.upperWalkSurfaceAt?.(x, z, S.playerPosition.y - HD.CONFIG.eyeHeight);
+    const mainStair = stairCollisionSnap(x, z);
+    if (mainStair) {
+      return mainStair.height + HD.CONFIG.eyeHeight;
+    }
+    const upper = HD.Stadium.upperWalkSurfaceAt?.(
+      x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
+    );
     if (upper) return upper.y + HD.CONFIG.eyeHeight;
-    const stairProgress = staircaseProgress(x, z);
-    if (stairProgress !== null) return stairHeightForProgress(stairProgress) + HD.CONFIG.eyeHeight;
-
     const grandstandRow = grandstandRowAt(x, z);
     if (grandstandRow !== null) {
       return HD.CONFIG.grandstandBaseHeight +
@@ -526,6 +546,10 @@ HD.Controls = (() => {
     return null;
   }
   function staircaseProgress(x, z) {
+    return stairCollisionSnap(x, z)?.progress ?? null;
+  }
+
+  function stairCollisionSnap(x, z) {
     const stairs = HD.CONFIG.stairs;
     for (const angle of stairAngles) {
       const startX = Math.cos(angle) * stairs.startX;
@@ -536,23 +560,74 @@ HD.Controls = (() => {
       const offsetX = x - startX;
       const offsetZ = z - startZ;
       const progress = (offsetX * deltaX + offsetZ * deltaZ) / lengthSquared;
-      const perpendicular =
-        Math.abs(deltaX * offsetZ - deltaZ * offsetX) / Math.sqrt(lengthSquared);
+      const pathLength = Math.sqrt(lengthSquared);
+      const sideX = -deltaZ / pathLength;
+      const sideZ = deltaX / pathLength;
+      const lateral = offsetX * sideX + offsetZ * sideZ;
+      const perpendicular = Math.abs(lateral);
 
-      if (perpendicular <= stairs.width / 2 && progress >= 0 && progress <= 1.12) {
-        return THREE.MathUtils.clamp(progress, 0, 1);
+      if (
+        // The visible aisle is eight units wide. A generous invisible capture
+        // strip lets players enter it sideways from any seating row without
+        // having to line their feet up with the concrete edge pixel-perfectly.
+        perpendicular <= stairs.width / 2 + 2.6 &&
+        progress >= -0.2 &&
+        progress <= 1.18
+      ) {
+        const clampedProgress = THREE.MathUtils.clamp(progress, 0, 1);
+        const expectedFloor = stairHeightForProgress(clampedProgress, angle);
+        const currentFloor = S.playerPosition.y - HD.CONFIG.eyeHeight;
+        if (Math.abs(expectedFloor - currentFloor) <= 1.25) {
+          const usableHalfWidth = stairs.width / 2 - 0.45;
+          const safeLateral = THREE.MathUtils.clamp(
+            lateral,
+            -usableHalfWidth,
+            usableHalfWidth,
+          );
+          return {
+            progress: clampedProgress,
+            height: expectedFloor,
+            x: startX + deltaX * progress + sideX * safeLateral,
+            z: startZ + deltaZ * progress + sideZ * safeLateral,
+          };
+        }
       }
     }
 
     return null;
   }
 
-  function stairHeightForProgress(progress) {
-    return THREE.MathUtils.lerp(
-      HD.CONFIG.stairs.bottomHeight,
-      HD.CONFIG.stairs.topHeight,
-      progress,
-    );
+  function stairHeightForProgress(progress, angle = 0) {
+    const stairs = HD.CONFIG.stairs;
+    const startX = Math.cos(angle) * stairs.startX;
+    const startZ = Math.sin(angle) * stairs.startZ;
+    const deltaX = Math.cos(angle) * stairs.endX - startX;
+    const deltaZ = Math.sin(angle) * stairs.endZ - startZ;
+    const lengthSquared = deltaX * deltaX + deltaZ * deltaZ;
+    const anchors = [{ progress: 0, height: stairs.bottomHeight }];
+
+    for (let row = 0; row < 7; row++) {
+      const rowX = Math.cos(angle) * (82.1 + row * 3.25);
+      const rowZ = Math.sin(angle) * (51.85 + row * 2.75);
+      anchors.push({
+        progress: (
+          (rowX - startX) * deltaX +
+          (rowZ - startZ) * deltaZ
+        ) / lengthSquared,
+        height: HD.CONFIG.grandstandBaseHeight + row * 1.5,
+      });
+    }
+    anchors.push({ progress: 1, height: stairs.topHeight });
+
+    for (let index = 1; index < anchors.length; index++) {
+      if (progress > anchors[index].progress) continue;
+      const previous = anchors[index - 1];
+      const next = anchors[index];
+      const span = Math.max(0.001, next.progress - previous.progress);
+      const blend = (progress - previous.progress) / span;
+      return THREE.MathUtils.lerp(previous.height, next.height, blend);
+    }
+    return stairs.topHeight;
   }
   function toggleStanding() {
     if (S.mode === "phone" || S.vendorOpen || S.counterOpen) return;

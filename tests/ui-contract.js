@@ -105,6 +105,11 @@ assert.ok(
   "Practice bankroll must be limited to $100–$1,000",
 );
 assert.ok(
+  html.includes('<button id="menu-play">SINGLE PLAYER</button>') &&
+    html.includes('START SINGLE PLAYER →'),
+  "The solo flow must use the Single Player label",
+);
+assert.ok(
   read("src/match-setup.js").includes("integer(input.startingMoney, 100, 1000"),
   "Practice bankroll bounds must also be enforced in JavaScript",
 );

@@ -6,7 +6,7 @@ already exist. Older conversation requests yield to v13.
 
 ## First migration slice
 
-- Practice Mode label replaces Single Player.
+- Single Player is the player-facing solo-mode label.
 - Simulated player opponents are removed; reserved seats remain for humans.
 - Horse AI and the ambient crowd remain active.
 - Lane centers adapt to 4–8 horses within the existing dirt surface.
@@ -33,10 +33,19 @@ collection, phone apps, world rebuild, presentation, and release hardening.
 
 ## Stadium target
 
+Read the opening notes in [ARENA.txt](ARENA.txt) before each arena pass; the user
+is actively adding requirements there. The upper floors now overlap the lower
+bowl, step back by roughly two rows, and have front throwing terraces. Shared
+surface definitions drive stair geometry and player height. Use
+`node scripts/review-arena.mjs 9355` with the local server and an isolated CDP
+browser to check actual stair movement, repeated concessions ordering, multiple
+arena views, and runtime errors. Screenshots are written under `artifacts/`.
+
 Use the user's stadium concept as the art direction for one consistent 3D
 structure: oval dirt track and infield, fenced outer interaction ring, lower and
-middle seating tiers, roofed upper concourse, connected stair landings, horse
-tunnel, starting gate and finish structure. Maintain this same architecture
+middle seating tiers, roofed upper concourse, four connected public staircases,
+starting gate and finish structure. The horse tunnel and service yard were
+removed at the user's request. Maintain this same architecture
 from front, rear, side and overhead views. The full rebuild is pending; the
 current procedural stadium is not the final asset.
 

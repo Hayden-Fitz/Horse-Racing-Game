@@ -221,7 +221,7 @@
                 </select>
               </label>
             </div>
-            <button id="menu-play">PRACTICE MODE</button>
+            <button id="menu-play">SINGLE PLAYER</button>
             <div class="lobby-connect-grid">
               <section>
                 <small>HOST A NEW TABLE</small>
@@ -262,7 +262,7 @@
               <button id="lobby-start">START ONLINE MATCH</button>
             </div>
             <p id="lobby-message" class="lobby-message">
-              Practice solo with real horse AI. Online rooms are for human players.
+              Play solo with real horse AI. Online rooms are for human players.
             </p>
           </div>
           <button id="menu-resume" hidden>RESUME RACE</button>
@@ -522,7 +522,7 @@
     <dialog id="practice-setup" class="practice-setup" aria-labelledby="practice-title">
       <form>
         <header>
-          <small>HOTDOG DERBY / FREE PRACTICE</small>
+          <small>HOTDOG DERBY / SINGLE PLAYER</small>
           <h2 id="practice-title">Your track. Your rules.</h2>
           <p>Try your throws, test a bet, and learn the field. No AI player opponents.</p>
         </header>
@@ -556,7 +556,7 @@
           <label>
             Starting bankroll ($)
             <input name="startingMoney" type="number" min="100" max="1000" step="50" required />
-            <small>Choose $100–$1,000. Practice money resets when you start.</small>
+            <small>Choose $100–$1,000. Single-player money resets when you start.</small>
           </label>
           <label>
             Crowd throwing
@@ -568,19 +568,11 @@
             </select>
             <small>Staggered throws, only while the race is running.</small>
           </label>
-          <label>
-            Fixer services
-            <select name="sabotage">
-              <option value="true">Enabled</option>
-              <option value="false">Disabled — no sabotage</option>
-            </select>
-            <small>Allow or block all pre-race fixer jobs, including opening boosts.</small>
-          </label>
         </div>
         <p class="practice-note" role="status">3 days · 2 races per day · 6 total races</p>
         <footer>
           <button type="button" data-back>BACK TO LOBBY</button>
-          <button type="submit" class="primary">START PRACTICE →</button>
+          <button type="submit" class="primary">START SINGLE PLAYER →</button>
         </footer>
       </form>
     </dialog>

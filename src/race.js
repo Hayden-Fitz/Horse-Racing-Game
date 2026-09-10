@@ -49,6 +49,8 @@ HD.Race = (() => {
     S.horses.forEach((h) => HD.world.scene.add(h));
     S.finishOrder = [];
     positionHorses();
+    HD.Stadium?.refreshScoreboard?.();
+    HD.Stadium?.refreshStartingGate?.();
   }
 
   function drawHorseField() {

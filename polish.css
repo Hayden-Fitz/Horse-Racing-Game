@@ -342,9 +342,20 @@
 }
 
 #deliveries {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  min-height: 36px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+#deliveries > span {
+  flex: 0 0 auto;
 }
 
 .delivery-card {

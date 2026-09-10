@@ -1022,7 +1022,7 @@ HD.Network = (() => {
     S.paused = true;
     HD.Controls.setMode("look");
     HD.UI.menu(true, false);
-    setMessage("Choose a lobby or start Practice Mode.");
+    setMessage("Choose a lobby or start Single Player.");
   }
 
   function resetLobbyState() {

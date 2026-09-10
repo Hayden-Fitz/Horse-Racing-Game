@@ -27,7 +27,7 @@ superseded by this direction. Tests: `npm.cmd test`; browser gallery, startup,
 held hotdog and throwing checks: `node scripts/review-models.mjs 9338`.
 
 - [x] Save the full v13 specification in the repository.
-- [x] Rename the solo entry point to Practice Mode.
+- [x] Rename the player-facing solo entry point to Single Player.
 - [x] Remove simulated player opponents and fake transfer recipients.
 - [x] Preserve reserved seats for actual online humans.
 - [x] Put 4–8 starting lanes within the dirt, ordered inside to outside.
@@ -46,8 +46,10 @@ held hotdog and throwing checks: `node scripts/review-models.mjs 9338`.
 - [x] Add a gallery to inspect all supplied assets.
 - [x] Protect focused text inputs from gameplay keyboard shortcuts.
 
-## Practice setup and race-reset slice
+## Single Player setup and race-reset slice
 
+- [x] Repair the Single Player button after removing the obsolete Fixer form
+  field; opening and starting the setup now succeeds in the live browser.
 - [x] Add a keyboard-accessible Practice setup screen with Back and Start actions.
 - [x] Configure 4–8 horses, 1–8 laps, and $100–$1,000 starting practice money.
 - [x] Rebuild lane markings when horse count changes and dispose old geometry/materials.
@@ -83,7 +85,7 @@ remain pending: this is the first working subset, not the complete settings syst
 - [x] Test that the restored upper concourse is continuous away from the four
   intended public stair openings.
 
-## Practice leaderboard and settings follow-up
+## Single Player leaderboard and settings follow-up
 
 - [x] Remove the fabricated Practice Mode leaderboard, standings app, rankings
   button, and ranking rows; real-player standings remain available in an online
@@ -193,15 +195,13 @@ unchanged held item and stacked-card bounds). Visual review:
 `artifacts/concessions-deliveries.png`. The full new food roster and auction
 system remain separate unfinished tasks.
 
-## Customization materials and optional fixer services
+## Customization materials and Fixer validation
 
 - [x] Neutralize imported player vertex tints so selected shirt, skin and trouser
   colors render without being multiplied by the original blue/tan palette.
 - [x] Preserve the original player geometry fingerprint during this correction.
-- [x] Add a Practice fixer-services toggle, with validation and online-default reset.
-- [x] Enforce the toggle at purchase, remote/AI submission and race resolution;
-  blocked purchases do not spend money. Reject invalid target horses.
-- [x] Show a clear disabled-services state in the Fixer app/counter content.
+- [x] Retire the temporary Fixer toggle; Fixer services are always enabled and
+  invalid target horses remain rejected.
 - [x] Include Practice setup in accessibility UI scaling.
 - [x] Validate a complete requested asset batch before replacing its working files;
   allow focused rebuilds of individual assets while retaining the full manifest.
@@ -229,9 +229,11 @@ Maximum-size/narrow-screen combinations remain a separate pending check above.
 These include existing partial systems. They are not marked complete merely
 because a UI or prototype exists. Follow the ten phases in section 131.
 
-- [ ] 1. GAME NAME
+- [x] 1. GAME NAME — Hotdog Derby is used consistently by the game shell,
+  package metadata, stadium branding, and authoritative specification.
 - [ ] 2. CORE GAME CONCEPT
-- [ ] 3. PLAYER COMBAT REMOVAL
+- [x] 3. PLAYER COMBAT REMOVAL — controls and gameplay expose no punching,
+  player health, damage, stun, knockback, or player-attack action.
 - [ ] 4. SINGLE-PLAYER MODE
 - [ ] 5. CORE GAME LOOP
 - [ ] 6. GAME SETTINGS
@@ -301,7 +303,8 @@ because a UI or prototype exists. Follow the ten phases in section 131.
 - [ ] 69. PHONE APP DESIGN
 - [ ] 70. PHONE ICONS
 - [ ] 71. MESSAGES
-- [ ] 72. PHONE KEY
+- [x] 72. PHONE KEY — Left Shift is the remappable default, either Shift key
+  matches that default outside text fields, and focused text entry is protected.
 - [ ] 73. CONCESSIONS APP
 - [ ] 74. BETTING APP
 - [ ] 75. HORSE APP
@@ -372,6 +375,59 @@ because a UI or prototype exists. Follow the ten phases in section 131.
 
 ## Arena follow-up
 
+- [x] Supersede the experimental multi-floor arena pass: remove the green/blue
+  decks, roof sections, elevated terraces, and stair towers while retaining the
+  continuous lower bowl, four main stairs, shop concourse, concessions, betting
+  counters, support facilities, starting gate, and camera/replay groundwork.
+- [x] Recenter the Fixer Hub inside the walkable concourse and move Stadium Vision
+  opposite the entrance for a clear arrival sightline without covering a stair.
+
+The completed multi-floor items below are historical implementation notes and
+are no longer part of the active arena layout.
+
+- [x] Rebuild the reference seating layout: three green middle sections, two
+  covered blue upper sections, one intentionally single-level quadrant, and a
+  continuous gold lower bowl.
+- [x] Replace undersized chairs with shared rounded 2.1-unit seats and raised
+  supports; widen row spacing, reduce crowd density, and match reserved chairs.
+- [x] Replace diagonal access stairs with four cardinal stair spines continuing
+  from the lower aisles. Use shallow parallel switchbacks, solid concrete treads,
+  blue rails with open ends, supported landings, and unobstructed turns.
+- [x] Clear seating from real stair footprints and structural columns; verify
+  standing-player headroom against rendered geometry and walk all main and upper
+  flights in both directions, including main-stair concourse transitions and
+  sideways entry from every lower-bowl row onto all four public stairs.
+- [x] Keep three infield and two elevated camera crews, rescale equipment/operators
+  to the player, and align future replay camera transforms with their lenses.
+- [x] Replace blank betting-counter screens with shared live field/odds textures
+  and open/live/closed betting status, with unchanged-data upload suppression.
+- [x] Finish support-facility fronts: labeled men's, women's, and wider accessible
+  restroom doors, framed entries, kick plates, canopy lighting, a separate medical
+  sign panel, and an information window. These remain exterior-only facilities.
+- [x] Keep concourse decorations clear of facility approaches and separate first
+  aid from the neighboring shop. Add facility-label/spacing tests and two visual views.
+- [x] Add framed concession menus using catalog item names, suspended clear of
+  storefront headers, plus recessed waste/recycling stations inside stall collision.
+  Verify menu visibility at player height and rerun all browser stair routes.
+- [x] Replace raised concourse guide tubes with flat colored floor markings.
+- [x] Finish concession counters with rounded worktops, inset front panels,
+  payment terminals, and preparation tables; visually review at player height.
+
+- [x] Apply the opening ARENA.txt notes: green seating above the lower bowl,
+  blue seating above green, each set back by about two lower seat rows.
+- [x] Provide two front throwing-terrace blocks at all five elevated sections.
+- [x] Connect stacked floors with stair towers, landings, and concourse approaches;
+  exercise every added flight in both directions through actual player controls.
+- [x] Rebuild green-to-blue stair towers from their true entrances, using continuous
+  U-shaped flights and landings instead of intersecting offset sections.
+- [x] Add restroom, first-aid, and information-building exteriors to the concourse.
+- [x] Smooth curved concrete/roof edges and replace fence lines with rounded rails.
+- [x] Split the lower crowd into eight render sectors and add continuous mountain scenery.
+- [x] Add numbered mobile starting stalls that open and clear the course at race start.
+- [x] Restore compact concessions delivery indicators so purchases do not move buy buttons.
+- [x] Browser-check five consecutive concessions orders: shopping controls stay
+  at the same vertical position (132px before and after).
+- [x] Add subtle repeatable dirt-track texture without changing its geometry.
 - [x] Add three infield camera crews and two elevated camera crews, with named
   perspective-camera transforms available for future replay work.
 - [x] Add collision footprints for elevated camera equipment.
@@ -379,9 +435,52 @@ because a UI or prototype exists. Follow the ten phases in section 131.
   headroom. Keep roof supports connected to the raised roof.
 - [x] Complete connected navigation to all new seating floors, with two-way
   height-continuity checks for the added stair flights.
-- [x] Add a horse-tunnel opening, service corridor, and separate pedestrian bridge.
+- [x] Finish the elevated-deck edges with dark structural fascia, floor-colored
+  accent bands, closed section ends, flush landing pads, and clean parallel-run
+  switchback stairs. Shorten canopy columns to begin at the concourse structure.
+- [x] Break up the unfinished concourse slab with distinct promenade/service bands,
+  add labeled main stair-arrival gateways with collision, finish betting-counter
+  signage on both visible levels, and simplify the exterior support rhythm.
+- [x] Replace full-height elevated stair blocks with individual concrete treads,
+  dark sloped stringers, and consistent side curbs so upper flights no longer
+  appear as large walls when viewed from the concourse or seating bowl.
+- [x] Remove the horse tunnel, bridge, service yard, route rules, rail/floor gaps,
+  and stale tests; restore the fourth normal staircase and continuous seating,
+  player-ring concrete, track railings, concourse glass, and exterior facade.
+- [x] Add two distinct secondary public entrances with exterior-facing ticket doors,
+  canopies, signs, plaza lights, collision, and cleared landscape approaches.
+- [x] Add a giant structurally supported Stadium Vision board behind the northwest
+  single-level grandstand, with live race leaders, replay-ready 1024x576 canvas,
+  rear branding/bracing, service catwalk and ladder, camera pod, and collision.
 - [x] Visually review overview, opposite, upper-stair and camera-crew elevations;
   no runtime exceptions were reported.
+- [x] Finish the simplified-bowl recovery pass: assisted four-way stair entry,
+  clean landings without arrival arches, a continuous outer glass ring, restored
+  canopy with replay-board clearance, far-side replay placement, and verified
+  collision barriers for all four shops, four betting counters, and the Fixer.
+- [x] Remove the Practice Mode Fixer toggle and keep Fixer services enabled for
+  every match.
+- [x] Rebuild the four lower-bowl stairs around seating-row elevations: sixteen
+  physical treads create two steps per row transition, and the walking surface
+  meets every row floor.
+- [x] Replace centerline snapping with edge-only stair capture that preserves
+  the player's lateral position whenever they are already inside the aisle.
+- [x] Fill the structure beneath the upper concourse with a continuous concrete
+  foundation so stairs and seating no longer expose the outside ground.
+- [x] Browser-walk all stairs in both directions and enter them from all 28
+  seating-row approaches; no route failures or runtime exceptions.
+- [x] Remove the triangular lower-stair retaining walls and replace the paired
+  side rails with one centered handrail. Keep the rail purely decorative and
+  out of both player and projectile collision registries.
+- [x] Close the accidental gaps between alternating stair treads and rebalance
+  each row span to a 42% connector step followed by a 58% seating-row landing,
+  while retaining equal riser heights and the centered handrail.
+- [x] Restore free movement from stairs into every seating row by applying edge
+  assistance only when entering an aisle, never while already walking on it.
+- [x] Give each seating-row elevation a broad landing, use shorter connector
+  treads between rows, and close the remaining concrete gap at both aisle edges.
+- [x] Browser-test 28 assisted row entries and 56 left/right row exits in
+  addition to full bottom-to-top routes; all complete without movement failures.
 - [ ] Finish the arena reference pass; camera viewpoints are not replay playback.
 
 ## Verification record

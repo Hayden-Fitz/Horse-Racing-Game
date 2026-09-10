@@ -7,11 +7,22 @@ HD.Stadium = (() => {
     Math.PI,
     (Math.PI * 3) / 2,
   ];
-  const GRANDSTAND_COLUMNS = 256;
+  const GRANDSTAND_COLUMNS = 128;
+  const SEAT = Object.freeze({
+    width: 2.1, depth: 1.6, cushionY: 1.52,
+    backY: 2.48, backHeight: 1.8, backOffset: 0.72,
+  });
   const UPPER_CONCOURSE_Y = 13.5;
   const STAIR_SURFACE_INSET = 0.055;
-  const HORSE_TUNNEL_ANGLE = Math.PI - 0.52;
-  const HORSE_TUNNEL_HALF_ANGLE = 0.095;
+  const FIXER_ANGLE = Math.PI - 0.28;
+  const REPLAY_ANGLE = 1.34 + Math.PI;
+  const SECONDARY_ENTRANCE_ANGLES = Object.freeze([0, Math.PI]);
+  const CONCOURSE_FACILITIES = Object.freeze([
+    { angle: 0.2, label: 'RESTROOMS', accent: 0x256b9b },
+    { angle: 2.16, label: 'FIRST AID', accent: 0xc34c46 },
+    { angle: 3.38, label: 'RESTROOMS', accent: 0x256b9b },
+    { angle: 5.95, label: 'STADIUM INFO', accent: 0x2b765c },
+  ]);
   const ARENA_COLORS = Object.freeze({
     concrete: 0xc6c8c6,
     concreteDark: 0x7b8281,
@@ -21,24 +32,22 @@ HD.Stadium = (() => {
     upperSeats: 0x2e6eb3,
   });
   const ELEVATED_SEATING = Object.freeze([
-    // Deliberately uneven: these are additions to a stadium that has grown in
-    // phases, rather than a perfectly mirrored generated bowl.
-    { floor: 2, start: 0.12, end: 0.72, baseY: 13.7 },
-    { floor: 2, start: 1.08, end: 2.08, baseY: 13.7 },
-    { floor: 2, start: 3.18, end: 4.08, baseY: 13.7 },
-    { floor: 2, start: 4.62, end: 5.42, baseY: 13.7 },
-    { floor: 3, start: 1.18, end: 1.98, baseY: 19.2 },
-    { floor: 3, start: 4.77, end: 5.27, baseY: 19.2 },
+    // One intentionally open quadrant creates a believable mixed skyline.
+    { floor: 2, start: 0.14, end: 1.43, baseY: 18 },
+    { floor: 2, start: 3.28, end: 4.57, baseY: 18 },
+    { floor: 2, start: 4.86, end: 6.14, baseY: 18 },
+    { floor: 3, start: 3.28, end: 4.57, baseY: 29 },
+    { floor: 3, start: 4.86, end: 6.14, baseY: 29 },
   ]);
   const DETAILED_SEATS = [
-    { row: 1, column: 60, local: true, activity: "watch" },
-    { row: 1, column: 59, activity: "phone" },
-    { row: 1, column: 58, activity: "watch" },
-    { row: 3, column: 60, activity: "throw" },
-    { row: 3, column: 59, activity: "watch" },
-    { row: 5, column: 60, activity: "phone" },
-    { row: 5, column: 59, activity: "watch" },
-    { row: 5, column: 58, activity: "throw" },
+    { row: 1, column: 27, local: true, activity: "watch" },
+    { row: 1, column: 26, activity: "phone" },
+    { row: 1, column: 25, activity: "watch" },
+    { row: 3, column: 27, activity: "throw" },
+    { row: 3, column: 26, activity: "watch" },
+    { row: 5, column: 27, activity: "phone" },
+    { row: 5, column: 26, activity: "watch" },
+    { row: 5, column: 25, activity: "throw" },
   ];
 
   // ---------------------------------------------------------------------------
@@ -46,9 +55,13 @@ HD.Stadium = (() => {
   // ---------------------------------------------------------------------------
 
   function build(scene) {
+    HD.world.structuralBarriers = [];
     HD.world.projectileBarriers = [];
     HD.world.commentatorBox = undefined;
     HD.world.commentators = [];
+    HD.world.horseTunnel = undefined;
+    HD.world.horseServiceRoute = undefined;
+    HD.world.horseServiceArea = undefined;
 
     const ground = mesh(new THREE.CircleGeometry(500, 96), 0x4b8a45, scene, [0, -0.6, 0]);
     ground.rotation.x = -Math.PI / 2;
@@ -60,7 +73,7 @@ HD.Stadium = (() => {
     trackShape.holes.push(hole);
     const trackGeo = new THREE.ShapeGeometry(trackShape, 128);
     trackGeo.rotateX(-Math.PI / 2);
-    const track = new THREE.Mesh(trackGeo, HD.util.material(0xa96543));
+    const track = new THREE.Mesh(trackGeo, createDirtTrackMaterial());
     track.position.y = 0.03;
     track.receiveShadow = true;
     scene.add(track);
@@ -68,7 +81,8 @@ HD.Stadium = (() => {
     refreshTrackLayout(scene);
     addFinishLine(scene);
     addOvalRails(scene, 48.5, 21.5, 0xf5e8c8);
-    addOvalRails(scene, 74, 44, ARENA_COLORS.railing);
+    addOvalRails(scene, 73, 43.5, 0xf5e8c8);
+    addOvalRails(scene, 74, 44, ARENA_COLORS.railing, 1.65);
     const infield = mesh(new THREE.CylinderGeometry(1, 1, 0.1, 8), 0x519847, scene);
     infield.visible = false;
     createOvalGrandstands(scene);
@@ -77,17 +91,44 @@ HD.Stadium = (() => {
     createConcourseDetails(scene);
     createPlayerRoutes(scene);
     createArenaLandmarks(scene);
+    clearSeatingFromStairs(scene);
+    addSeatSupports(scene);
     batchStaticArchitecture(scene);
     createNearbyPlayers(scene);
     createViewModels(scene);
     HD.world.track = track;
     return track;
   }
+  function createDirtTrackMaterial() {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 512;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#a96543';
+    context.fillRect(0, 0, 512, 512);
+    // Repeatable low-contrast grit adds depth without large noisy patterns.
+    for (let index = 0; index < 2200; index++) {
+      const x = (index * 73 + (index % 19) * 17) % 512;
+      const y = (index * 151 + (index % 13) * 11) % 512;
+      context.fillStyle = index % 2 ? 'rgba(64,35,21,0.09)' : 'rgba(235,191,143,0.12)';
+      context.fillRect(x, y, 1 + index % 3, 1 + index % 2);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(0.05, 0.05);
+    return HD.util.material(0xffffff, { map: texture, roughness: 1, metalness: 0 });
+  }
+
   function batchStaticArchitecture(scene) {
     scene.updateMatrixWorld(true);
     const groups = new Map();
     scene.traverseVisible((object) => {
-      if (!object.isMesh || object.isInstancedMesh || object.children.length) return;
+      if (
+        !object.isMesh ||
+        object.isInstancedMesh ||
+        object.children.length ||
+        object.userData.noArenaBatch
+      ) return;
       const material = object.material;
       if (!material?.isMeshStandardMaterial || material.map || material.transparent) return;
       if (object.isSkinnedMesh) return;
@@ -222,24 +263,24 @@ HD.Stadium = (() => {
       ),
     );
   }
-  function addOvalRails(scene, rx, rz, color) {
+  function addOvalRails(scene, rx, rz, color, baseHeight = 0) {
     const root = new THREE.Group();
     scene.add(root);
     const lowerRail = [];
     const upperRail = [];
     for (let i = 0; i <= 128; i++) {
       const a = (i / 128) * Math.PI * 2;
-      lowerRail.push(oval(rx, rz, a).setY(2.15));
-      upperRail.push(oval(rx, rz, a).setY(3.55));
+      lowerRail.push(oval(rx, rz, a).setY(baseHeight + 1.2));
+      upperRail.push(oval(rx, rz, a).setY(baseHeight + 2.4));
       if (i % 4 === 0) {
         const p = oval(rx, rz, a);
-        cylinder(0.1, 0.13, 3.75, color, root, [p.x, 1.875, p.z], 7);
+        cylinder(0.1, 0.13, 2.4, color, root, [p.x, baseHeight + 1.2, p.z], 7);
       }
     }
     [lowerRail, upperRail].forEach((points) => {
-      root.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({ color }),
+      root.add(new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 256, 0.09, 5, false),
+        HD.util.material(color),
       ));
     });
   }
@@ -267,22 +308,78 @@ HD.Stadium = (() => {
     addDistanceMarkers(scene);
   }
 
+  function refreshStartingGate() {
+    const previous = HD.world.startingGate;
+    if (previous) {
+      previous.removeFromParent();
+      previous.traverse(object => {
+        object.geometry?.dispose();
+        if (object.material?.map) object.material.map.dispose();
+        object.material?.dispose();
+      });
+    }
+    if (!HD.world.scene) return;
+    const root = new THREE.Group();
+    root.name = 'Mobile starting gate';
+    const lanes = HD.CONFIG.trackLanes;
+    const count = HD.CONFIG.raceHorseCount;
+    const startX = lanes.innerLineX;
+    const width = lanes.spacingX;
+    root.userData.doors = [];
+    for (let lane = 0; lane <= count; lane++) {
+      const x = startX + lane * width;
+      for (const z of [-3.8, 3.8]) {
+        box([0.12, 7, 0.12], 0x2c5c4b, root, [x, 3.5, z]);
+      }
+      box([0.1, 0.12, 7.6], 0xaab7b5, root, [x, 2.4, 0]);
+      box([0.1, 0.12, 7.6], 0xaab7b5, root, [x, 4.4, 0]);
+      if (lane === count) continue;
+      const door = new THREE.Group();
+      door.position.set(x, 0, 3.8);
+      root.add(door);
+      box([width - 0.12, 0.12, 0.12], 0x2c5c4b, door, [width / 2, 2.4, 0]);
+      box([width - 0.12, 0.12, 0.12], 0x2c5c4b, door, [width / 2, 4.4, 0]);
+      root.userData.doors.push(door);
+      const plate = createTextSign(String(lane + 1), 0xffffff);
+      plate.position.set(x + width / 2, 6.5, 3.9);
+      plate.rotation.y = 0;
+      plate.scale.set(width * 0.6, 0.8, 1);
+      root.add(plate);
+    }
+    box([count * width + 0.5, 0.5, 0.4], 0x2c5c4b, root,
+      [startX + count * width / 2, 7, 3.8]);
+    for (const x of [startX - 0.35, startX + count * width + 0.35]) {
+      for (const z of [-3.8, 3.8]) {
+        const wheel = cylinder(0.4, 0.4, 0.25, 0x263238, root, [x, 0.4, z], 10);
+        wheel.rotation.z = Math.PI / 2;
+      }
+    }
+    HD.world.scene.add(root);
+    HD.world.startingGate = root;
+  }
+
   function addDistanceMarkers(scene) {
-    const markerAngles = [Math.PI / 2, Math.PI, Math.PI * 1.5];
+    const markerAngles = [Math.PI / 2 + 0.3, Math.PI, Math.PI * 1.5];
+    const labels = ["800m", "400m", "200m"];
 
     markerAngles.forEach((angle, index) => {
       const position = oval(74.5, 45.5, angle);
       cylinder(0.12, 0.16, 3.6, 0xf4df9f, scene, [position.x, 1.8, position.z], 8);
 
-      const marker = box([1.8, 1.25, 0.16], 0xffffff, scene, [position.x, 3.8, position.z]);
+      const marker = createTextSign(labels[index], 0xffffff);
+      marker.position.set(position.x, 3.8, position.z);
       marker.rotation.y = -angle + Math.PI / 2;
-      marker.material.emissive.setHex(index % 2 ? 0x12261d : 0x2b160c);
-      marker.material.emissiveIntensity = 0.08;
+      marker.scale.set(1.8, 1.25, 1);
+      scene.add(marker);
     });
   }
   function createOvalGrandstands(scene) {
     const root = new THREE.Group();
     scene.add(root);
+    // The experimental stacked green/blue grandstands and their stair towers
+    // were removed. Keep one readable lower bowl with the established public
+    // stairs and the separate shop concourse behind it.
+    HD.world.arenaSurfaces = [];
     HD.world.crowd = [];
     const rows = 7;
     const columns = GRANDSTAND_COLUMNS;
@@ -292,22 +389,22 @@ HD.Stadium = (() => {
     const throwerSeats = chooseCrowdThrowerSeats(rows, columns);
 
     const seatBases = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.35, 0.22, 1.25),
+      createSeatGeometry(false),
       HD.util.material(ARENA_COLORS.lowerSeats),
       count,
     );
     const seatBacks = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.35, 1.25, 0.18),
+      createSeatGeometry(true),
       HD.util.material(0xc69623),
       count,
     );
     const crowdBodies = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.32, 0.48, 1.25, 7),
+      new THREE.CylinderGeometry(0.42, 0.62, 1.55, 7),
       HD.util.material(0xffffff),
       count,
     );
     const crowdHeads = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(0.34, 7, 5),
+      new THREE.SphereGeometry(0.43, 7, 5),
       HD.util.material(0xefb88f),
       count,
     );
@@ -331,14 +428,14 @@ HD.Stadium = (() => {
         const yaw = -angle + Math.PI / 2;
         const tierTop = HD.CONFIG.grandstandBaseHeight + row * 1.5;
 
-        setInstance(dummy, seatBases, instance, position.x, tierTop + 0.11, position.z, yaw);
+        setInstance(dummy, seatBases, instance, position.x, tierTop + SEAT.cushionY, position.z, yaw);
         setInstance(
           dummy,
           seatBacks,
           instance,
-          position.x + Math.cos(angle) * 0.6,
-          tierTop + 0.72,
-          position.z + Math.sin(angle) * 0.6,
+          position.x + Math.cos(angle) * SEAT.backOffset,
+          tierTop + SEAT.backY,
+          position.z + Math.sin(angle) * SEAT.backOffset,
           yaw,
         );
         setInstance(
@@ -346,7 +443,7 @@ HD.Stadium = (() => {
           crowdBodies,
           instance,
           position.x,
-          tierTop + 1.25,
+          tierTop + 2.5,
           position.z,
           yaw,
         );
@@ -355,7 +452,7 @@ HD.Stadium = (() => {
           crowdHeads,
           instance,
           position.x,
-          tierTop + 2.18,
+          tierTop + 3.68,
           position.z,
           yaw,
         );
@@ -366,10 +463,16 @@ HD.Stadium = (() => {
         );
         const inStairAisle = STAIR_ANGLES.some(
           (stairAngle) =>
-            angleDistance(angle, stairAngle) < stairHalfAngle(rx, rz, stairAngle),
+            angleDistance(angle, stairAngle) < stairHalfAngle(rx, rz, stairAngle) + 1.2 / Math.min(rx, rz),
         );
-        const overHorsePassage = row < 5 && angleDistance(angle, HORSE_TUNNEL_ANGLE) < HORSE_TUNNEL_HALF_ANGLE + 0.02;
-        if (detailedPlayerSeat || inStairAisle || overHorsePassage) {
+        const besideSupport = ELEVATED_SEATING.some(section => {
+          const floorTwo = section.floor === 2;
+          return [section.start, section.end].some(a => {
+            const point = oval(floorTwo ? 91.6 : 97.8, floorTwo ? 60.35 : 65.8, a);
+            return point.distanceToSquared(position) < 2.25;
+          });
+        });
+        if (detailedPlayerSeat || inStairAisle || besideSupport) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
           });
@@ -379,9 +482,41 @@ HD.Stadium = (() => {
     }
 
     crowdBodies.instanceColor.needsUpdate = true;
+    [seatBases, seatBacks, crowdBodies, crowdHeads].forEach(batch => {
+      splitSeatingBatch(root, batch, rows, columns);
+    });
     createCrowdThrowers(scene, throwerSeats, colors);
-    createElevatedGrandstandSections(root);
-    createOvalCanopy(root);
+    createSingleBowlCanopy(root);
+  }
+
+  function splitSeatingBatch(root, source, rows, columns) {
+    const sectorColumns = columns / 8;
+    const matrix = new THREE.Matrix4();
+    const color = new THREE.Color();
+    for (let sector = 0; sector < 8; sector++) {
+      const batch = new THREE.InstancedMesh(source.geometry, source.material, rows * sectorColumns);
+      batch.name = 'Lower bowl seating sector ' + sector;
+      batch.receiveShadow = source.receiveShadow;
+      batch.castShadow = source.castShadow;
+      batch.userData.seatingSector = { firstColumn: sector * sectorColumns, sectorColumns, columns, rows };
+      batch.userData.stadiumSeating = true;
+      for (let row = 0; row < rows; row++) {
+        for (let column = 0; column < sectorColumns; column++) {
+          const original = row * columns + sector * sectorColumns + column;
+          const target = row * sectorColumns + column;
+          source.getMatrixAt(original, matrix);
+          batch.setMatrixAt(target, matrix);
+          if (source.instanceColor) {
+            source.getColorAt(original, color);
+            batch.setColorAt(target, color);
+          }
+        }
+      }
+      batch.computeBoundingSphere();
+      root.add(batch);
+    }
+    source.removeFromParent();
+    source.dispose();
   }
 
   function createElevatedGrandstandSections(root) {
@@ -389,31 +524,32 @@ HD.Stadium = (() => {
     ELEVATED_SEATING.forEach((section, index) => {
       createElevatedGrandstandSection(root, section, index);
     });
+    createConnectedTierStairs(root);
   }
 
   function createElevatedGrandstandSection(root, section, sectionIndex) {
     const floorTwo = section.floor === 2;
     const rows = floorTwo ? 4 : 3;
-    const columns = Math.max(12, Math.round((section.end - section.start) * 85 / 1.65));
+    const columns = Math.max(12, Math.floor((section.end - section.start) * 58 / 2.65));
     const count = rows * columns;
     const color = floorTwo ? ARENA_COLORS.middleSeats : ARENA_COLORS.upperSeats;
     const seatBases = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.28, 0.24, 1.18),
+      createSeatGeometry(false),
       HD.util.material(color),
       count,
     );
     const seatBacks = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1.28, 1.12, 0.19),
+      createSeatGeometry(true),
       HD.util.material(floorTwo ? 0x326b45 : 0x255b94),
       count,
     );
     const dummy = new THREE.Object3D();
-    const innerX = floorTwo ? 104.5 : 116;
-    const innerZ = floorTwo ? 70.8 : 80.4;
-    const rowStepX = floorTwo ? 2.05 : 1.82;
-    const rowStepZ = floorTwo ? 1.72 : 1.48;
+    const innerX = floorTwo ? 88.6 : 94.8;
+    const innerZ = floorTwo ? 57.35 : 62.8;
+    const rowStepX = 2.9;
+    const rowStepZ = 2.6;
     const aisleAngle = (section.start + section.end) / 2;
-    const aisleHalfAngle = 2.5 / Math.hypot(
+    const aisleHalfAngle = 3.6 / Math.hypot(
       innerX * Math.sin(aisleAngle), innerZ * Math.cos(aisleAngle),
     );
 
@@ -461,19 +597,19 @@ HD.Stadium = (() => {
         );
         const yaw = -angle + Math.PI / 2;
         // Four blocks per major section leave readable vertical aisle breaks.
-        if (Math.abs(angle - aisleAngle) < aisleHalfAngle + 0.014) {
+        if (Math.abs(angle - aisleAngle) < aisleHalfAngle + 1.2 / innerZ) {
           hideInstance(dummy, seatBases, instance);
           hideInstance(dummy, seatBacks, instance);
           continue;
         }
-        setInstance(dummy, seatBases, instance, position.x, deckY + 0.14, position.z, yaw);
+        setInstance(dummy, seatBases, instance, position.x, deckY + SEAT.cushionY, position.z, yaw);
         setInstance(
           dummy,
           seatBacks,
           instance,
-          position.x + Math.cos(angle) * 0.55,
-          deckY + 0.67,
-          position.z + Math.sin(angle) * 0.55,
+          position.x + Math.cos(angle) * SEAT.backOffset,
+          deckY + SEAT.backY,
+          position.z + Math.sin(angle) * SEAT.backOffset,
           yaw,
         );
       }
@@ -484,57 +620,335 @@ HD.Stadium = (() => {
       batch.receiveShadow = true;
       batch.instanceMatrix.needsUpdate = true;
       batch.userData.seatingFloor = section.floor;
+      batch.userData.stadiumSeating = true;
       batch.userData.seatingSection = sectionIndex;
       root.add(batch);
     });
 
-    const frontX = innerX - 0.54;
-    const frontZ = innerZ - 0.54;
-    addSectionRail(root, frontX, frontZ, section.start, aisleAngle - aisleHalfAngle, section.baseY);
-    addSectionRail(root, frontX, frontZ, aisleAngle + aisleHalfAngle, section.end, section.baseY);
-    addGrandstandSupports(root, section, frontX + 1.45, frontZ + 1.25);
-    const start = oval(floorTwo ? 103.25 : 112.7, floorTwo ? 69.75 : 77.68, aisleAngle);
+    const frontX = innerX - 4.2;
+    const frontZ = innerZ - 4.2;
+    const terraceGap = aisleHalfAngle * 0.9;
+    [[section.start, aisleAngle - terraceGap],
+      [aisleAngle + terraceGap, section.end]].forEach(
+      ([startAngle, endAngle], terraceIndex) => {
+        createSolidOvalSegment(
+          root, innerX, innerZ, frontX, frontZ,
+          section.baseY, ARENA_COLORS.concrete,
+          startAngle, endAngle, 14, section.baseY - 0.65,
+        );
+        HD.world.arenaSurfaces.push({
+          id: `terrace-${sectionIndex}-${terraceIndex}`,
+          terrace: true,
+          floor: section.floor,
+          start: startAngle,
+          end: endAngle,
+          innerX: frontX,
+          innerZ: frontZ,
+          outerX: innerX,
+          outerZ: innerZ,
+          y: section.baseY,
+        });
+      },
+    );
+    addElevatedDeckFascia(
+      root,
+      section,
+      frontX,
+      frontZ,
+      innerX + rows * rowStepX,
+      innerZ + rows * rowStepZ,
+    );
+    addSectionRail(root, frontX, frontZ, section.start, section.end, section.baseY);
+    addGrandstandSupports(root, section, innerX + 3, innerZ + 3);
+    const start = oval(innerX - 0.2, innerZ - 0.2, aisleAngle);
     const end = oval(innerX + rows * rowStepX, innerZ + rows * rowStepZ, aisleAngle);
-    start.y = floorTwo ? 13.5 : 17.24;
+    start.y = section.baseY;
     end.y = section.baseY + (rows - 1) * 1.18;
-    createUpperAisle(root, start, end, sectionIndex);
+    const outward = new THREE.Vector3(Math.cos(aisleAngle), 0, Math.sin(aisleAngle));
+    const landingFront = end.clone().addScaledVector(outward, -3.3);
+    const landingRear = end.clone().addScaledVector(outward, 3.3);
+    createUpperAisle(root, start, landingFront, sectionIndex);
+    createUpperAisle(root, landingFront, landingRear, 'rear-landing-' + sectionIndex);
   }
 
-  function createUpperAisle(root, start, end, sectionIndex, width = 4.8) {
+  function addElevatedDeckFascia(root, section, frontX, frontZ, rearX, rearZ) {
+    const accent = section.floor === 2
+      ? ARENA_COLORS.middleSeats
+      : ARENA_COLORS.upperSeats;
+
+    // A substantial front beam stops the balcony from reading as a floating sheet.
+    createSolidOvalSegment(
+      root,
+      frontX + 0.48,
+      frontZ + 0.48,
+      frontX,
+      frontZ,
+      section.baseY - 0.08,
+      ARENA_COLORS.concreteDark,
+      section.start,
+      section.end,
+      28,
+      section.baseY - 1.42,
+    );
+
+    addCurvedAccentBand(
+      root,
+      frontX - 0.04,
+      frontZ - 0.04,
+      section.start,
+      section.end,
+      section.baseY - 0.38,
+      accent,
+    );
+
+    // Finish both exposed ends of each independently constructed grandstand.
+    for (const angle of [section.start, section.end]) {
+      const front = oval(frontX + 0.2, frontZ + 0.2, angle);
+      const rear = oval(rearX + 0.2, rearZ + 0.2, angle);
+      const length = front.distanceTo(rear);
+      const midpoint = front.clone().lerp(rear, 0.5);
+      const wall = box(
+        [0.44, 1.55, length],
+        ARENA_COLORS.concreteDark,
+        root,
+        [midpoint.x, section.baseY - 0.72, midpoint.z],
+      );
+      wall.rotation.y = Math.atan2(rear.x - front.x, rear.z - front.z);
+    }
+  }
+
+  function addCurvedAccentBand(root, radiusX, radiusZ, start, end, y, color) {
+    const points = [];
+    for (let index = 0; index <= 32; index++) {
+      const angle = THREE.MathUtils.lerp(start, end, index / 32);
+      points.push(oval(radiusX, radiusZ, angle).setY(y));
+    }
+    const geometry = new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3(points),
+      48,
+      0.11,
+      5,
+      false,
+    );
+    root.add(new THREE.Mesh(geometry, HD.util.material(color)));
+  }
+
+  function createConnectedTierStairs(root) {
+    const floorTwoY = 18;
+    const floorTwoRearY = floorTwoY + 3 * 1.18;
+    const floorThreeY = 29;
+    const floorThreeAccess = [0, Math.PI, Math.PI * 1.5];
+
+    STAIR_ANGLES.forEach((angle, stairIndex) => {
+      const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
+      const stairTangent = tangent.clone()
+        .multiplyScalar(stairIndex % 2 === 0 ? -1 : 1);
+      const outward = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+      const mainStairTop = oval(
+        HD.CONFIG.stairs.endX,
+        HD.CONFIG.stairs.endZ,
+        angle,
+      ).setY(UPPER_CONCOURSE_Y);
+      // Keep the tower beside the lower-bowl aisle. The previous tangent-first
+      // layout crossed directly over the public stair and read as a collection
+      // of floating, unrelated ramps.
+      const lowerLanding = mainStairTop.clone()
+        .addScaledVector(stairTangent, 6.4);
+      const floorTwoFront = oval(86.4, 55.2, angle).setY(floorTwoY);
+      const floorTwoRear = oval(100.2, 67.75, angle).setY(floorTwoRearY);
+      const firstFlightEnd = lowerLanding.clone()
+        .addScaledVector(outward, 14)
+        .setY((UPPER_CONCOURSE_Y + floorTwoRearY) / 2);
+      const secondFlightStart = firstFlightEnd.clone()
+        .addScaledVector(stairTangent, 8);
+      const upperLanding = secondFlightStart.clone()
+        .addScaledVector(outward, -14)
+        .setY(floorTwoRearY);
+
+      createUpperAisle(
+        root, mainStairTop, lowerLanding,
+        `spine-${stairIndex}-level-two-entry`, HD.CONFIG.stairs.width,
+      );
+      createUpperAisle(
+        root, lowerLanding, firstFlightEnd,
+        `spine-${stairIndex}-level-two-lower`, HD.CONFIG.stairs.width,
+      );
+      createUpperAisle(
+        root, firstFlightEnd, secondFlightStart,
+        `spine-${stairIndex}-level-two-landing`, HD.CONFIG.stairs.width,
+      );
+      createUpperAisle(
+        root, secondFlightStart, upperLanding,
+        `spine-${stairIndex}-level-two-upper`, HD.CONFIG.stairs.width,
+      );
+      createUpperAisle(
+        root, upperLanding, floorTwoRear,
+        `spine-${stairIndex}-level-two-top-bridge`, HD.CONFIG.stairs.width,
+      );
+      createUpperAisle(
+        root, floorTwoFront, floorTwoRear,
+        `spine-${stairIndex}-middle-aisle`, HD.CONFIG.stairs.width,
+      );
+
+      if (!floorThreeAccess.some(value => angleDistance(value, angle) < 0.01)) {
+        return;
+      }
+
+      const towerTangent = tangent.clone()
+        .multiplyScalar(stairIndex % 2 === 0 ? 1 : -1);
+      const towerEntry = floorTwoRear.clone()
+        .addScaledVector(towerTangent, 6.4);
+      const corner = towerEntry.clone()
+        .addScaledVector(outward, 18)
+        .setY((floorTwoRearY + floorThreeY) / 2);
+      const landingEnd = corner.clone().addScaledVector(towerTangent, 8);
+      const upperEnd = landingEnd.clone()
+        .addScaledVector(outward, -18)
+        .setY(floorThreeY);
+      const floorThreeFront = oval(91, 59, angle).setY(floorThreeY);
+
+      createUpperAisle(root, floorTwoRear, towerEntry,
+        `spine-${stairIndex}-tower-entry`, 7.2);
+      createUpperAisle(root, towerEntry, corner,
+        `spine-${stairIndex}-tower-lower`, 7.2);
+      createUpperAisle(root, corner, landingEnd,
+        `spine-${stairIndex}-tower-landing`, 7.2);
+      createUpperAisle(root, landingEnd, upperEnd,
+        `spine-${stairIndex}-tower-upper`, 7.2);
+      createUpperAisle(root, upperEnd, floorThreeFront,
+        `spine-${stairIndex}-tower-top-bridge`, 8);
+      createTierLanding(
+        root, floorThreeFront, tangent,
+        `spine-${stairIndex}-level-three-landing`,
+      );
+    });
+  }
+
+  function createTierLanding(root, center, tangent, id) {
+    const halfSpan = 11;
+    createUpperAisle(
+      root,
+      center.clone().addScaledVector(tangent, -halfSpan),
+      center.clone().addScaledVector(tangent, halfSpan),
+      id,
+      8,
+    );
+
+    for (const side of [-1, 1]) {
+      const position = center.clone()
+        .addScaledVector(tangent, side * (halfSpan - 1.2));
+      const height = Math.max(0.8, center.y - UPPER_CONCOURSE_Y);
+      box([0.72, height, 0.72], ARENA_COLORS.concreteDark, root, [
+        position.x,
+        UPPER_CONCOURSE_Y + height / 2,
+        position.z,
+      ]);
+    }
+  }
+
+  function addLandingGuard(root, start, end) {
+    const direction = end.clone().sub(start);
+    const rail = box([0.2, 0.2, direction.length()], ARENA_COLORS.railing, root,
+      start.clone().lerp(end, 0.5).add(new THREE.Vector3(0, 3, 0)).toArray());
+    rail.rotation.y = Math.atan2(direction.x, direction.z);
+    for (let index = 0; index <= 4; index++) {
+      const position = start.clone().lerp(end, index / 4);
+      box([0.16, 3, 0.16], ARENA_COLORS.railing, root,
+        position.add(new THREE.Vector3(0, 1.5, 0)).toArray());
+    }
+  }
+
+  function createUpperAisle(root, start, end, sectionIndex, width = 6.4) {
     const horizontal = end.clone().sub(start).setY(0);
     const length = horizontal.length();
     const yaw = Math.atan2(horizontal.x, horizontal.z);
-    const steps = Math.max(8, Math.ceil((end.y - start.y) / 0.24));
+    const rise = end.y - start.y;
+    const steps = Math.abs(rise) < 0.01
+      ? 1
+      : Math.max(4, Math.ceil(Math.abs(rise) / 0.48));
     const group = new THREE.Group();
     group.name = 'Upper seating stair aisle ' + sectionIndex;
     group.position.copy(start);
     group.rotation.y = yaw;
     root.add(group);
-    for (let step = 0; step < steps; step++) {
-      const height = (end.y - start.y) * (step + 1) / steps;
-      box([width, height + 0.25, length / steps + 0.02], ARENA_COLORS.concrete, group,
-        [0, (height - 0.25) / 2, (step + 0.5) * length / steps]);
+    addSolidStairBody(group, width, length, rise, steps);
+    if (Math.abs(rise) >= 0.01) {
+      for (const offset of [-width * 0.3, width * 0.3]) {
+        const stringer = box(
+          [0.34, 0.42, Math.hypot(length, rise)],
+          ARENA_COLORS.concreteDark,
+          group,
+          [offset, rise / 2 - 0.34, length / 2],
+        );
+        stringer.rotation.x = -Math.atan2(rise, length);
+      }
     }
-    for (const side of [-1, 1]) {
-      const rise = end.y - start.y;
-      const rail = box([0.12, 0.12, Math.hypot(length, rise)], ARENA_COLORS.railing, group,
-        [side * width / 2, rise / 2 + 2.4, length / 2]);
+    // Perpendicular flights consume the sides of a flat connector at each
+    // switchback. Do not put a rail across those walking openings.
+    for (const side of Math.abs(rise) < 0.01 ? [] : [-1, 1]) {
+      const guardLength = Math.max(0.2, Math.hypot(length, rise) - 2.4);
+      const curb = box(
+        [0.38, 0.85, guardLength],
+        ARENA_COLORS.concrete,
+        group,
+        [side * (width / 2 - 0.19), rise / 2 + 0.3, length / 2],
+      );
+      curb.rotation.x = -Math.atan2(rise, length);
+      const rail = box([0.22, 0.22, guardLength], ARENA_COLORS.railing, group,
+        [side * (width / 2 - 0.19), rise / 2 + 3, length / 2]);
       rail.rotation.x = -Math.atan2(rise, length);
-      for (let post = 0; post <= 4; post++) {
-        cylinder(0.07, 0.09, 2.4, ARENA_COLORS.railing, group,
-          [side * width / 2, rise * post / 4 + 1.2, length * post / 4], 7);
+      for (const progress of [0.12, 0.31, 0.5, 0.69, 0.88]) {
+        box([0.16, 2.35, 0.16], ARENA_COLORS.railing, group,
+          [
+            side * (width / 2 - 0.19),
+            rise * progress + 1.8,
+            length * progress,
+          ]);
       }
     }
     HD.world.arenaSurfaces.push({
-      id: 'upper-stairs-' + sectionIndex, stairs: true,
-      startPoint: start.clone(), endPoint: end.clone(), width,
+      id: 'upper-stairs-' + sectionIndex,
+      stairs: true,
+      startPoint: start.clone(),
+      endPoint: end.clone(),
+      width,
+      visualRoot: group,
     });
   }
 
-  function upperWalkSurfaceAt(x, z, previousY) {
+  function addSolidStairBody(group, width, length, rise, steps) {
+    const profile = new THREE.Shape();
+    profile.moveTo(0, -0.65);
+    profile.lineTo(0, 0);
+    for (let step = 0; step < steps; step++) {
+      const y = rise * (step + 1) / steps - STAIR_SURFACE_INSET;
+      profile.lineTo(-length * step / steps, y);
+      profile.lineTo(-length * (step + 1) / steps, y);
+      if (steps > 1) {
+        box([width - 0.8, 0.045, 0.1], 0xe5e8e5, group,
+          [0, y + 0.02, length * step / steps + 0.055]);
+      }
+    }
+    // A solid triangular base ties an elevated flight into the concrete floor
+    // below instead of leaving a thin ramp floating in open space.
+    profile.lineTo(-length, -0.65);
+    profile.closePath();
+    const geometry = new THREE.ExtrudeGeometry(profile, {
+      depth: width, bevelEnabled: false, steps: 1,
+    });
+    geometry.rotateY(Math.PI / 2);
+    geometry.translate(-width / 2, 0, 0);
+    const body = new THREE.Mesh(geometry, HD.util.material(0xa7adae));
+    body.name = 'Continuous concrete stair body';
+    group.add(body);
+  }
+
+  function upperWalkSurfaceAt(x, z, previousY, preferredDirection) {
     let closest = null;
     for (const surface of HD.world.arenaSurfaces || []) {
       let y;
+      let priority = 0;
+      let alignment = 0;
       if (surface.stairs) {
         const start = surface.startPoint;
         const end = surface.endPoint;
@@ -543,8 +957,19 @@ HD.Stadium = (() => {
         const lengthSquared = dx * dx + dz * dz;
         const t = ((x - start.x) * dx + (z - start.z) * dz) / lengthSquared;
         const lateral = Math.abs(dx * (z - start.z) - dz * (x - start.x)) / Math.sqrt(lengthSquared);
-        if (t < -0.025 || t > 1.025 || lateral > surface.width / 2) continue;
+        if (t < -0.08 || t > 1.08 || lateral > surface.width / 2 + 0.35) continue;
         y = THREE.MathUtils.lerp(start.y, end.y, THREE.MathUtils.clamp(t, 0, 1));
+        // Extended entry tolerance helps the player step onto a staircase,
+        // but the physically contained flight must beat a neighboring
+        // landing whose tolerance overlaps the same point.
+        priority = 1 + (t >= 0 && t <= 1 ? 0.25 : 0);
+        if (preferredDirection?.lengthSq?.() > 0.000001) {
+          alignment = Math.abs(
+            new THREE.Vector2(dx, dz).normalize().dot(
+              new THREE.Vector2(preferredDirection.x, preferredDirection.z).normalize(),
+            ),
+          );
+        }
       } else if (surface.bounds) {
         if (x < surface.bounds[0] || x > surface.bounds[1] ||
             z < surface.bounds[2] || z > surface.bounds[3]) continue;
@@ -558,9 +983,18 @@ HD.Stadium = (() => {
       }
       const difference = Math.abs(y - previousY);
       if (difference > 0.85) continue;
-      if (!closest || (surface.stairs && !closest.stairs) ||
-          (surface.stairs === closest.stairs && difference < closest.difference)) {
-        closest = { y, zone: surface.stairs ? 'stairs' : surface.id, stairs: !!surface.stairs, difference };
+      if (!closest || priority > closest.priority ||
+          (priority === closest.priority && alignment > closest.alignment + 0.02) ||
+          (priority === closest.priority && Math.abs(alignment - closest.alignment) <= 0.02 &&
+            difference < closest.difference)) {
+        closest = {
+          y,
+          zone: surface.stairs ? 'stairs' : surface.id,
+          stairs: !!surface.stairs,
+          difference,
+          priority,
+          alignment,
+        };
       }
     }
     return closest;
@@ -572,30 +1006,38 @@ HD.Stadium = (() => {
     for (let index = 0; index <= postCount; index++) {
       const angle = THREE.MathUtils.lerp(start, end, index / postCount);
       const position = oval(radiusX, radiusZ, angle);
-      points.push(position.setY(y + 1.35));
-      cylinder(0.07, 0.085, 1.35, ARENA_COLORS.railing, root, [
+      points.push(position.setY(y + 2.4));
+      cylinder(0.07, 0.085, 2.4, ARENA_COLORS.railing, root, [
         position.x,
-        y + 0.675,
+        y + 1.2,
         position.z,
       ], 7);
     }
-    root.add(new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(points),
-      new THREE.LineBasicMaterial({ color: ARENA_COLORS.railing }),
+    root.add(new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 48, 0.075, 5, false),
+      HD.util.material(ARENA_COLORS.railing),
     ));
   }
 
   function addGrandstandSupports(root, section, radiusX, radiusZ) {
-    const supportCount = Math.max(3, Math.round((section.end - section.start) / 0.22));
+    const supportCount = 1;
     for (let index = 0; index <= supportCount; index++) {
       const angle = THREE.MathUtils.lerp(section.start, section.end, index / supportCount);
+      const blocksPublicStair = STAIR_ANGLES.some(stairAngle => {
+        return angleDistance(angle, stairAngle) < 0.22;
+      });
+      if (blocksPublicStair) continue;
       const position = oval(radiusX, radiusZ, angle);
-      const height = section.baseY - 0.5;
+      const height = section.baseY - 0.1;
       cylinder(0.42, 0.52, height, ARENA_COLORS.concreteDark, root, [
         position.x,
-        height / 2 - 0.5,
+        height / 2 - 0.55,
         position.z,
       ], 8);
+      HD.world.structuralBarriers.push({
+        x: position.x, z: position.z, radius: 0.9,
+        minY: -0.55, maxY: section.baseY - 0.65,
+      });
       const beam = box([1.2, 0.46, 1.2], ARENA_COLORS.concrete, root, [
         position.x,
         section.baseY - 0.22,
@@ -619,8 +1061,8 @@ HD.Stadium = (() => {
         const playerSeat = DETAILED_SEATS.some((seat) => {
           return seat.row === row && seat.column === column;
         });
-        const overHorsePassage = row < 5 && angleDistance(angle, HORSE_TUNNEL_ANGLE) < HORSE_TUNNEL_HALF_ANGLE + 0.02;
-        if (!blockedByStairs && !playerSeat && !overHorsePassage) {
+        const placement = grandstandSeat(row, column);
+        if (!blockedByStairs && !playerSeat && !seatingIntersectsStairs(placement.avatar)) {
           candidates.push({ row, column });
         }
       }
@@ -1712,7 +2154,11 @@ HD.Stadium = (() => {
     const clearsStairs = STAIR_ANGLES.every((stairAngle) => {
       return angleDistance(angle, stairAngle) > 0.14;
     });
-    return clearsStairs;
+    const clearsFacilities = CONCOURSE_FACILITIES.every((facility) => {
+      return angleDistance(angle, facility.angle) > 0.09;
+    });
+    const clearsFixer = angleDistance(angle, FIXER_ANGLE) > 0.18;
+    return clearsStairs && clearsFacilities && clearsFixer;
   }
 
   function addTierRing(root, row) {
@@ -1737,7 +2183,6 @@ HD.Stadium = (() => {
       const start = current + stairHalfAngle(middleX, middleZ, current);
       const nextAngle = index === sortedAngles.length - 1 ? next + Math.PI * 2 : next;
       const end = nextAngle - stairHalfAngle(middleX, middleZ, next);
-      for (const [segmentStart, segmentEnd] of excludeHorsePassage(start, end)) {
       createSolidOvalSegment(
         root,
         outerX,
@@ -1746,38 +2191,18 @@ HD.Stadium = (() => {
         innerZ,
         height,
         color,
-        segmentStart,
-        segmentEnd,
+        start,
+        end,
       );
-      addTierFasciaSegment(root, outerX, outerZ, height, row, segmentStart, segmentEnd);
-      }
-      if (row >= 5 && start < HORSE_TUNNEL_ANGLE && end > HORSE_TUNNEL_ANGLE) {
-        createSolidOvalSegment(root, outerX, outerZ, innerX, innerZ, height, color,
-          HORSE_TUNNEL_ANGLE - HORSE_TUNNEL_HALF_ANGLE,
-          HORSE_TUNNEL_ANGLE + HORSE_TUNNEL_HALF_ANGLE, 12, 9);
-      }
+      addTierFasciaSegment(root, outerX, outerZ, height, row, start, end);
     }
-  }
-
-  function excludeHorsePassage(start, end) {
-    const left = HORSE_TUNNEL_ANGLE - HORSE_TUNNEL_HALF_ANGLE;
-    const right = HORSE_TUNNEL_ANGLE + HORSE_TUNNEL_HALF_ANGLE;
-    if (end <= left || start >= right) return [[start, end]];
-    return [[start, Math.min(end, left)], [Math.max(start, right), end]]
-      .filter(([a, b]) => b > a);
-  }
-
-  function horsePassageAt(x, z) {
-    const angle = (Math.atan2(z / 47.25, x / 77.25) + Math.PI * 2) % (Math.PI * 2);
-    return angleDistance(angle, HORSE_TUNNEL_ANGLE) < HORSE_TUNNEL_HALF_ANGLE &&
-      (x / 99) ** 2 + (z / 66) ** 2 < 1;
   }
 
   function stairHalfAngle(rx, rz, angle) {
     const tangentX = rx * Math.sin(angle);
     const tangentZ = rz * Math.cos(angle);
     const distancePerRadian = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
-    const aisleHalfWidth = HD.CONFIG.stairs.width / 2 + 0.28;
+    const aisleHalfWidth = HD.CONFIG.stairs.width / 2 + 0.04;
     return aisleHalfWidth / distancePerRadian;
   }
 
@@ -1791,7 +2216,7 @@ HD.Stadium = (() => {
     color,
     start,
     end,
-    segmentCount = 18,
+    segmentCount = 48,
     foundationBottom = -0.55,
   ) {
     const shape = new THREE.Shape();
@@ -1822,6 +2247,7 @@ HD.Stadium = (() => {
     section.castShadow = false;
     section.receiveShadow = true;
     root.add(section);
+    return section;
   }
 
   function addTierFasciaSegment(root, rx, rz, height, row, start, end) {
@@ -1839,6 +2265,98 @@ HD.Stadium = (() => {
     root.add(line);
   }
 
+  function createSingleBowlCanopy(root) {
+    const canopy = new THREE.Group();
+    canopy.name = 'Single-bowl stadium canopy';
+    root.add(canopy);
+
+    const screenClearance = 0.19;
+    const spans = [
+      [0, REPLAY_ANGLE - screenClearance],
+      [REPLAY_ANGLE + screenClearance, Math.PI * 2],
+    ];
+
+    spans.forEach(([start, end], spanIndex) => {
+      const segmentCount = Math.max(10, Math.ceil((end - start) * 18));
+      const positions = [];
+      const indices = [];
+
+      for (let index = 0; index <= segmentCount; index++) {
+        const angle = THREE.MathUtils.lerp(start, end, index / segmentCount);
+        const outer = oval(121, 84, angle);
+        const inner = oval(91.5, 59.5, angle);
+        positions.push(
+          outer.x, 24.8, outer.z,
+          inner.x, 27.4, inner.z,
+        );
+        if (index < segmentCount) {
+          const vertex = index * 2;
+          indices.push(
+            vertex, vertex + 2, vertex + 1,
+            vertex + 2, vertex + 3, vertex + 1,
+          );
+        }
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      const panel = new THREE.Mesh(
+        geometry,
+        HD.util.material(0x2d4e63, {
+          metalness: 0.16,
+          roughness: 0.44,
+          side: THREE.DoubleSide,
+        }),
+      );
+      panel.name = `Single-bowl roof span ${spanIndex + 1}`;
+      panel.receiveShadow = true;
+      canopy.add(panel);
+    });
+
+    for (let index = 0; index < 16; index++) {
+      const angle = index / 16 * Math.PI * 2 + Math.PI / 16;
+      const blocksStair = STAIR_ANGLES.some(stairAngle => {
+        return angleDistance(angle, stairAngle) < 0.16;
+      });
+      if (blocksStair || angleDistance(angle, REPLAY_ANGLE) < 0.24) continue;
+      const position = oval(117.5, 80.5, angle);
+      cylinder(0.32, 0.44, 11.3, 0x4c5a5d, canopy, [
+        position.x,
+        19.15,
+        position.z,
+      ], 10);
+    }
+
+    const lightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffe8a8,
+      emissive: 0xffc84d,
+      emissiveIntensity: 1.5,
+      roughness: 0.35,
+    });
+    const lights = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      lightMaterial,
+      24,
+    );
+    const dummy = new THREE.Object3D();
+    for (let index = 0; index < 24; index++) {
+      const angle = (index + 0.5) / 24 * Math.PI * 2;
+      const position = oval(99, 66, angle);
+      dummy.position.set(position.x, 26.75, position.z);
+      dummy.rotation.set(0, -angle, 0);
+      dummy.scale.set(3.1, 0.12, 0.48);
+      dummy.updateMatrix();
+      lights.setMatrixAt(index, dummy.matrix);
+    }
+    lights.instanceMatrix.needsUpdate = true;
+    canopy.add(lights);
+  }
+
   function createOvalCanopy(root) {
     const roofSections = ELEVATED_SEATING.filter((section) => section.floor === 3);
     roofSections.forEach((section, index) => {
@@ -1849,14 +2367,14 @@ HD.Stadium = (() => {
   }
 
   function createGrandstandRoofPanel(root, section, sectionIndex) {
-    const outerX = 125;
-    const outerZ = 85.5;
-    const innerX = 108;
-    const innerZ = 73;
+    const outerX = 119;
+    const outerZ = 83;
+    const innerX = 90;
+    const innerZ = 58.6;
     // Highest deck is 21.56; preserve standing-player clearance underneath.
-    const outerHeight = 28.4;
-    const innerHeight = 30.4;
-    const segments = 18;
+    const outerHeight = 42.4;
+    const innerHeight = 44.4;
+    const segments = 48;
     const positions = [];
     const indices = [];
 
@@ -1902,15 +2420,21 @@ HD.Stadium = (() => {
       new THREE.LineBasicMaterial({ color: 0xf0c95d }),
     ));
 
+    const supportBaseY = 13.5;
     for (let index = 0; index <= 4; index++) {
       const angle = THREE.MathUtils.lerp(section.start, section.end, index / 4);
+      const blocksPublicStair = STAIR_ANGLES.some(stairAngle => {
+        return angleDistance(angle, stairAngle) < 0.22;
+      });
+      if (blocksPublicStair) continue;
       const outer = oval(outerX - 0.9, outerZ - 0.9, angle);
-      cylinder(0.3, 0.42, outerHeight + 0.12, 0x4c5a5d, root, [
+      const supportHeight = outerHeight - supportBaseY;
+      cylinder(0.3, 0.42, supportHeight, 0x4c5a5d, root, [
         outer.x,
-        (outerHeight + 0.12) / 2,
+        supportBaseY + supportHeight / 2,
         outer.z,
       ], 10);
-      const brace = cylinder(0.11, 0.11, 7.5, 0x4c5a5d, root, [outer.x, 24, outer.z], 8);
+      const brace = cylinder(0.11, 0.11, 7.5, 0x4c5a5d, root, [outer.x, 38, outer.z], 8);
       brace.rotation.z = Math.sin(angle) * 0.34;
     }
   }
@@ -1944,8 +2468,8 @@ HD.Stadium = (() => {
     for (let index = 0; index < lightCount; index++) {
       const section = sections[Math.floor(index / 9)];
       const angle = THREE.MathUtils.lerp(section.start, section.end, (index % 9 + 0.5) / 9);
-      const position = oval(112, 75, angle);
-      dummy.position.set(position.x, 29.65, position.z);
+      const position = oval(98, 65, angle);
+      dummy.position.set(position.x, 43.7, position.z);
       dummy.rotation.set(0, -angle, 0);
       dummy.scale.set(3.4, 0.12, 0.5);
       dummy.updateMatrix();
@@ -1959,9 +2483,9 @@ HD.Stadium = (() => {
     sections.forEach((section) => {
       for (let index = 0; index < 4; index++) {
       const angle = THREE.MathUtils.lerp(section.start, section.end, (index + 0.5) / 4);
-      const position = oval(108, 73, angle);
+      const position = oval(92, 60, angle);
       const fixture = new THREE.Group();
-      fixture.position.set(position.x, 29.7, position.z);
+      fixture.position.set(position.x, 44, position.z);
       fixture.lookAt(0, 2, 0);
       root.add(fixture);
       cylinder(0.16, 0.2, 1.4, 0x30383a, fixture, [0, 0, 0], 10)
@@ -2174,7 +2698,7 @@ HD.Stadium = (() => {
       const colorIndex = (index + 1) % HD.CONFIG.playerColors.length;
       const playerColor = HD.CONFIG.playerColors[colorIndex];
       // Reserved human seats stay empty until a real network player joins.
-      createChair(scene, placement, playerColor);
+      createChair(scene, placement, ARENA_COLORS.lowerSeats);
     });
 
     createLocalPlayer(scene);
@@ -2229,7 +2753,7 @@ HD.Stadium = (() => {
     player.traverse((object) => object.layers.set(2));
     scene.add(player);
 
-    createChair(scene, placement, HD.CONFIG.playerColors[0]);
+    createChair(scene, placement, ARENA_COLORS.lowerSeats);
     HD.world.localPlayer = player;
     HD.world.playerEntities = [player, ...HD.world.players];
   }
@@ -2312,17 +2836,93 @@ HD.Stadium = (() => {
     };
   }
 
+  function createSeatGeometry(back) {
+    const outline = new THREE.Shape();
+    const height = back ? SEAT.backHeight : SEAT.depth;
+    roundedRectangle(outline, -SEAT.width / 2, -height / 2, SEAT.width, height, 0.16);
+    const geometry = new THREE.ExtrudeGeometry(outline, {
+      depth: 0.18, bevelEnabled: true, bevelSize: 0.035,
+      bevelThickness: 0.035, bevelSegments: 1, curveSegments: 3, steps: 1,
+    });
+    geometry.translate(0, 0, -0.09);
+    if (!back) geometry.rotateX(-Math.PI / 2);
+    geometry.userData.seatCushion = !back;
+    return geometry;
+  }
+
+  function seatingIntersectsStairs(position) {
+    return (HD.world.arenaSurfaces || []).some(route => {
+      if (!route.stairs) return false;
+      const dx = route.endPoint.x - route.startPoint.x;
+      const dz = route.endPoint.z - route.startPoint.z;
+      const lengthSquared = dx * dx + dz * dz;
+      const t = ((position.x - route.startPoint.x) * dx +
+        (position.z - route.startPoint.z) * dz) / lengthSquared;
+      if (t < -0.08 || t > 1.08) return false;
+      const lateral = Math.abs(dx * (position.z - route.startPoint.z) -
+        dz * (position.x - route.startPoint.x)) / Math.sqrt(lengthSquared);
+      const stairY = THREE.MathUtils.lerp(route.startPoint.y, route.endPoint.y,
+        THREE.MathUtils.clamp(t, 0, 1));
+      return lateral < route.width / 2 + 1.3 &&
+        position.y > stairY - 4.8 && position.y < stairY + 4.8;
+    });
+  }
+
+  function clearSeatingFromStairs(scene) {
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    scene.traverse(batch => {
+      if (!batch.isInstancedMesh || !batch.userData.stadiumSeating) return;
+      for (let index = 0; index < batch.count; index++) {
+        batch.getMatrixAt(index, matrix);
+        position.setFromMatrixPosition(matrix);
+        const nearSupport = (HD.world.structuralBarriers || []).some(barrier => {
+          if (!barrier.radius) return false;
+          if (position.y < barrier.minY - 4 || position.y > barrier.maxY + 4) return false;
+          return Math.hypot(position.x - barrier.x, position.z - barrier.z) < barrier.radius + 1.2;
+        });
+        if (nearSupport || seatingIntersectsStairs(position)) batch.setMatrixAt(index, hidden);
+      }
+      batch.instanceMatrix.needsUpdate = true;
+      batch.computeBoundingSphere();
+    });
+    HD.world.crowdThrowers.forEach(thrower => thrower.removeFromParent());
+    const colors = [0xd94f31, 0x447fc1, 0xf0bd3b, 0x7e59a4, 0x3d8951, 0xd97d35];
+    createCrowdThrowers(scene, chooseCrowdThrowerSeats(7, GRANDSTAND_COLUMNS)
+      .filter(seat => !seatingIntersectsStairs(grandstandSeat(seat.row, seat.column).avatar)), colors);
+  }
+
+  function addSeatSupports(scene) {
+    const cushions = [];
+    scene.traverse(batch => {
+      if (batch.isInstancedMesh && batch.geometry.userData.seatCushion) cushions.push(batch);
+    });
+    const geometry = new THREE.BoxGeometry(0.42, 1.42, 1.05);
+    const material = HD.util.material(0x435963);
+    const matrix = new THREE.Matrix4();
+    const offset = new THREE.Matrix4().makeTranslation(0, -0.81, 0);
+    cushions.forEach(cushion => {
+      const supports = new THREE.InstancedMesh(geometry, material, cushion.count);
+      supports.name = 'Stadium seat supports';
+      for (let index = 0; index < cushion.count; index++) {
+        cushion.getMatrixAt(index, matrix);
+        supports.setMatrixAt(index, matrix.multiply(offset));
+      }
+      supports.computeBoundingSphere();
+      cushion.parent.add(supports);
+    });
+  }
+
   function createChair(scene, placement, color) {
     const root = new THREE.Group();
     root.position.set(placement.position.x, placement.tierTop, placement.position.z);
     root.rotation.y = placement.yaw;
     scene.add(root);
 
-    box([1.35, 0.22, 1.25], color, root, [0, 0.11, 0]);
-    const back = box([1.35, 1.25, 0.18], color, root, [0, 0.72, 0.6]);
-    back.rotation.x = -0.08;
-    cylinder(0.06, 0.08, 0.85, 0x39463e, root, [-0.48, -0.32, 0], 7);
-    cylinder(0.06, 0.08, 0.85, 0x39463e, root, [0.48, -0.32, 0], 7);
+    mesh(createSeatGeometry(false), color, root, [0, SEAT.cushionY, 0]);
+    mesh(createSeatGeometry(true), color, root, [0, SEAT.backY, SEAT.backOffset]);
+    box([0.42, 1.42, 1.05], 0x435963, root, [0, 0.71, 0]);
   }
 
   function createBackground(scene) {
@@ -2349,28 +2949,37 @@ HD.Stadium = (() => {
     sky.rotation.z = 0;
     scene.add(sky);
 
-    const modelDetail = HD.Settings.modelDetail();
-    const mountainCount = modelDetail === "low" ? 18 : modelDetail === "standard" ? 28 : 36;
-    const mountains = new THREE.InstancedMesh(
-      new THREE.DodecahedronGeometry(18, 0),
-      new THREE.MeshLambertMaterial({ color: 0x58745d, flatShading: true }),
-      mountainCount,
-    );
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < mountainCount; i++) {
-      const angle = (i / mountainCount) * Math.PI * 2;
-      const radius = 205 + Math.sin(i * 4.7) * 18;
-      dummy.position.set(Math.cos(angle) * radius, 2 + (i % 3) * 2, Math.sin(angle) * radius);
-      dummy.scale.set(2.1 + (i % 4) * 0.12, 0.7 + (i % 5) * 0.08, 1.6);
-      dummy.rotation.y = angle;
-      dummy.updateMatrix();
-      mountains.setMatrixAt(i, dummy.matrix);
-    }
-    mountains.castShadow = false;
-    mountains.receiveShadow = false;
-    scene.add(mountains);
+    createMountainBackdrop(scene);
 
     createTreeLine(scene);
+  }
+
+  function createMountainBackdrop(scene) {
+    const vertices = [];
+    const indices = [];
+    const segments = 128;
+    for (let ring = 0; ring < 3; ring++) {
+      for (let index = 0; index <= segments; index++) {
+        const angle = index / segments * Math.PI * 2;
+        const peak = 26 + Math.sin(angle * 5) * 10 + Math.sin(angle * 11 + 1) * 6;
+        const radius = [190, 265, 400][ring] + Math.sin(angle * 7) * ring * 5;
+        vertices.push(Math.cos(angle) * radius, ring === 1 ? peak : -0.5, Math.sin(angle) * radius);
+        if (ring < 2 && index < segments) {
+          const a = ring * (segments + 1) + index;
+          const b = a + segments + 1;
+          indices.push(a, a + 1, b, a + 1, b + 1, b);
+        }
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const mountains = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({
+      color: 0x6c8893, side: THREE.DoubleSide,
+    }));
+    mountains.name = 'Continuous distant mountain ridge';
+    scene.add(mountains);
   }
 
   function createTreeLine(scene) {
@@ -2390,22 +2999,33 @@ HD.Stadium = (() => {
 
     for (let i = 0; i < treeCount; i++) {
       const angle = (i / treeCount) * Math.PI * 2;
+      let landscapedAngle = angle;
+      const entranceAngle = SECONDARY_ENTRANCE_ANGLES.find((candidate) => {
+        return angleDistance(angle, candidate) < 0.11;
+      });
+      if (entranceAngle !== undefined) {
+        const offset = Math.atan2(
+          Math.sin(angle - entranceAngle),
+          Math.cos(angle - entranceAngle),
+        );
+        landscapedAngle = entranceAngle + Math.sign(offset || 1) * 0.14;
+      }
       const variation = Math.sin(i * 12.9898);
       const landscapeRow = i % 4;
       const radiusX = 127 + landscapeRow * 3.7 + variation * 0.9;
       const radiusZ = 88 + landscapeRow * 2.5 + variation * 0.65;
-      const x = Math.cos(angle) * radiusX;
-      const z = Math.sin(angle) * radiusZ;
+      const x = Math.cos(landscapedAngle) * radiusX;
+      const z = Math.sin(landscapedAngle) * radiusZ;
       const scale = 0.75 + (i % 7) * 0.07;
 
       dummy.position.set(x, 2.4 * scale, z);
       dummy.scale.set(scale, scale, scale);
-      dummy.rotation.y = angle;
+      dummy.rotation.y = landscapedAngle;
       dummy.updateMatrix();
       trunks.setMatrixAt(i, dummy.matrix);
 
       dummy.position.y = 6.2 * scale;
-      dummy.rotation.y = angle * 1.7;
+      dummy.rotation.y = landscapedAngle * 1.7;
       dummy.updateMatrix();
       crowns.setMatrixAt(i, dummy.matrix);
       crowns.setColorAt(
@@ -2451,6 +3071,7 @@ HD.Stadium = (() => {
   function createConcourseDetails(scene) {
     for (let index = 0; index < 8; index++) {
       const angle = ((index + 0.5) / 8) * Math.PI * 2;
+      if (!upperPropPositionIsClear(angle)) continue;
       const position = oval(109.5, 74.5, angle);
       const bench = new THREE.Group();
       bench.position.set(position.x, 13.5, position.z);
@@ -2467,23 +3088,42 @@ HD.Stadium = (() => {
   function createPlayerRoutes(scene) {
     createRaisedRing(scene, 80.5, 50.5, 74, 44, 1.65, 0xd8c499);
     createUpperConcourse(scene);
+    createConcourseFloorFinish(scene);
     createConcourseGlassRails(scene);
 
     HD.world.staircases = [];
     STAIR_ANGLES.forEach((angle) => createStaircase(scene, angle));
+    HD.world.stairArrivalMarkers = [];
 
     HD.world.shopPositions = [];
     HD.world.betCounterPositions = [];
+    HD.world.bettingDisplays = [];
+    HD.world.lastBettingDisplayUpdate = -Infinity;
     HD.world.sabotageCounterPositions = [];
     HD.world.barriers = [];
-    const shopAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4];
+    const shopAngles = [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4]
+      .map(angle => angle + 0.2);
     shopAngles.forEach((angle, index) => createUpperShop(scene, angle, index));
-    createSabotageCounter(scene, Math.PI + 0.28);
+    createSabotageCounter(scene, FIXER_ANGLE);
     createUpperConcourseProps(scene);
   }
 
   function createUpperConcourse(scene) {
     const color = 0xb7a47f;
+
+    createSolidOvalSegment(
+      scene,
+      120,
+      83,
+      103.25,
+      69.75,
+      12.75,
+      ARENA_COLORS.concreteDark,
+      0,
+      Math.PI * 2,
+      96,
+      1.15,
+    ).name = 'Solid upper-concourse foundation';
 
     const shellSegmentCount = 8;
     for (let segment = 0; segment < shellSegmentCount; segment++) {
@@ -2505,8 +3145,8 @@ HD.Stadium = (() => {
     }
     // A supported slab keeps the public concourse open, rather than making
     // the entire stadium perimeter one solid concrete drum.
-    for (let index = 0; index < 48; index++) {
-      const angle = (index + 0.5) / 48 * Math.PI * 2;
+    for (let index = 0; index < 24; index++) {
+      const angle = (index + 0.5) / 24 * Math.PI * 2;
       for (const [rx, rz] of [[105, 71], [118.7, 81.7]]) {
         const point = oval(rx, rz, angle);
         box([1.1, 13.3, 1.1], ARENA_COLORS.concreteDark, scene, [point.x, 6.1, point.z]);
@@ -2661,7 +3301,9 @@ HD.Stadium = (() => {
   }
 
   function createSabotageCounter(scene, angle) {
-    const position = oval(115, 79, angle).add(new THREE.Vector3(0, 0, -11));
+    // Keep the entire counter centered on the walkable concourse. The old
+    // world-space Z offset pushed it through the exterior glass on one side.
+    const position = oval(112, 76, angle);
     const counter = new THREE.Group();
     counter.position.set(position.x, 13.5, position.z);
     counter.rotation.y = -angle + Math.PI / 2;
@@ -2697,15 +3339,18 @@ HD.Stadium = (() => {
     const end = oval(stairs.endX, stairs.endZ, angle);
     const path = end.clone().sub(start);
     const pathLength = path.length();
-    const stepCount = 24;
-    const radialStep = pathLength / stepCount;
-    const stepDepth = radialStep + 0.12;
+    const anchors = mainStairAnchors(angle, start, path);
+    const stepCount = (anchors.length - 1) * 2;
+    const connectorShare = 0.42;
     root.position.copy(start);
     root.rotation.y = Math.atan2(path.x, path.z);
     root.userData.staircase = {
       angle,
       start: start.toArray(),
       end: end.toArray(),
+      treadCount: stepCount,
+      treadsPerSeatRow: 2,
+      connectorShare,
       visualTopY: stairs.topHeight - STAIR_SURFACE_INSET,
       concourseY: UPPER_CONCOURSE_Y,
     };
@@ -2714,12 +3359,12 @@ HD.Stadium = (() => {
 
     const lightSteps = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      HD.util.material(0xd3c09a),
+      HD.util.material(0xa7adae),
       Math.ceil(stepCount / 2),
     );
     const darkSteps = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      HD.util.material(0xc4b18c),
+      HD.util.material(0xa7adae),
       Math.floor(stepCount / 2),
     );
     const dummy = new THREE.Object3D();
@@ -2727,14 +3372,32 @@ HD.Stadium = (() => {
     let darkIndex = 0;
 
     for (let step = 0; step < stepCount; step++) {
-      const progress = (step + 1) / stepCount;
-      const distance = (step + 0.5) * radialStep;
+      const anchorIndex = Math.floor(step / 2);
+      const halfStep = step % 2 + 1;
+      const previous = anchors[anchorIndex];
+      const next = anchors[anchorIndex + 1];
+      const startProgress = THREE.MathUtils.lerp(
+        previous.progress,
+        next.progress,
+        halfStep === 1 ? 0 : connectorShare,
+      );
+      const progress = THREE.MathUtils.lerp(
+        previous.progress,
+        next.progress,
+        halfStep === 1 ? connectorShare : 1,
+      );
+      const distance = (startProgress + progress) * 0.5 * pathLength;
+      const stepDepth = (progress - startProgress) * pathLength + 0.12;
       const topInset = STAIR_SURFACE_INSET * THREE.MathUtils.smoothstep(
         progress,
         0.62,
         1,
       );
-      const top = stairHeightForProgress(progress) - topInset;
+      const top = THREE.MathUtils.lerp(
+        previous.height,
+        next.height,
+        halfStep / 2,
+      ) - topInset;
       const foundation = 1.25;
       const height = top - foundation;
       const centerY = foundation + height / 2;
@@ -2755,7 +3418,7 @@ HD.Stadium = (() => {
 
     box(
       [stairs.width, 0.28, 0.72],
-      0xcab78f,
+      ARENA_COLORS.concrete,
       root,
       [0, stairs.bottomHeight - 0.14, 0],
     );
@@ -2767,32 +3430,35 @@ HD.Stadium = (() => {
     const railLength = Math.sqrt(span * span + rise * rise);
     const railY = (
       HD.CONFIG.stairs.bottomHeight + HD.CONFIG.stairs.topHeight
-    ) / 2 + 2.4;
+    ) / 2 + 3;
     const railZ = span / 2;
 
-    const railOffset = HD.CONFIG.stairs.width / 2;
-    for (const side of [-1, 1]) {
-      const rail = box(
-        [0.14, 0.14, railLength],
+    const rail = box(
+      [0.22, 0.22, railLength],
+      ARENA_COLORS.railing,
+      root,
+      [0, railY, railZ],
+    );
+    rail.name = 'Visual-only center stair handrail';
+    rail.userData.noArenaBatch = true;
+    rail.userData.collision = false;
+    rail.rotation.x = -Math.atan2(rise, span);
+
+    for (const progress of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
+      const distance = span * progress;
+      const surface = stairHeightForProgress(progress);
+      const post = cylinder(
+        0.1,
+        0.1,
+        2.35,
         ARENA_COLORS.railing,
         root,
-        [side * railOffset, railY, railZ],
+        [0, surface + 1.8, distance],
+        7,
       );
-      rail.rotation.x = -Math.atan2(rise, span);
-
-      for (const progress of [0.2, 0.5, 0.8]) {
-        const distance = span * progress;
-        const surface = stairHeightForProgress(progress);
-        cylinder(
-          0.07,
-          0.08,
-          2.4,
-          ARENA_COLORS.railing,
-          root,
-          [side * railOffset, surface + 1.2, distance],
-          7,
-        );
-      }
+      post.name = 'Visual-only center stair handrail post';
+      post.userData.noArenaBatch = true;
+      post.userData.collision = false;
     }
   }
 
@@ -2802,6 +3468,26 @@ HD.Stadium = (() => {
       HD.CONFIG.stairs.topHeight,
       progress,
     );
+  }
+
+  function mainStairAnchors(angle, start, path) {
+    const stairs = HD.CONFIG.stairs;
+    const lengthSquared = path.lengthSq();
+    const anchors = [{ progress: 0, height: stairs.bottomHeight }];
+
+    for (let row = 0; row < 7; row++) {
+      const rowPoint = oval(
+        82.1 + row * 3.25,
+        51.85 + row * 2.75,
+        angle,
+      );
+      anchors.push({
+        progress: rowPoint.clone().sub(start).dot(path) / lengthSquared,
+        height: HD.CONFIG.grandstandBaseHeight + row * 1.5,
+      });
+    }
+    anchors.push({ progress: 1, height: stairs.topHeight });
+    return anchors;
   }
 
   function createUpperShop(scene, angle, index) {
@@ -2819,6 +3505,7 @@ HD.Stadium = (() => {
     box([0.35, 5.1, 5.2], colors[index], shop, [5.82, 2.55, 0]);
     box([12.8, 0.45, 5.8], 0xf0c95d, shop, [0, 5.3, 0]);
     box([10.2, 1.15, 1.1], 0xf3e4bd, shop, [0, 1.18, -2.2]);
+    createConcessionCounterFinish(shop, colors[index]);
     box([9.6, 0.18, 0.65], 0x5d402c, shop, [0, 2.7, 2.05]);
     box([9.6, 0.18, 0.65], 0x5d402c, shop, [0, 3.8, 2.05]);
 
@@ -2851,9 +3538,10 @@ HD.Stadium = (() => {
     }
 
     const sign = createTextSign(shopNames[index], 0xffda62);
-    sign.position.set(0, 4.48, -2.64);
-    sign.scale.set(7.8, 1.08, 1);
+    sign.position.set(0, 4.7, -2.64);
+    sign.scale.set(7.8, 0.78, 1);
     shop.add(sign);
+    createConcessionMenus(shop);
     addShopWorker(shop, colors[index], [0, 0.78, 0.75], 0.58);
 
     HD.world.shopPositions.push(new THREE.Vector3(position.x, 18.3, position.z));
@@ -2868,44 +3556,530 @@ HD.Stadium = (() => {
     createBettingCounter(scene, position, angle, index);
   }
 
+  function createConcessionCounterFinish(shop, accent) {
+    const outline = new THREE.Shape();
+    roundedRectangle(outline, -5.3, -0.67, 10.6, 1.34, 0.16);
+    const geometry = new THREE.ExtrudeGeometry(outline, {
+      depth: 0.13,
+      bevelEnabled: true,
+      bevelSize: 0.025,
+      bevelThickness: 0.025,
+      bevelSegments: 2,
+      steps: 1,
+      curveSegments: 5,
+    });
+    geometry.rotateX(-Math.PI / 2);
+    const worktop = new THREE.Mesh(geometry, HD.util.material(0x45595b));
+    worktop.position.set(0, 1.76, -2.2);
+    worktop.name = 'Rounded concession worktop';
+    shop.add(worktop);
+
+    for (let panel = 0; panel < 5; panel++) {
+      box([1.85, 0.8, 0.055], accent, shop, [-3.94 + panel * 1.97, 1.18, -2.78]);
+    }
+    box([9.9, 0.09, 0.07], 0x45595b, shop, [0, 0.65, -2.79]);
+
+    const terminal = new THREE.Group();
+    terminal.position.set(-3.8, 1.92, -2.2);
+    terminal.name = 'Concession payment terminal';
+    shop.add(terminal);
+    box([0.66, 0.12, 0.55], 0x273b42, terminal, [0, 0, 0]);
+    const display = box([0.55, 0.4, 0.07], 0x6ca4ad, terminal, [0, 0.24, 0.1]);
+    display.rotation.x = -0.25;
+
+    // A preparation surface stays behind the worker and service opening.
+    box([3, 0.12, 0.8], 0xa6b1af, shop, [3.1, 1.95, 1.2]);
+    for (const x of [2.1, 4.1]) {
+      box([0.1, 1.55, 0.1], 0x45595b, shop, [x, 1.12, 1.2]);
+    }
+  }
+
+  function createConcessionMenus(shop) {
+    const menus = [
+      { title: "TRACK SNACKS", items: ["hotdog", "soda", "carrot"] },
+      { title: "FAN FAVORITES", items: ["horseshoe", "pillow", "chair"] },
+    ];
+
+    menus.forEach((menu, index) => {
+      const x = index === 0 ? -3.65 : 3.65;
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 384;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#17382a";
+      context.fillRect(0, 0, 512, 384);
+      context.fillStyle = "#f4d259";
+      context.fillRect(28, 83, 456, 4);
+      context.font = "900 32px sans-serif";
+      context.textAlign = "left";
+      context.fillText(menu.title, 28, 57);
+      context.font = "600 29px sans-serif";
+      context.fillStyle = "#f3eee0";
+      menu.items.forEach((item, row) => {
+        context.fillText(HD.CONFIG.items[item].name, 28, 142 + row * 65);
+      });
+      context.font = "600 19px sans-serif";
+      context.fillStyle = "#b6cdbb";
+      context.fillText("ORDER AT COUNTER  /  INSTANT PICKUP", 28, 352);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const board = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.75, 1.8),
+        new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }),
+      );
+      board.name = "Concession menu board";
+      board.rotation.y = Math.PI;
+      board.position.set(x, 3.05, -0.56);
+      shop.add(board);
+      box([2.89, 1.94, 0.14], 0x45595b, shop, [x, 3.05, -0.46]);
+      for (const offset of [-0.95, 0.95]) {
+        box([0.055, 1.1, 0.055], 0x45595b, shop, [x + offset, 4.55, -0.46]);
+      }
+    });
+
+    // Recessed waste stations remain within the stall's existing solid footprint.
+    for (const side of [-1, 1]) {
+      const bin = new THREE.Group();
+      bin.name = "Concession waste station";
+      bin.position.set(side * 5.25, 0.36, -1.25);
+      shop.add(bin);
+      box([0.76, 1.2, 0.76], 0x45595b, bin, [0, 0.6, 0]);
+      box([0.82, 0.1, 0.82], 0x83918a, bin, [0, 1.23, 0]);
+      box([0.5, 0.22, 0.015], 0x172c31, bin, [0, 0.96, -0.389]);
+      const label = createTextSign(side < 0 ? "WASTE" : "RECYCLE", 0xf3e4bd);
+      label.position.set(0, 0.52, -0.393);
+      label.scale.set(0.63, 0.2, 1);
+      bin.add(label);
+    }
+  }
+
   function createBettingCounter(scene, shopPosition, angle, index) {
     const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
-    const position = shopPosition.clone().addScaledVector(tangent, 10);
+    const position = shopPosition.clone().addScaledVector(tangent, 12.5);
     const counter = new THREE.Group();
     const colors = [0x315f43, 0x315b77, 0x704858, 0x6d542f];
     counter.position.set(position.x, 13.5, position.z);
     counter.rotation.y = -angle + Math.PI / 2;
     scene.add(counter);
 
-    box([5.2, 2.6, 2.4], colors[index], counter, [0, 1.3, 0]);
-    box([5.8, 0.3, 2.9], 0xe8cf87, counter, [0, 2.75, 0]);
-    box([4.5, 1.25, 0.16], 0x17382a, counter, [0, 4.05, 0]);
-    const sign = createTextSign("BET - NO FEE", 0xf4d259);
-    sign.position.set(0, 1.35, -1.23);
-    sign.scale.set(4.1, 0.78, 1);
-    counter.add(sign);
+    box([8.2, 2.6, 2.4], colors[index], counter, [0, 1.3, 0]);
+    box([8.8, 0.3, 2.9], 0xe8cf87, counter, [0, 2.75, 0]);
+    box([8.35, 3.1, 0.28], 0xbfc4c1, counter, [0, 4.25, 1.05]);
+    box([7.8, 1.25, 0.16], 0x17382a, counter, [0, 5.25, 0.88]);
+    const header = createTextSign("PLACE BETS", 0xf4d259);
+    header.position.set(0, 5.25, 0.72);
+    header.scale.set(7.2, 0.82, 1);
+    counter.add(header);
+    const frontPlaque = createTextSign("NO ONLINE FEE", 0xf4d259);
+    frontPlaque.position.set(0, 1.35, -1.23);
+    frontPlaque.scale.set(5.6, 0.68, 1);
+    counter.add(frontPlaque);
+
+    for (let station = 0; station < 3; station++) {
+      const x = -2.55 + station * 2.55;
+      const display = createTextSign(`WINDOW ${station + 1}`, 0xe9f1eb);
+      display.position.set(x, 4.15, -1.16);
+      display.scale.set(2.05, 0.42, 1);
+      counter.add(display);
+      box([2.22, 1.02, 0.12], 0x183b4d, counter, [x, 3.45, -1.28]);
+      addBettingDisplay(counter, station, x);
+      cylinder(0.12, 0.12, 0.18, station === 1 ? 0x65d97b : 0xf0c95d,
+        counter, [x, 4.5, -1.28], 10).rotation.x = Math.PI / 2;
+      if (station < 2) {
+        box([0.16, 2.45, 0.35], 0x596363, counter, [x + 1.28, 3.55, -0.02]);
+      }
+    }
     addShopWorker(counter, colors[index], [0, 1.72, 0.45], 0.5);
 
+    // Low queue rails define approach space without closing the promenade.
+    for (const x of [-3.55, 3.55]) {
+      cylinder(0.07, 0.1, 1.25, 0x315f78, counter, [x, 0.62, -3.25], 8);
+      cylinder(0.07, 0.1, 1.25, 0x315f78, counter, [x, 0.62, -5.15], 8);
+      box([0.1, 0.12, 1.9], 0x315f78, counter, [x, 1.08, -4.2]);
+    }
+
     HD.world.betCounterPositions.push(new THREE.Vector3(position.x, 18.3, position.z));
-    HD.world.barriers.push({ x: position.x, z: position.z, radius: 3.2 });
+    HD.world.barriers.push({
+      type: 'box', x: position.x, z: position.z, angle: counter.rotation.y,
+      halfWidth: 4.4, halfDepth: 1.6,
+    });
+  }
+
+  function addBettingDisplay(counter, station, x) {
+    let display = HD.world.bettingDisplays[station];
+    if (!display) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 224;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      display = { canvas, texture, signature: null, rows: [], status: '' };
+      HD.world.bettingDisplays[station] = display;
+    }
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.1, 0.9),
+      new THREE.MeshBasicMaterial({ map: display.texture, toneMapped: false }),
+    );
+    screen.name = `Live counter odds screen ${station + 1}`;
+    screen.position.set(x, 3.45, -1.345);
+    screen.rotation.y = Math.PI;
+    counter.add(screen);
+    drawBettingDisplays();
+  }
+
+  function drawBettingDisplays() {
+    const horses = HD.state.horses.map(horse => horse.userData.data);
+    const open = HD.Race?.liveBettingOpen() ?? false;
+    const status = !horses.length ? 'AWAITING FIELD' :
+      open ? (HD.state.phase === 'racing' ? 'LIVE BETTING' : 'BETTING OPEN') : 'BETTING CLOSED';
+    // Distribute the entire 4–8 horse field across three fixed window screens.
+    (HD.world.bettingDisplays || []).forEach((display, station) => {
+      const rows = horses.filter((horse, index) => index % 3 === station).map(horse => ({
+        number: HD.horseNumber(horse),
+        odds: horse.odds,
+      }));
+      const signature = JSON.stringify([status, HD.state.round, rows]);
+      if (signature === display.signature) return;
+      display.signature = signature;
+      display.rows = rows;
+      display.status = status;
+      const context = display.canvas.getContext('2d');
+      context.fillStyle = '#102c35';
+      context.fillRect(0, 0, 512, 224);
+      context.textAlign = 'left';
+      context.fillStyle = open ? '#a9e1b2' : '#efd394';
+      context.font = '800 25px sans-serif';
+      context.fillText(status, 18, 31);
+      context.textAlign = 'right';
+      context.fillText(`R${HD.state.round}`, 494, 31);
+      context.fillStyle = '#8aa6ae';
+      context.fillRect(18, 44, 476, 2);
+      rows.forEach((row, index) => {
+        const y = 86 + index * 46;
+        context.textAlign = 'left';
+        context.fillStyle = '#f1e8d2';
+        context.font = '800 35px sans-serif';
+        context.fillText(`#${row.number}`, 20, y);
+        context.textAlign = 'right';
+        context.fillStyle = '#ffdb72';
+        context.fillText(`${row.odds}:1`, 490, y);
+      });
+      context.textAlign = 'left';
+      context.font = '600 19px sans-serif';
+      context.fillStyle = '#b3c3be';
+      context.fillText('WIN ODDS  /  NO COUNTER FEE', 18, 212);
+      display.texture.needsUpdate = true;
+    });
   }
 
   function createConcourseGlassRails(scene) {
-    createCurvedGlassRail(scene, 103.25, 69.75, 13.5, 2.2, 72);
-    createCurvedGlassRail(scene, 120, 83, 13.5, 2.4, 96);
+    createCurvedGlassRail(scene, 103.25, 69.75, 13.5, 2.2, 72, true);
+    createCurvedGlassRail(scene, 120, 83, 13.5, 2.4, 96, false);
   }
 
   // Major orientation landmarks remain intentionally simple and high contrast:
   // players can identify the infield, horse route, and stadium entry at a glance.
   function createArenaLandmarks(scene) {
     createInfieldPond(scene);
-    createHorseServiceTunnel(scene);
     createFloodlightTowers(scene);
+    createExteriorFacade(scene);
     createExteriorEntrance(scene);
+    createSecondaryEntrances(scene);
+    createConcourseAmenities(scene);
     createBroadcastCrews(scene);
+    createReplayBillboard(scene);
+  }
+
+  function createExteriorFacade(scene) {
+    const root = new THREE.Group();
+    root.name = 'Segmented exterior stadium facade';
+    scene.add(root);
+    HD.world.exteriorFacadeBays = [];
+
+    const openings = [
+      ...STAIR_ANGLES,
+      ...SECONDARY_ENTRANCE_ANGLES,
+    ];
+    const bayCount = 32;
+    for (let index = 0; index < bayCount; index++) {
+      const angle = (index + 0.5) / bayCount * Math.PI * 2;
+      if (openings.some((opening) => angleDistance(angle, opening) < 0.17)) continue;
+
+      const position = oval(117.7, 80.5, angle);
+      const bay = new THREE.Group();
+      bay.name = `Exterior facade bay ${index + 1}`;
+      bay.position.copy(position);
+      bay.rotation.y = -angle + Math.PI / 2;
+      root.add(bay);
+
+      box([8.6, 0.75, 1.1], ARENA_COLORS.concreteDark, bay, [0, 10.75, 0]);
+      for (const side of [-1, 1]) {
+        box([0.78, 10.7, 1.05], ARENA_COLORS.concrete, bay, [side * 4.05, 5.35, 0]);
+      }
+      box([7.3, 1.05, 0.62], 0x687371, bay, [0, 0.53, 0]);
+
+      if (index % 3 === 0) {
+        for (const doorX of [-1.75, 1.75]) {
+          box([2.8, 5.4, 0.18], 0x28536d, bay, [doorX, 3.2, 0.58]);
+          box([0.08, 0.44, 0.1], 0xe3ca76, bay, [doorX + 0.85, 3.05, 0.72]);
+        }
+        const plaque = createTextSign('SERVICE', 0xffdf75);
+        plaque.position.set(0, 8.35, 0.6);
+        plaque.rotation.y = 0;
+        plaque.scale.set(4.8, 0.62, 1);
+        bay.add(plaque);
+      } else {
+        for (const panelX of [-2.35, 0, 2.35]) {
+          box([1.85, 4.6, 0.16], 0x4f8294, bay, [panelX, 4.5, 0.58]);
+          box([1.85, 0.18, 0.2], 0xd1b85f, bay, [panelX, 6.86, 0.66]);
+        }
+        box([7.15, 0.35, 0.42], 0x315f78, bay, [0, 7.45, 0.54]);
+      }
+
+      bay.updateMatrixWorld(true);
+      const worldPosition = bay.localToWorld(new THREE.Vector3(0, 0, 0));
+      HD.world.structuralBarriers.push({
+        type: 'box',
+        x: worldPosition.x,
+        z: worldPosition.z,
+        angle: bay.rotation.y,
+        halfWidth: 4.45,
+        halfDepth: 0.7,
+        minY: -0.2,
+        maxY: 11.2,
+      });
+      HD.world.exteriorFacadeBays.push(bay);
+    }
+  }
+
+  function createReplayBillboard(scene) {
+    // Across from the entrance and slightly east of the north staircase, the
+    // screen is visible as soon as players enter without covering an aisle.
+    const angle = REPLAY_ANGLE;
+    const root = new THREE.Group();
+    root.name = 'Entrance-facing instant replay billboard';
+    root.position.copy(oval(117, 80, angle)).setY(13.5);
+    root.rotation.y = -angle + Math.PI / 2;
+    scene.add(root);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 576;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+
+    const frameY = 14;
+    box([25.5, 14.2, 1.05], 0x18272d, root, [0, frameY, 0]);
+    box([26.5, 0.72, 1.65], 0xe2b63f, root, [0, frameY + 7.35, 0]);
+    box([26.5, 0.72, 1.65], 0xe2b63f, root, [0, frameY - 7.35, 0]);
+    for (const x of [-12.65, 12.65]) {
+      box([0.7, 14.2, 1.55], 0x315f78, root, [x, frameY, 0]);
+    }
+
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(23.8, 12.5),
+      new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }),
+    );
+    screen.position.set(0, frameY, -0.56);
+    screen.rotation.y = Math.PI;
+    screen.name = 'Instant replay video surface';
+    root.add(screen);
+
+    const rearBrand = createTextSign('HOTDOG DOWNS', 0xffdf75);
+    rearBrand.position.set(0, frameY + 0.4, 0.56);
+    rearBrand.rotation.y = 0;
+    rearBrand.scale.set(15.5, 2.6, 1);
+    root.add(rearBrand);
+    for (const y of [frameY - 4.7, frameY + 5.4]) {
+      box([21.5, 0.32, 0.16], 0x315f78, root, [0, y, 0.62]);
+    }
+    for (const side of [-1, 1]) {
+      const brace = box([0.34, 12.2, 0.22], 0x657174, root, [side * 5.8, frameY, 0.68]);
+      brace.rotation.z = side * 0.7;
+    }
+
+    const supportHeight = 7.1;
+    for (const x of [-8.8, 8.8]) {
+      box([0.85, supportHeight, 0.85], ARENA_COLORS.concreteDark, root, [
+        x,
+        supportHeight / 2,
+        0,
+      ]);
+      box([3.2, 0.55, 3.2], ARENA_COLORS.concrete, root, [x, 0.2, 0]);
+    }
+
+    box([25.2, 0.32, 3.1], 0x6d7778, root, [0, 6.75, 0.78]);
+    for (const z of [-0.72, 2.25]) {
+      box([25.2, 0.12, 0.12], ARENA_COLORS.railing, root, [0, 8.65, z]);
+      for (let post = -5; post <= 5; post++) {
+        cylinder(0.055, 0.07, 1.9, ARENA_COLORS.railing, root, [
+          post * 2.35,
+          7.7,
+          z,
+        ], 7);
+      }
+    }
+
+    // Rear service ladder and camera pod make the structure usable, not decorative.
+    for (let rung = 0; rung < 8; rung++) {
+      box([1.5, 0.1, 0.12], 0xb9c1c0, root, [10.5, 0.7 + rung * 0.78, 1.7]);
+    }
+    box([0.12, 6.6, 0.12], 0xb9c1c0, root, [9.75, 3.4, 1.7]);
+    box([0.12, 6.6, 0.12], 0xb9c1c0, root, [11.25, 3.4, 1.7]);
+    box([2.1, 1.2, 1.7], 0x26383e, root, [-10, 8.15, 1.2]);
+    cylinder(0.28, 0.34, 0.72, 0x11191d, root, [-10, 8.18, -0.08], 12)
+      .rotation.x = Math.PI / 2;
+
+    root.updateMatrixWorld(true);
+    for (const x of [-8.8, 8.8]) {
+      const position = root.localToWorld(new THREE.Vector3(x, 0, 0));
+      HD.world.structuralBarriers.push({
+        x: position.x,
+        z: position.z,
+        radius: 1.65,
+        minY: 13.5,
+        maxY: 21,
+      });
+    }
+
+    HD.world.replayBillboard = {
+      root,
+      screen,
+      canvas,
+      context: canvas.getContext('2d'),
+      texture,
+      lastUpdate: -1,
+      angle,
+      replayReady: true,
+    };
+    drawReplayBillboard();
+  }
+
+  function drawReplayBillboard() {
+    const board = HD.world.replayBillboard;
+    if (!board) return;
+    const { canvas, context } = board;
+    const racing = HD.state.phase === 'racing';
+    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, '#071d2b');
+    gradient.addColorStop(1, '#123c35');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.fillStyle = '#e6b833';
+    context.fillRect(0, 0, canvas.width, 78);
+    for (let index = 0; index < 16; index++) {
+      context.fillStyle = index % 2 ? '#f4efe2' : '#1b292c';
+      context.fillRect(index * 64, 516, 64, 60);
+    }
+
+    context.textAlign = 'center';
+    context.fillStyle = '#10262a';
+    context.font = '900 38px sans-serif';
+    context.fillText('HOTDOG DOWNS • STADIUM VISION', 512, 52);
+    context.fillStyle = '#ffffff';
+    context.font = '900 72px sans-serif';
+    context.fillText(racing ? 'LIVE RACE' : 'INSTANT REPLAY', 512, 170);
+
+    const leaders = [...(HD.state.horses || [])].sort(compareRacePosition).slice(0, 3);
+    if (racing && leaders.length) {
+      context.textAlign = 'left';
+      leaders.forEach((horse, index) => {
+        const data = horse.userData.data;
+        const y = 250 + index * 72;
+        context.fillStyle = `#${data.color.toString(16).padStart(6, '0')}`;
+        context.fillRect(120, y - 40, 18, 52);
+        context.fillStyle = '#f6f1df';
+        context.font = '800 32px sans-serif';
+        context.fillText(`${index + 1}.  #${HD.horseNumber(data)}  ${data.name}`, 165, y);
+      });
+    } else {
+      context.textAlign = 'center';
+      context.fillStyle = '#bcd6d0';
+      context.font = '700 38px sans-serif';
+      context.fillText('REPLAY FEED READY', 512, 295);
+      context.font = '600 25px sans-serif';
+      context.fillText('Track cameras connected', 512, 350);
+    }
+    board.texture.needsUpdate = true;
   }
 
   // Saved viewpoints for future replays; these do not render extra frames.
+  function createConcourseAmenities(scene) {
+    CONCOURSE_FACILITIES.forEach(({ angle, label, accent }) => {
+      const root = new THREE.Group();
+      root.name = label + ' concourse building';
+      root.position.copy(oval(115, 78.5, angle)).setY(13.5);
+      root.rotation.y = -angle + Math.PI / 2;
+      scene.add(root);
+      box([7.8, 5.7, 4.6], ARENA_COLORS.concrete, root, [0, 2.85, 0]);
+      box([8.4, 0.4, 5.2], accent, root, [0, 5.9, 0]);
+      createAmenityFront(root, label, accent);
+      const sign = createTextSign(label, 0xffffff);
+      sign.position.set(0, 4.7, -2.36);
+      sign.scale.set(6.8, 0.9, 1);
+      root.add(sign);
+      HD.world.barriers.push({
+        type: 'box', x: root.position.x, z: root.position.z, angle: root.rotation.y,
+        halfWidth: 4.1, halfDepth: 2.6, minY: 13.5, maxY: 19.6,
+      });
+    });
+  }
+
+  function createAmenityFront(root, label, accent) {
+    // All facade details stay within the building's existing collision footprint.
+    box([7.6, 0.22, 0.15], 0x64736f, root, [0, 0.11, -2.35]);
+    box([8.1, 0.18, 0.65], 0x455b60, root, [0, 5.35, -2.25]);
+    const lamp = box([5.6, 0.06, 0.18], 0xffedc0, root, [0, 5.23, -2.42]);
+    lamp.material.emissive.setHex(0xffe2a0);
+    lamp.material.emissiveIntensity = 0.55;
+
+    const addDoor = (x, width, text) => {
+      const door = new THREE.Group();
+      door.name = `Facility door: ${text}`;
+      door.position.set(x, 0, -2.36);
+      root.add(door);
+      box([width + 0.16, 3.9, 0.12], 0x455b60, door, [0, 1.95, 0]);
+      box([width, 3.7, 0.08], 0x294c63, door, [0, 1.91, -0.09]);
+      box([width - 0.16, 0.38, 0.03], 0x9caeac, door, [0, 0.3, -0.15]);
+      box([0.055, 0.48, 0.08], 0xdce8e9, door, [width * 0.35, 1.6, -0.17]);
+      const plaque = createTextSign(text, 0xffffff);
+      plaque.name = `Facility label: ${text}`;
+      plaque.position.set(0, 3.15, -0.151);
+      plaque.scale.set(width - 0.18, 0.43, 1);
+      door.add(plaque);
+    };
+
+    if (label === 'RESTROOMS') {
+      addDoor(-2.48, 1.85, 'MEN');
+      addDoor(-0.12, 1.85, 'WOMEN');
+      addDoor(2.38, 2.12, 'ACCESSIBLE');
+      return;
+    }
+
+    addDoor(-2.25, 1.95, label === 'FIRST AID' ? 'MEDICAL' : 'STAFF');
+    if (label === 'FIRST AID') {
+      box([3.4, 2.95, 0.08], accent, root, [1.35, 2.15, -2.37]);
+      box([0.5, 1.65, 0.08], 0xffffff, root, [1.35, 2.35, -2.45]);
+      box([1.65, 0.5, 0.08], 0xffffff, root, [1.35, 2.35, -2.46]);
+      const sign = createTextSign('FIRST AID POINT', 0xffffff);
+      sign.position.set(1.35, 1.1, -2.43);
+      sign.scale.set(2.8, 0.4, 1);
+      root.add(sign);
+    } else {
+      box([3.75, 2.4, 0.12], 0x455b60, root, [1.3, 2.5, -2.35]);
+      box([3.5, 2.15, 0.05], 0x315a65, root, [1.3, 2.5, -2.44]);
+      box([0.07, 2.15, 0.06], 0xa5b5b1, root, [1.3, 2.5, -2.49]);
+      box([3.9, 0.12, 0.45], 0x91a29c, root, [1.3, 1.32, -2.33]);
+      const sign = createTextSign('STADIUM INFORMATION', 0xffdf75);
+      sign.position.set(1.3, 2.8, -2.5);
+      sign.scale.set(3.1, 0.44, 1);
+      root.add(sign);
+    }
+  }
+
   function createBroadcastCrews(scene) {
     const stations = [
       ['finish', 35, 0.15, 9, 61, 0],
@@ -2918,6 +4092,8 @@ HD.Stadium = (() => {
       const root = new THREE.Group();
       root.name = 'Broadcast crew: ' + id;
       root.position.set(x, y, z);
+      const crewScale = 1.45;
+      root.scale.setScalar(crewScale);
       root.rotation.y = Math.atan2(tx - x, tz - z);
       scene.add(root);
       const dark = 0x27333e;
@@ -2947,10 +4123,10 @@ HD.Stadium = (() => {
       const target = new THREE.Vector3(tx, 2, tz);
       const camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.1, 450);
       camera.name = 'Replay viewpoint: ' + id;
-      camera.position.set(x, y + 3.02, z);
+      camera.position.set(x, y + 3.02 * crewScale, z);
       camera.lookAt(target);
       scene.add(camera);
-      if (y > 1) HD.world.barriers.push({ x, z, radius: 1.7 });
+      if (y > 1) HD.world.barriers.push({ x, z, radius: 2.6 });
       return { id, root, camera, target };
     });
   }
@@ -2996,45 +4172,115 @@ HD.Stadium = (() => {
     }
   }
 
-  function createHorseServiceTunnel(scene) {
-    const root = new THREE.Group();
-    root.name = "Horse entry and service tunnel";
-    const center = oval(77.25, 47.25, HORSE_TUNNEL_ANGLE);
-    const outside = oval(124, 87, HORSE_TUNNEL_ANGLE);
-    const outward = outside.clone().sub(center).normalize();
-    root.position.copy(center);
-    root.rotation.y = Math.atan2(outward.x, outward.z);
-    scene.add(root);
+  function createConcourseFloorFinish(scene) {
+    const zones = [
+      [109.2, 74.9, 103.45, 69.95, 0x9da7a3],
+      [119.78, 82.78, 116.1, 79.15, 0x899794],
+    ];
 
-    const concrete = ARENA_COLORS.concrete;
-    for (const side of [-1, 1]) {
-      box([0.65, 8.5, 52], concrete, root, [side * 5.3, 4.25, 20]);
+    for (const [outerX, outerZ, innerX, innerZ, color] of zones) {
+      for (let segment = 0; segment < 8; segment++) {
+        createSolidOvalSegment(
+          scene,
+          outerX,
+          outerZ,
+          innerX,
+          innerZ,
+          13.54,
+          color,
+          segment / 8 * Math.PI * 2,
+          (segment + 1) / 8 * Math.PI * 2,
+          14,
+          13.5,
+        );
+      }
     }
-    box([11.25, 0.5, 52], concrete, root, [0, 8.75, 20]);
-    box([11.25, 0.2, 52], ARENA_COLORS.concreteDark, root, [0, 0.05, 20]);
-    const sign = createTextSign("HORSE ENTRY / EXIT", 0xffdf75);
-    sign.position.set(0, 7.4, -6.05);
-    sign.scale.set(8.6, 1.05, 1);
-    root.add(sign);
 
-    for (let door = 0; door < 4; door++) {
-      box([2.8, 4.8, 0.3], 0x294f62, root, [-4.8 + door * 3.2, 2.4, 46]);
+    for (const [radiusX, radiusZ, color] of [
+      [109.3, 75, 0x315f91],
+      [116, 79.05, 0xc89b39],
+    ]) {
+      const points = [];
+      const indices = [];
+      const segments = 256;
+      for (let index = 0; index <= segments; index++) {
+        const angle = index / segments * Math.PI * 2;
+        for (const offset of [-0.12, 0.12]) {
+          points.push(
+            Math.cos(angle) * (radiusX + offset),
+            13.555,
+            Math.sin(angle) * (radiusZ + offset),
+          );
+        }
+        if (index < segments) {
+          const vertex = index * 2;
+          indices.push(vertex, vertex + 2, vertex + 1, vertex + 1, vertex + 2, vertex + 3);
+        }
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      const stripe = new THREE.Mesh(geometry, HD.util.material(color));
+      stripe.name = 'Flush concourse wayfinding stripe';
+      stripe.receiveShadow = true;
+      scene.add(stripe);
     }
-    const bridgeLeft = oval(77.25, 47.25, HORSE_TUNNEL_ANGLE - 0.095).setY(9.05);
-    const bridgeRight = oval(77.25, 47.25, HORSE_TUNNEL_ANGLE + 0.095).setY(9.05);
-    createUpperAisle(scene, oval(77.25, 47.25, HORSE_TUNNEL_ANGLE - 0.36).setY(1.65), bridgeLeft, "horse-crossing-left", 3.2);
-    createUpperAisle(scene, bridgeLeft, bridgeRight, "horse-crossing-bridge", 5.6);
-    HD.world.horseServiceRoute = {
-      angle: HORSE_TUNNEL_ANGLE,
-      outside: outside.setY(0.75),
-      inside: oval(69, 40, HORSE_TUNNEL_ANGLE).setY(0.75),
-      clearance: 8.5,
-    };
-    HD.world.horseTunnel = root;
   }
 
-  function createFloodlightTowers(scene) {
-    const angles = [0.32, 1.42, 2.55, 3.46, 4.55, 5.72];
+  function createStairArrivalMarkers(scene) {
+    HD.world.stairArrivalMarkers = [];
+    STAIR_ANGLES.forEach((angle, index) => {
+      const start = oval(HD.CONFIG.stairs.startX, HD.CONFIG.stairs.startZ, angle);
+      const end = oval(HD.CONFIG.stairs.endX, HD.CONFIG.stairs.endZ, angle);
+      const direction = end.clone().sub(start);
+      const marker = new THREE.Group();
+      marker.name = `Concourse stair arrival ${index + 1}`;
+      marker.position.copy(end).setY(13.5);
+      marker.rotation.y = Math.atan2(direction.x, direction.z);
+      scene.add(marker);
+      HD.world.stairArrivalMarkers.push(marker);
+
+      const postOffset = HD.CONFIG.stairs.width / 2 + 0.46;
+      for (const side of [-1, 1]) {
+        box(
+          [0.3, 4.9, 0.3],
+          ARENA_COLORS.railing,
+          marker,
+          [side * postOffset, 2.45, 0.55],
+        );
+        const postPosition = new THREE.Vector3(side * postOffset, 0, 0.55)
+          .applyAxisAngle(new THREE.Vector3(0, 1, 0), marker.rotation.y)
+          .add(marker.position);
+        HD.world.structuralBarriers.push({
+          x: postPosition.x,
+          z: postPosition.z,
+          radius: 0.36,
+          minY: 13.5,
+          maxY: 18.4,
+        });
+      }
+      box(
+        [HD.CONFIG.stairs.width + 1.2, 0.58, 0.42],
+        0x274f72,
+        marker,
+        [0, 4.72, 0.55],
+      );
+      const sign = createTextSign(`SECTION ${String.fromCharCode(65 + index)}`, 0xffdf75);
+      sign.position.set(0, 4.72, 0.32);
+      sign.scale.set(5.2, 0.66, 1);
+      marker.add(sign);
+
+      for (const offset of [-1.6, 0, 1.6]) {
+        box([1.05, 0.035, 0.34], 0x315f91, marker, [offset, 0.055, -0.65]);
+      }
+    });
+  }
+
+ function createFloodlightTowers(scene) {
+    // Keep every mast centered between public stair axes. A previous tower at
+    // 4.55 radians pierced the west upper flight at 1.5 PI.
+    const angles = [0.42, 1.13, 2.08, 3.56, 4.24, 5.36];
     const root = new THREE.Group();
     root.name = "Stadium floodlight towers";
     scene.add(root);
@@ -3093,6 +4339,60 @@ HD.Stadium = (() => {
       lamp.material.emissive.setHex(0xffb948);
       lamp.material.emissiveIntensity = 1.3;
     }
+  }
+
+  function createSecondaryEntrances(scene) {
+    HD.world.publicEntrances = [];
+    SECONDARY_ENTRANCE_ANGLES.forEach((angle, index) => {
+      const root = new THREE.Group();
+      root.name = `Secondary public entrance ${index + 1}`;
+      root.position.copy(oval(126, 86, angle));
+      root.rotation.y = -angle + Math.PI / 2;
+      scene.add(root);
+
+      box([19, 0.24, 13], 0xbfc1b8, root, [0, -0.05, 4]);
+      for (const side of [-1, 1]) {
+        box([4.1, 6.6, 2.3], ARENA_COLORS.concrete, root, [side * 6.1, 3.3, 0]);
+        box([0.26, 3.9, 0.18], 0x294f62, root, [side * 4.08, 2.05, 1.23]);
+      }
+      box([8.3, 1.15, 2.3], ARENA_COLORS.concrete, root, [0, 6.03, 0]);
+      box([15.5, 0.55, 5.8], 0x315f78, root, [0, 7.05, 1.55]);
+
+      for (let door = 0; door < 3; door++) {
+        const x = -2.8 + door * 2.8;
+        box([2.25, 4.4, 0.16], 0x316c89, root, [x, 2.2, 1.25]);
+        box([0.08, 0.42, 0.1], 0xe7d58c, root, [x + 0.7, 2.05, 1.36]);
+      }
+
+      const sign = createTextSign(`PUBLIC ENTRY ${String.fromCharCode(65 + index)}`, 0xffdf75);
+      sign.position.set(0, 6.08, 1.28);
+      sign.rotation.y = 0;
+      sign.scale.set(7.8, 0.78, 1);
+      root.add(sign);
+
+      for (const side of [-1, 1]) {
+        cylinder(0.1, 0.14, 4.5, 0x3f5053, root, [side * 8.1, 2.25, 4.7], 8);
+        const lamp = box([0.8, 0.42, 0.22], 0xffe3a0, root, [side * 8.1, 4.62, 4.55]);
+        lamp.material.emissive.setHex(0xffbd4a);
+        lamp.material.emissiveIntensity = 1.1;
+      }
+
+      root.updateMatrixWorld(true);
+      for (const side of [-1, 1]) {
+        const position = root.localToWorld(new THREE.Vector3(side * 6.1, 0, 0));
+        HD.world.barriers.push({
+          type: 'box',
+          x: position.x,
+          z: position.z,
+          angle: root.rotation.y,
+          halfWidth: 2.2,
+          halfDepth: 1.35,
+          minY: -0.2,
+          maxY: 7.5,
+        });
+      }
+      HD.world.publicEntrances.push(root);
+    });
   }
 
   function createCommentatorStairGlassReturns(scene) {
@@ -3179,7 +4479,15 @@ HD.Stadium = (() => {
     );
   }
 
-  function createCurvedGlassRail(scene, radiusX, radiusZ, baseY, height, segments) {
+  function createCurvedGlassRail(
+    scene,
+    radiusX,
+    radiusZ,
+    baseY,
+    height,
+    segments,
+    allowStairOpenings,
+  ) {
     const panels = [];
     const glass = new THREE.MeshPhysicalMaterial({
       color: 0xb6ebef,
@@ -3195,7 +4503,7 @@ HD.Stadium = (() => {
       const angleB = ((index + 1) / segments) * Math.PI * 2;
       let visibleSpans = [[angleA, angleB]];
 
-      if (height <= 3) {
+      if (allowStairOpenings) {
         const openings = glassRailOpenings(radiusX, radiusZ);
         openings.forEach(([openingStart, openingEnd]) => {
           visibleSpans = subtractAngleOpening(
@@ -3261,6 +4569,7 @@ HD.Stadium = (() => {
     glassBatch.renderOrder = 2;
     glassBatch.userData.concourseGlass = true;
     glassBatch.userData.panelCount = panels.length;
+    glassBatch.userData.completeOuterRing = !allowStairOpenings;
     glassBatch.instanceMatrix.needsUpdate = true;
     frameBatch.instanceMatrix.needsUpdate = true;
     railBatch.instanceMatrix.needsUpdate = true;
@@ -3344,9 +4653,18 @@ HD.Stadium = (() => {
   }
 
   function createRaisedRing(scene, outerX, outerZ, innerX, innerZ, height, color) {
-    for (const [start, end] of excludeHorsePassage(0, Math.PI * 2)) {
-      createSolidOvalSegment(scene, outerX, outerZ, innerX, innerZ, height, color, start, end, 96);
-    }
+    createSolidOvalSegment(
+      scene,
+      outerX,
+      outerZ,
+      innerX,
+      innerZ,
+      height,
+      color,
+      0,
+      Math.PI * 2,
+      96,
+    );
   }
 
   function createSolidOvalRing(
@@ -3512,6 +4830,18 @@ HD.Stadium = (() => {
     shape.quadraticCurveTo(x, y, x + radius, y);
   }
   function update(time) {
+    if (time - HD.world.lastBettingDisplayUpdate >= 0.25) {
+      HD.world.lastBettingDisplayUpdate = time;
+      drawBettingDisplays();
+    }
+    const gate = HD.world.startingGate;
+    if (gate) {
+      const racing = HD.state.phase === 'racing';
+      const opened = racing || HD.state.phase === 'finished';
+      gate.userData.doors.forEach(door => { door.rotation.y = opened ? -Math.PI / 2 : 0; });
+      gate.position.x = racing ? -30 * THREE.MathUtils.smoothstep(HD.state.raceTime, 1.5, 5) :
+        HD.state.phase === 'finished' ? -30 : 0;
+    }
     HD.world.crowd.forEach((p, i) => {
       if (i % 3 === 0) HD.Models.animateCharacter(p, time, true);
     });
@@ -3525,6 +4855,10 @@ HD.Stadium = (() => {
       HD.world.raceBoard.lastUpdate = time;
       drawRaceBoard();
     }
+    if (HD.world.replayBillboard && time - HD.world.replayBillboard.lastUpdate >= 1) {
+      HD.world.replayBillboard.lastUpdate = time;
+      drawReplayBillboard();
+    }
   }
   return {
     build,
@@ -3534,7 +4868,10 @@ HD.Stadium = (() => {
     assignLocalSeat,
     playerSeatPlacement,
     refreshLocalPlayer,
+    refreshScoreboard: drawRaceBoard,
+    refreshReplayBillboard: drawReplayBillboard,
+    refreshBettingDisplays: drawBettingDisplays,
+    refreshStartingGate,
     upperWalkSurfaceAt,
-    horsePassageAt,
   };
 })();

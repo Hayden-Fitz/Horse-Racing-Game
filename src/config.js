@@ -673,7 +673,7 @@ HD.CONFIG = {
     startZ: 48,
     endX: 103.25,
     endZ: 69.75,
-    width: 7.2,
+    width: 8,
     bottomHeight: 1.65,
     topHeight: 13.5,
   },

@@ -530,14 +530,11 @@ HD.UI = (() => {
           .map((delivery) => {
             const seconds = Math.max(0, Math.ceil(delivery.remaining));
             const duration = delivery.duration || C.phoneDeliveryDuration;
-            const progress = Math.round(100 * (1 - seconds / duration));
             const status = delivery.complete ? "DELIVERED" :
               seconds === duration ? "ORDERED" : "DELIVERING";
-            return `<div class="delivery-card ${delivery.complete ? "is-delivered" : ""}">
-              <span>${C.items[delivery.id].icon} ${C.items[delivery.id].name}</span>
-              <strong>${status}${delivery.complete ? "" : ` · ${seconds}s`}</strong>
-              <progress max="100" value="${progress}" aria-label="Delivery progress"></progress>
-            </div>`;
+            return `<span title="${C.items[delivery.id].name}: ${status}">
+              ${C.items[delivery.id].icon} ${delivery.complete ? 'Delivered' : `${seconds}s`}
+            </span>`;
           })
           .join("")
       : "No active deliveries.";
