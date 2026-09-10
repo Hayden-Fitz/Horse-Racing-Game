@@ -385,14 +385,7 @@ HD.Controls = (() => {
       S.playerPosition.add(walkInput);
     }
 
-    const stairSnap = stairCollisionSnap(
-      S.playerPosition.x,
-      S.playerPosition.z,
-    );
-    if (stairSnap && previousZone !== 'stairs') {
-      S.playerPosition.x = stairSnap.x;
-      S.playerPosition.z = stairSnap.z;
-    }
+    // Follow stair elevation without pulling the player sideways into the aisle.
 
     const insideFence = Math.sqrt((S.playerPosition.x / 73.2) ** 2 + (S.playerPosition.z / 43.2) ** 2);
     const nextZone = walkZoneAt(S.playerPosition.x, S.playerPosition.z);

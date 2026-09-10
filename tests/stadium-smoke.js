@@ -100,8 +100,8 @@ async function run() {
     'Decorative arches must not return above the stairs');
   assert.ok(HD.world.scene.getObjectByName('Single-bowl stadium canopy'),
     'The single-bowl roof is missing');
-  assert.equal(broadcast.length, 5);
-  assert.equal(new Set(broadcast.map((station) => station.id)).size, 5);
+  assert.equal(broadcast.length, 10);
+  assert.equal(new Set(broadcast.map((station) => station.id)).size, 10);
   for (const station of broadcast) {
     assert.ok(station.camera.isPerspectiveCamera);
     const direction = station.camera.getWorldDirection(new THREE.Vector3());
@@ -333,7 +333,46 @@ async function run() {
     "The instanced infield grass detail is missing",
   );
 
-  console.log("Stadium geometry and rotating six-horse field checks passed.");
+  require("../src/broadcast.js");
+  let renderTarget = null;
+  let renderCount = 0;
+  let failRender = false;
+  HD.world.renderer = {
+    shadowMap: { autoUpdate: true },
+    getRenderTarget: () => renderTarget,
+    setRenderTarget: value => { renderTarget = value; },
+    render() {
+      renderCount++;
+      assert.equal(HD.world.replayBillboard.root.visible, false);
+      if (failRender) throw new Error("Test render failure");
+    },
+  };
+  HD.state.phase = "racing";
+  for (let i = 0; i < 20; i++) HD.Broadcast.update(0.1);
+  assert.ok(renderCount > 0, "TV must render a real camera feed");
+  const horse = HD.state.horses[0];
+  const originalPosition = horse.position.clone();
+  HD.Broadcast.impact(horse, { type: "carrot", config: { boostDuration: 5 } });
+  for (let i = 0; i < 27; i++) HD.Broadcast.update(0.1);
+  assert.ok(HD.Broadcast.diagnostics.replaying, "A major hit must trigger delayed replay");
+  assert.ok(horse.position.equals(originalPosition), "Replay must not move real horses");
+  assert.equal(horse.visible, true);
+  assert.equal(renderTarget, null);
+  failRender = true;
+  assert.throws(() => HD.Broadcast.update(0.1), /Test render failure/);
+  assert.equal(horse.visible, true, "Render failure must restore real horses");
+  assert.equal(HD.world.replayBillboard.root.visible, true);
+  assert.equal(HD.world.renderer.shadowMap.autoUpdate, true);
+  assert.equal(renderTarget, null);
+  failRender = false;
+  for (let i = 0; i < 200; i++) HD.Broadcast.update(0.1);
+  assert.ok(!HD.Broadcast.diagnostics.replaying, "Replay must return to live coverage");
+  assert.ok(HD.Broadcast.diagnostics.samples <= 122, "History must be bounded");
+  HD.state.phase = "betting";
+  HD.Broadcast.update(0.1);
+  assert.equal(HD.Broadcast.diagnostics.samples, 0, "New race clears old footage");
+
+  console.log("Stadium geometry, ten cameras, live feed and isolated bounded replays passed.");
 
   function upperFloorHitsAt(angle, radiusX = 106, radiusZ = 72) {
     HD.world.scene.updateMatrixWorld(true);

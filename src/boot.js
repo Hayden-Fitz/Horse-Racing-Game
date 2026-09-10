@@ -10,6 +10,7 @@ const gameScripts = [
   "reference-models.js",
   "models.js",
   "stadium.js",
+  "broadcast.js",
   "race.js",
   "ai.js",
   "ui.js",  

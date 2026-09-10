@@ -1166,6 +1166,7 @@ HD.Race = (() => {
     projectile.groundEffect = spill;
   }
   function applyItemEffect(horse, projectile) {
+    HD.Broadcast?.impact(horse, projectile);
     const data = horse.userData.data;
     const item = projectile.config;
     const leader = [...S.horses].sort((a, b) => {

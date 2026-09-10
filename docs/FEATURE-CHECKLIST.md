@@ -481,7 +481,28 @@ are no longer part of the active arena layout.
   treads between rows, and close the remaining concrete gap at both aisle edges.
 - [x] Browser-test 28 assisted row entries and 56 left/right row exits in
   addition to full bottom-to-top routes; all complete without movement failures.
-- [ ] Finish the arena reference pass; camera viewpoints are not replay playback.
+- [ ] Finish the remaining arena reference polish.
+
+### Live broadcast and highlights
+
+- [x] Render a live race camera to the stadium TV, capped at 20 feed frames/sec.
+- [x] Add ten crew viewpoints: four upper concourse, two walkway, four infield.
+- [x] Track leaders and airborne items, change angles, and adapt framing/zoom.
+- [x] Keep a bounded 12-second visual history without rewinding game state.
+- [x] Replay major item impacts, boosts and lead changes in slow motion after
+  a short aftermath delay; then return to live coverage with a highlight cooldown.
+- [x] Add LIVE/REPLAY graphics, event captions, and replay progress.
+- [x] Remove lateral stair-entry snapping and extend the continuous outer
+  glass ring to roof height, overlapping panes behind the mullions.
+- [x] Verify live rendering, replay isolation, error recovery and history bounds
+  in stadium tests. Browser replay smoke test reports no runtime errors;
+  the arena route review reports no blocked stair entries/exits.
+- [ ] Tune highlight selection and camera obstruction handling during extended
+  multiplayer play; broadcasts currently use local directors, not synchronized cuts.
+
+Verification: `npm.cmd test`, `node scripts/review-broadcast.mjs 9355`,
+`node scripts/review-arena.mjs 9355`. Browser reviews require a local server
+on port 8080 and a debugging browser on the supplied port.
 
 ## Verification record
 

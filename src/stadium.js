@@ -3775,7 +3775,7 @@ HD.Stadium = (() => {
 
   function createConcourseGlassRails(scene) {
     createCurvedGlassRail(scene, 103.25, 69.75, 13.5, 2.2, 72, true);
-    createCurvedGlassRail(scene, 120, 83, 13.5, 2.4, 96, false);
+    createCurvedGlassRail(scene, 120, 83, 13.5, 11.3, 96, false);
   }
 
   // Major orientation landmarks remain intentionally simple and high contrast:
@@ -3958,6 +3958,7 @@ HD.Stadium = (() => {
   }
 
   function drawReplayBillboard() {
+    if (HD.Broadcast?.active) return;
     const board = HD.world.replayBillboard;
     if (!board) return;
     const { canvas, context } = board;
@@ -4087,6 +4088,11 @@ HD.Stadium = (() => {
       ['infield', 7, 0.15, 15, 0, 34],
       ['north-balcony', 39, 13.5, 71, 0, 31],
       ['south-balcony', -39, 13.5, -71, 0, -31],
+      ['east-balcony', 105, 13.5, 29, 60, 8],
+      ['west-balcony', -105, 13.5, -29, -60, -8],
+      ['walk-east', 65, 1.65, 27, 55, 12],
+      ['walk-west', -65, 1.65, -27, -55, -12],
+      ['infield-west', -20, 0.15, 10, -50, 20],
     ];
     HD.world.broadcastCameras = stations.map(([id, x, y, z, tx, tz]) => {
       const root = new THREE.Group();
@@ -4544,7 +4550,8 @@ HD.Stadium = (() => {
       dummy.position.copy(start).add(end).multiplyScalar(0.5);
       dummy.position.y = baseY + height / 2;
       dummy.rotation.set(0, -Math.atan2(end.z - start.z, end.x - start.x), 0);
-      dummy.scale.set(length - 0.08, height, 0.09);
+      // Overlap behind each mullion so oblique views cannot reveal a seam.
+      dummy.scale.set(length + 0.04, height, 0.09);
       dummy.updateMatrix();
       glassBatch.setMatrixAt(index, dummy.matrix);
 
