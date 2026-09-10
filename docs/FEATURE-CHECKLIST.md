@@ -386,7 +386,7 @@ The completed multi-floor items below are historical implementation notes and
 are no longer part of the active arena layout.
 
 - [x] Rebuild the reference seating layout: three green middle sections, two
-  covered blue upper sections, one intentionally single-level quadrant, and a
+  covered blue upper sections, one intentionally single-level quadrant, and a 
   continuous gold lower bowl.
 - [x] Replace undersized chairs with shared rounded 2.1-unit seats and raised
   supports; widen row spacing, reduce crowd density, and match reserved chairs.
