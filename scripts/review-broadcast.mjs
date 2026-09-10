@@ -41,8 +41,10 @@ try {
       HD.Race.update(.04);
       HD.Broadcast.update(.04);
     }
-    HD.Broadcast.impact(S.horses[0], {type:"carrot",config:{boostDuration:5}});
-    S.horses[0].userData.data.boost = 5;
+    const leader = [...S.horses].sort((a,b) =>
+      b.userData.data.progress-a.userData.data.progress)[0];
+    HD.Broadcast.impact(leader, {type:"carrot",config:{boostDuration:5}});
+    leader.userData.data.boost = 5;
     for (let i = 0; i < 70; i++) {
       HD.Race.update(.04);
       HD.Broadcast.update(.04);
@@ -70,6 +72,17 @@ try {
   await fs.mkdir("artifacts", { recursive: true });
   const screenshot = await call("Page.captureScreenshot", { format: "jpeg", quality: 85 });
   await fs.writeFile("artifacts/broadcast-review.jpg", Buffer.from(screenshot.data, "base64"));
+  await evaluate(`(() => {
+    const bay = HD.world.scene.getObjectByName("Reserved seating camera bay 0");
+    const camera = HD.world.camera;
+    const outward = new THREE.Vector3(0,0,1).applyQuaternion(bay.quaternion);
+    camera.position.copy(bay.position).addScaledVector(outward,18);
+    camera.position.y += 10;
+    camera.lookAt(bay.position.clone().add(new THREE.Vector3(0,2,0)));
+    HD.world.renderer.render(HD.world.scene,camera);
+  })()`);
+  const bayShot = await call("Page.captureScreenshot", {format:"jpeg", quality:85});
+  await fs.writeFile("artifacts/camera-bay-review.jpg", Buffer.from(bayShot.data,"base64"));
 } finally {
   socket.close();
   await fetch(endpoint + "/json/close/" + tab.id);

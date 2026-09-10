@@ -16,7 +16,13 @@ HD.Broadcast = (() => {
   let status = "LIVE";
   let active = false;
   const lastEffects = new Map();
-  let lastLeader = null;
+  const NEAR_LEADER_DISTANCE = 18;
+
+  function currentLeader() {
+    return S.horses.reduce((leader, horse) =>
+      !leader || horse.userData.data.progress > leader.userData.data.progress
+        ? horse : leader, null);
+  }
 
   function visualClone(source) {
     // Horse userData contains rig references. Copy visuals, not that entire graph.
@@ -58,7 +64,7 @@ HD.Broadcast = (() => {
     // Geometry/materials belong to the game; do not dispose shared resources.
     doubles.clear();
     lastEffects.clear();
-    lastLeader = null;
+    subjectId = null;
     replay = pending = null;
     sampleClock = renderClock = cooldown = 0;
     shot = -1;
@@ -89,19 +95,11 @@ HD.Broadcast = (() => {
   }
 
   function capture() {
-    const leader = [...S.horses].sort((a, b) =>
-      b.userData.data.progress - a.userData.data.progress)[0];
-    if (leader && lastLeader && leader.uuid !== lastLeader &&
-        leader.userData.data.progress > 0.35 && !pending && !replay &&
-        cooldown <= 0 && history.length >= 8) {
-      pending = { at: time, id: leader.uuid,
-        label: leader.userData.data.name + " takes the lead" };
-    }
-    lastLeader = leader?.uuid;
     // Replicated horse effects also trigger highlights on guest clients.
     for (const horse of S.horses) {
       const d = horse.userData.data;
-      const effect = d.boost > 0 ? "speed boost" : d.ragdoll > 0 ? "big hit" : "";
+      const effect = d.boost > 0 ? "speed boost" :
+        d.ragdoll > 0 ? "big hit" : d.slow > 0 ? "slowdown" : "";
       if (effect && lastEffects.has(horse.uuid) && !lastEffects.get(horse.uuid)) {
         impact(horse, { type: effect, config: { boostDuration: 1 } });
       }
@@ -122,10 +120,10 @@ HD.Broadcast = (() => {
 
   function impact(horse, projectile) {
     if (S.phase !== "racing" || replay || pending || cooldown > 0) return;
-    const config = projectile.config || {};
-    const major = config.boostDuration || config.maxSpeedBonus ||
-      config.ragdollDuration || config.slowDuration;
-    if (!major || history.length < 8) return;
+    const leader = currentLeader();
+    if (!leader || history.length < 8 ||
+        horse.position.distanceToSquared(leader.position) > NEAR_LEADER_DISTANCE ** 2 ||
+        Math.abs(leader.userData.data.progress - horse.userData.data.progress) > 0.12) return;
     pending = {
       at: time, id: horse.uuid,
       label: horse.userData.data.name + " — " + projectile.type,
@@ -170,7 +168,7 @@ HD.Broadcast = (() => {
     const stations = HD.world.broadcastCameras || [];
     if (!stations.length) return;
     const nextShot = Math.floor(time / 5);
-    if (shot !== nextShot || !subjectId) {
+    if (shot !== nextShot || subjectId !== subject.uuid) {
       const ranked = [...stations].sort((a, b) =>
         a.camera.position.distanceToSquared(focus) - b.camera.position.distanceToSquared(focus));
       const station = ranked[nextShot % Math.min(3, ranked.length)];
@@ -213,8 +211,7 @@ HD.Broadcast = (() => {
     c.fillText(status, 24, 39);
     c.fillStyle = "#ffffff";
     c.font = "bold 23px sans-serif";
-    const leader = [...S.horses].sort((a,b) =>
-      b.userData.data.progress - a.userData.data.progress)[0];
+    const leader = currentLeader();
     c.fillText(replay ? replay.label : "HOTDOG DERBY  •  " +
       (S.phase === "racing" ? "Leader: " + (leader?.userData.data.name || "") : "Trackside live"),
     24, 513, 970);
@@ -242,7 +239,7 @@ HD.Broadcast = (() => {
       sampleClock %= 0.1;
       if (S.phase === "racing" || pending) capture();
     }
-    if (pending && time >= pending.at + 2.5) {
+    if (pending && time >= pending.at + 1) {
       const frames = history.filter(f => f.time >= pending.at - 2);
       if (frames.length > 1) {
         replay = { ...pending, frames, start: frames[0].time,
@@ -255,7 +252,7 @@ HD.Broadcast = (() => {
       replay.cursor += dt * 0.65;
       if (replay.cursor >= replay.end) {
         replay = null;
-        cooldown = 12;
+        cooldown = 3;
         shot = -1;
       }
     }
@@ -280,12 +277,7 @@ HD.Broadcast = (() => {
         S.horses.forEach(hide);
         S.projectiles.forEach(p => hide(p.mesh));
       } else {
-        subject = [...S.horses].sort((a,b) =>
-          b.userData.data.progress - a.userData.data.progress)[0];
-        // Occasionally follow an airborne item rather than the pack.
-        if (Math.floor(time / 5) % 3 === 2) {
-          subject = S.projectiles.find(p => p.position?.y > 5 && p.mesh)?.mesh || subject;
-        }
+        subject = currentLeader();
       }
       if (!subject) return;
       chooseCamera(subject, renderDt);
@@ -308,7 +300,8 @@ HD.Broadcast = (() => {
     get active() { return active; },
     get diagnostics() {
       return { status, samples: history.length, doubles: doubles.size,
-        pending: !!pending, replaying: !!replay, cameras: HD.world.broadcastCameras?.length || 0 };
+        pending: !!pending, replaying: !!replay, subjectId,
+        cameras: HD.world.broadcastCameras?.length || 0 };
     },
   };
 })();

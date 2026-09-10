@@ -16,6 +16,12 @@ HD.Stadium = (() => {
   const STAIR_SURFACE_INSET = 0.055;
   const FIXER_ANGLE = Math.PI - 0.28;
   const REPLAY_ANGLE = 1.34 + Math.PI;
+  const CAMERA_BAY_ANGLES = [0.6, Math.PI + 0.6];
+
+  function inCameraBay(row, angle) {
+    return row <= 2 && CAMERA_BAY_ANGLES.some(bay =>
+      angleDistance(angle, bay) < 0.085);
+  }
   const SECONDARY_ENTRANCE_ANGLES = Object.freeze([0, Math.PI]);
   const CONCOURSE_FACILITIES = Object.freeze([
     { angle: 0.2, label: 'RESTROOMS', accent: 0x256b9b },
@@ -472,7 +478,7 @@ HD.Stadium = (() => {
             return point.distanceToSquared(position) < 2.25;
           });
         });
-        if (detailedPlayerSeat || inStairAisle || besideSupport) {
+        if (detailedPlayerSeat || inStairAisle || besideSupport || inCameraBay(row, angle)) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
           });
@@ -1062,7 +1068,8 @@ HD.Stadium = (() => {
           return seat.row === row && seat.column === column;
         });
         const placement = grandstandSeat(row, column);
-        if (!blockedByStairs && !playerSeat && !seatingIntersectsStairs(placement.avatar)) {
+        if (!blockedByStairs && !playerSeat && !inCameraBay(row, angle) &&
+            !seatingIntersectsStairs(placement.avatar)) {
           candidates.push({ row, column });
         }
       }
@@ -3339,8 +3346,8 @@ HD.Stadium = (() => {
     const end = oval(stairs.endX, stairs.endZ, angle);
     const path = end.clone().sub(start);
     const pathLength = path.length();
-    const anchors = mainStairAnchors(angle, start, path);
-    const stepCount = (anchors.length - 1) * 2;
+    const segments = mainStairSegments(angle, start, path);
+    const stepCount = segments.length;
     const connectorShare = 0.42;
     root.position.copy(start);
     root.rotation.y = Math.atan2(path.x, path.z);
@@ -3349,8 +3356,10 @@ HD.Stadium = (() => {
       start: start.toArray(),
       end: end.toArray(),
       treadCount: stepCount,
-      treadsPerSeatRow: 2,
+      treadsPerSeatRow: 3,
       connectorShare,
+      rowLandingCount: segments.filter(segment => segment.kind === 'landing').length,
+      surfaceProfile: segments.map(segment => ({ ...segment })),
       visualTopY: stairs.topHeight - STAIR_SURFACE_INSET,
       concourseY: UPPER_CONCOURSE_Y,
     };
@@ -3372,20 +3381,9 @@ HD.Stadium = (() => {
     let darkIndex = 0;
 
     for (let step = 0; step < stepCount; step++) {
-      const anchorIndex = Math.floor(step / 2);
-      const halfStep = step % 2 + 1;
-      const previous = anchors[anchorIndex];
-      const next = anchors[anchorIndex + 1];
-      const startProgress = THREE.MathUtils.lerp(
-        previous.progress,
-        next.progress,
-        halfStep === 1 ? 0 : connectorShare,
-      );
-      const progress = THREE.MathUtils.lerp(
-        previous.progress,
-        next.progress,
-        halfStep === 1 ? connectorShare : 1,
-      );
+      const segment = segments[step];
+      const startProgress = segment.start;
+      const progress = segment.end;
       const distance = (startProgress + progress) * 0.5 * pathLength;
       const stepDepth = (progress - startProgress) * pathLength + 0.12;
       const topInset = STAIR_SURFACE_INSET * THREE.MathUtils.smoothstep(
@@ -3393,11 +3391,7 @@ HD.Stadium = (() => {
         0.62,
         1,
       );
-      const top = THREE.MathUtils.lerp(
-        previous.height,
-        next.height,
-        halfStep / 2,
-      ) - topInset;
+      const top = segment.height - topInset;
       const foundation = 1.25;
       const height = top - foundation;
       const centerY = foundation + height / 2;
@@ -3422,72 +3416,86 @@ HD.Stadium = (() => {
       root,
       [0, stairs.bottomHeight - 0.14, 0],
     );
-    addStairRails(root, pathLength);
+    addStairRails(root, pathLength, segments);
   }
 
-  function addStairRails(root, span) {
-    const rise = HD.CONFIG.stairs.topHeight - HD.CONFIG.stairs.bottomHeight;
-    const railLength = Math.sqrt(span * span + rise * rise);
-    const railY = (
-      HD.CONFIG.stairs.bottomHeight + HD.CONFIG.stairs.topHeight
-    ) / 2 + 3;
-    const railZ = span / 2;
+  function addStairRails(root, span, segments) {
+    const railHeight = 2.8;
+    const points = [{ progress: 0, height: HD.CONFIG.stairs.bottomHeight }];
+    segments.forEach(segment => {
+      points.push({ progress: segment.end, height: segment.height });
+    });
 
-    const rail = box(
-      [0.22, 0.22, railLength],
-      ARENA_COLORS.railing,
-      root,
-      [0, railY, railZ],
-    );
-    rail.name = 'Visual-only center stair handrail';
-    rail.userData.noArenaBatch = true;
-    rail.userData.collision = false;
-    rail.rotation.x = -Math.atan2(rise, span);
-
-    for (const progress of [0, 0.2, 0.4, 0.6, 0.8, 1]) {
-      const distance = span * progress;
-      const surface = stairHeightForProgress(progress);
+    points.forEach((point, index) => {
+      const distance = span * point.progress;
       const post = cylinder(
         0.1,
         0.1,
-        2.35,
+        railHeight,
         ARENA_COLORS.railing,
         root,
-        [0, surface + 1.8, distance],
+        [0, point.height + railHeight / 2, distance],
         7,
       );
       post.name = 'Visual-only center stair handrail post';
       post.userData.noArenaBatch = true;
       post.userData.collision = false;
-    }
+      if (index === points.length - 1) return;
+      const next = points[index + 1];
+      const run = (next.progress - point.progress) * span;
+      const rise = next.height - point.height;
+      const rail = box(
+        [0.22, 0.22, Math.sqrt(run * run + rise * rise) + 0.12],
+        ARENA_COLORS.railing,
+        root,
+        [0, (point.height + next.height) / 2 + railHeight,
+          (point.progress + next.progress) * span / 2],
+      );
+      rail.name = index === 0
+        ? 'Visual-only center stair handrail'
+        : 'Visual-only center stair handrail segment';
+      rail.userData.noArenaBatch = true;
+      rail.userData.collision = false;
+      rail.rotation.x = -Math.atan2(rise, run);
+    });
   }
 
-  function stairHeightForProgress(progress) {
-    return THREE.MathUtils.lerp(
-      HD.CONFIG.stairs.bottomHeight,
-      HD.CONFIG.stairs.topHeight,
-      progress,
-    );
-  }
-
-  function mainStairAnchors(angle, start, path) {
+  function mainStairSegments(angle, start, path) {
     const stairs = HD.CONFIG.stairs;
     const lengthSquared = path.lengthSq();
-    const anchors = [{ progress: 0, height: stairs.bottomHeight }];
+    const segments = [];
+    let cursor = 0;
+    let previousHeight = stairs.bottomHeight;
 
     for (let row = 0; row < 7; row++) {
-      const rowPoint = oval(
-        82.1 + row * 3.25,
-        51.85 + row * 2.75,
-        angle,
-      );
-      anchors.push({
-        progress: rowPoint.clone().sub(start).dot(path) / lengthSquared,
-        height: HD.CONFIG.grandstandBaseHeight + row * 1.5,
-      });
+      const inner = oval(80.5 + row * 3.25, 50.5 + row * 2.75, angle);
+      const outer = oval(83.75 + row * 3.25, 53.25 + row * 2.75, angle);
+      const innerProgress = inner.clone().sub(start).dot(path) / lengthSquared;
+      const outerProgress = outer.clone().sub(start).dot(path) / lengthSquared;
+      const center = (innerProgress + outerProgress) / 2;
+      const landingHalfWidth = (outerProgress - innerProgress) * 0.29;
+      const landingStart = THREE.MathUtils.clamp(center - landingHalfWidth, cursor, 1);
+      const landingEnd = THREE.MathUtils.clamp(center + landingHalfWidth, landingStart, 1);
+      const height = HD.CONFIG.grandstandBaseHeight + row * 1.5;
+      if (landingStart > cursor + 0.001) {
+        const middle = (cursor + landingStart) / 2;
+        segments.push({
+          kind: 'connector', start: cursor, end: middle,
+          height: THREE.MathUtils.lerp(previousHeight, height, 0.5),
+        });
+        segments.push({ kind: 'connector', start: middle, end: landingStart, height });
+      }
+      segments.push({ kind: 'landing', start: landingStart, end: landingEnd, height });
+      cursor = landingEnd;
+      previousHeight = height;
     }
-    anchors.push({ progress: 1, height: stairs.topHeight });
-    return anchors;
+    const finalSplit = (cursor + 1) / 2;
+    segments.push({
+      kind: 'connector', start: cursor, end: finalSplit,
+      height: THREE.MathUtils.lerp(previousHeight, stairs.topHeight, 0.5),
+    });
+    segments.push({ kind: 'connector', start: finalSplit, end: 1, height: stairs.topHeight });
+    return segments;
   }
 
   function createUpperShop(scene, angle, index) {
@@ -4090,10 +4098,34 @@ HD.Stadium = (() => {
       ['south-balcony', -39, 13.5, -71, 0, -31],
       ['east-balcony', 105, 13.5, 29, 60, 8],
       ['west-balcony', -105, 13.5, -29, -60, -8],
-      ['walk-east', 65, 1.65, 27, 55, 12],
-      ['walk-west', -65, 1.65, -27, -55, -12],
       ['infield-west', -20, 0.15, 10, -50, 20],
     ];
+    CAMERA_BAY_ANGLES.forEach((angle, index) => {
+      const position = oval(85.35, 54.6, angle);
+      const floor = HD.CONFIG.grandstandBaseHeight + 1.5;
+      const target = oval(62, 34, angle);
+      stations.push(['seating-bay-' + index, position.x, floor, position.z,
+        target.x, target.z]);
+      const bay = new THREE.Group();
+      bay.name = 'Reserved seating camera bay ' + index;
+      bay.position.set(position.x, floor, position.z);
+      bay.rotation.y = Math.atan2(target.x - position.x, target.z - position.z);
+      scene.add(bay);
+      box([8, 0.22, 4.8], ARENA_COLORS.concrete, bay, [0, -0.11, 0]);
+      for (const side of [-1, 1]) {
+        box([0.12, 1.25, 4.8], ARENA_COLORS.railing, bay, [side * 3.9, 0.625, 0]);
+      }
+      box([8, 1.25, 0.12], ARENA_COLORS.railing, bay, [0, 0.625, -2.35]);
+      const sign = createTextSign('CAMERA CREW', 0xffdf75);
+      sign.position.set(0, 0.6, 2.42);
+      sign.rotation.y = 0;
+      sign.scale.set(3.6, 0.65, 1);
+      bay.add(sign);
+      HD.world.barriers.push({
+        type: 'box', x: position.x, z: position.z, angle: bay.rotation.y,
+        halfWidth: 4, halfDepth: 2.4, minY: floor - 0.3, maxY: floor + 5,
+      });
+    });
     HD.world.broadcastCameras = stations.map(([id, x, y, z, tx, tz]) => {
       const root = new THREE.Group();
       root.name = 'Broadcast crew: ' + id;

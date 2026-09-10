@@ -597,29 +597,50 @@ HD.Controls = (() => {
     const deltaX = Math.cos(angle) * stairs.endX - startX;
     const deltaZ = Math.sin(angle) * stairs.endZ - startZ;
     const lengthSquared = deltaX * deltaX + deltaZ * deltaZ;
-    const anchors = [{ progress: 0, height: stairs.bottomHeight }];
+    const segments = [];
+    let cursor = 0;
+    let previousHeight = stairs.bottomHeight;
 
     for (let row = 0; row < 7; row++) {
-      const rowX = Math.cos(angle) * (82.1 + row * 3.25);
-      const rowZ = Math.sin(angle) * (51.85 + row * 2.75);
-      anchors.push({
-        progress: (
-          (rowX - startX) * deltaX +
-          (rowZ - startZ) * deltaZ
-        ) / lengthSquared,
-        height: HD.CONFIG.grandstandBaseHeight + row * 1.5,
-      });
+      const innerX = Math.cos(angle) * (80.5 + row * 3.25);
+      const innerZ = Math.sin(angle) * (50.5 + row * 2.75);
+      const outerX = Math.cos(angle) * (83.75 + row * 3.25);
+      const outerZ = Math.sin(angle) * (53.25 + row * 2.75);
+      const innerProgress = (
+        (innerX - startX) * deltaX +
+        (innerZ - startZ) * deltaZ
+      ) / lengthSquared;
+      const outerProgress = (
+        (outerX - startX) * deltaX +
+        (outerZ - startZ) * deltaZ
+      ) / lengthSquared;
+      const center = (innerProgress + outerProgress) / 2;
+      const halfWidth = (outerProgress - innerProgress) * 0.29;
+      const landingStart = THREE.MathUtils.clamp(center - halfWidth, cursor, 1);
+      const landingEnd = THREE.MathUtils.clamp(center + halfWidth, landingStart, 1);
+      const height = HD.CONFIG.grandstandBaseHeight + row * 1.5;
+      const middle = (cursor + landingStart) / 2;
+      if (middle > cursor + 0.001) {
+        segments.push({
+          end: middle,
+          height: THREE.MathUtils.lerp(previousHeight, height, 0.5),
+        });
+      }
+      if (landingStart > middle + 0.001) {
+        segments.push({ end: landingStart, height });
+      }
+      segments.push({ end: landingEnd, height });
+      cursor = landingEnd;
+      previousHeight = height;
     }
-    anchors.push({ progress: 1, height: stairs.topHeight });
-
-    for (let index = 1; index < anchors.length; index++) {
-      if (progress > anchors[index].progress) continue;
-      const previous = anchors[index - 1];
-      const next = anchors[index];
-      const span = Math.max(0.001, next.progress - previous.progress);
-      const blend = (progress - previous.progress) / span;
-      return THREE.MathUtils.lerp(previous.height, next.height, blend);
-    }
+    const finalSplit = (cursor + 1) / 2;
+    segments.push({
+      end: finalSplit,
+      height: THREE.MathUtils.lerp(previousHeight, stairs.topHeight, 0.5),
+    });
+    segments.push({ end: 1, height: stairs.topHeight });
+    const surface = segments.find(segment => progress <= segment.end + 0.0001);
+    if (surface) return surface.height;
     return stairs.topHeight;
   }
   function toggleStanding() {
