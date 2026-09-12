@@ -21,6 +21,12 @@ HD.Controls = (() => {
   let throwAnimation = 0;
   let chargeSource = null;
   let chargeTime = 0;
+  const gamepadMove = { x: 0, y: 0 };
+  let gamepadButtons = [];
+  let gamepadTrigger = false;
+  let activeGamepad = null;
+  let jumpVelocity = 0;
+  let jumpOffset = 0;
 
   // ---------------------------------------------------------------------------
   // Input registration and interaction modes
@@ -48,16 +54,19 @@ HD.Controls = (() => {
       Object.keys(S.movement).forEach((direction) => { S.movement[direction] = false; });
     });
     document.addEventListener("pointerlockchange", () => {
+      if (!document.pointerLockElement) cancelCharge();
       if (!document.pointerLockElement && S.mode !== "phone")
         HD.UI.announce("Click the stadium to resume looking around.");
     });
   }
   function click() {
+    if (S.paused || !S.matchStarted) return;
     if (S.mode === "phone") return;
     if (S.mode === "throw") return;
     if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
   }
   function look(event) {
+    if (S.paused || !S.matchStarted) return;
     if (document.pointerLockElement !== canvas || S.mode === "phone") return;
     const sensitivity = HD.Settings.sensitivity();
     S.yaw -= event.movementX * 0.0021 * sensitivity;
@@ -72,7 +81,7 @@ HD.Controls = (() => {
     // Typing in Messages, lobby names or settings must never trigger movement,
     // item selection, throwing or the remappable phone shortcut.
     if (isTextEntry(event.target)) return;
-    if (S.paused) return;
+    if (S.paused || !S.matchStarted) return;
     if (setMovementKey(event.code, true)) return;
     if (event.repeat) return;
     if (/^Digit[0-9]$/.test(event.code)) {
@@ -90,7 +99,7 @@ HD.Controls = (() => {
     }
     if (HD.Settings.matches(event, "stand")) {
       event.preventDefault();
-      return toggleStanding();
+      return jump();
     }
     if (HD.Settings.matches(event, "interact")) return interact();
     if (HD.Settings.matches(event, "phone")) {
@@ -121,7 +130,7 @@ HD.Controls = (() => {
   }
   function setMode(mode) {
     if (mode !== "phone") S.atSabotageCounter = false;
-    if (mode === "throw" && S.inventory[S.selectedItem] < 1) {
+    if (mode === "throw" && !ownsItem(S.selectedItem)) {
       const replacement = nextOwnedItem(S.selectedItem);
       if (replacement) selectItem(replacement, { announce: false });
       else {
@@ -150,7 +159,7 @@ HD.Controls = (() => {
           : "watch";
       HD.Models.equipPlayer(HD.world.localPlayer, mode, S.selectedItem);
     }
-    const displayMode = phoning ? "phone" : throwing ? "throw" : S.standing ? "walking" : "look";
+    const displayMode = phoning ? "phone" : throwing ? "throw" : "walking";
     HD.UI.setMode(displayMode);
     if (phoning) document.exitPointerLock?.();
     else {
@@ -169,7 +178,10 @@ HD.Controls = (() => {
       HD.UI.announce("Hold the throw control, watch the power meter, then release.");
       return;
     }
-    if (S.phase !== "racing") return HD.UI.announce("Hold that thought — the race hasn't started.");
+    if (S.paused || S.phase !== "racing") {
+      cancelCharge();
+      return;
+    }
     if (S.inventory[S.selectedItem] < 1) return setMode("look");
     const thrownType = S.selectedItem;
     const item = HD.CONFIG.items[thrownType];
@@ -195,6 +207,7 @@ HD.Controls = (() => {
     startCharge("pointer");
   }
   function startCharge(source) {
+    if (S.paused || !S.matchStarted || !ownsItem(S.selectedItem)) return;
     if (S.mode !== "throw" || S.charging) return;
     if (S.phase !== "racing") {
       HD.UI.announce("Wait for the race to start.");
@@ -219,10 +232,11 @@ HD.Controls = (() => {
     setTrajectoryVisible(false);
   }
   function update(dt) {
-    if (S.standing) {
-      if (!S.vendorOpen && !S.counterOpen && S.mode !== "phone") updateWalking(dt);
-      else camera.position.copy(S.playerPosition);
-    } else camera.position.copy(HD.CONFIG.seat);
+    if (S.charging && (S.paused || S.phase !== "racing")) cancelCharge();
+    if (!S.vendorOpen && !S.counterOpen) {
+      updateWalking(dt, S.mode !== "phone");
+    }
+    else camera.position.copy(S.playerPosition);
     camera.rotation.order = "YXZ";
     camera.rotation.y = S.yaw;
     camera.rotation.x = S.pitch;
@@ -320,46 +334,26 @@ HD.Controls = (() => {
     player.userData.lookYaw = S.yaw;
     player.userData.lookPitch = S.pitch;
     player.userData.headPitch = S.pitch;
-    if (S.standing) {
-      player.position.set(
-        camera.position.x,
-        camera.position.y - HD.CONFIG.characterEyeOffset,
-        camera.position.z,
-      );
-      if (!Number.isFinite(player.userData.bodyYaw)) {
-        player.userData.bodyYaw = S.yaw;
-      }
-      const headLead = angleDifference(S.yaw, player.userData.bodyYaw);
-      if (Math.abs(headLead) > 0.5 || player.userData.moving) {
-        player.userData.bodyYaw += headLead * 0.1;
-      }
-      player.rotation.y = player.userData.bodyYaw;
-      player.userData.headTurn = THREE.MathUtils.clamp(
-        angleDifference(S.yaw, player.rotation.y),
-        -0.85,
-        0.85,
-      );
-    } else {
-      player.position.set(
-        HD.CONFIG.playerSeatRoot.x,
-        camera.position.y - HD.CONFIG.characterEyeOffset,
-        HD.CONFIG.playerSeatRoot.z,
-      );
-      if (!Number.isFinite(player.userData.bodyYaw)) {
-        player.userData.bodyYaw = HD.CONFIG.playerSeatYaw;
-      }
-      const seatedHeadLead = angleDifference(S.yaw, player.userData.bodyYaw);
-      if (Math.abs(seatedHeadLead) > 0.72) {
-        player.userData.bodyYaw += seatedHeadLead * 0.085;
-      }
-      player.rotation.y = player.userData.bodyYaw;
-      player.userData.headTurn = THREE.MathUtils.clamp(
-        angleDifference(S.yaw, player.rotation.y),
-        -0.95,
-        0.95,
-      );
+    player.position.set(
+      camera.position.x,
+      camera.position.y - HD.CONFIG.characterEyeOffset,
+      camera.position.z,
+    );
+    if (!Number.isFinite(player.userData.bodyYaw)) {
+      player.userData.bodyYaw = S.yaw;
     }
-    player.userData.moving = S.standing && Object.values(S.movement).some(Boolean);
+    const headLead = angleDifference(S.yaw, player.userData.bodyYaw);
+    if (Math.abs(headLead) > 0.5 || player.userData.moving) {
+      player.userData.bodyYaw += headLead * 0.1;
+    }
+    player.rotation.y = player.userData.bodyYaw;
+    player.userData.headTurn = THREE.MathUtils.clamp(
+      angleDifference(S.yaw, player.rotation.y),
+      -0.85,
+      0.85,
+    );
+    player.userData.moving = Object.values(S.movement).some(Boolean) ||
+      Math.abs(gamepadMove.x) > 0 || Math.abs(gamepadMove.y) > 0;
   }
 
   function angleDifference(target, current) {
@@ -370,16 +364,22 @@ HD.Controls = (() => {
   // Walking, stairs, vendors, and seating
   // ---------------------------------------------------------------------------
 
-  function updateWalking(dt) {
+  function updateWalking(dt, allowMovement = true) {
     walkPrevious.copy(S.playerPosition);
+    const previousGroundHeight = walkingEyeHeight(walkPrevious.x, walkPrevious.z);
+    const previousEyeHeight = S.playerPosition.y;
     const previousZone = walkZoneAt(S.playerPosition.x, S.playerPosition.z);
     walkForward.set(-Math.sin(S.yaw), 0, -Math.cos(S.yaw));
     walkRight.set(Math.cos(S.yaw), 0, -Math.sin(S.yaw));
     walkInput.set(0, 0, 0);
-    if (S.movement.forward) walkInput.add(walkForward);
-    if (S.movement.backward) walkInput.sub(walkForward);
-    if (S.movement.right) walkInput.add(walkRight);
-    if (S.movement.left) walkInput.sub(walkRight);
+    if (allowMovement) {
+      if (S.movement.forward) walkInput.add(walkForward);
+      if (S.movement.backward) walkInput.sub(walkForward);
+      if (S.movement.right) walkInput.add(walkRight);
+      if (S.movement.left) walkInput.sub(walkRight);
+      walkInput.addScaledVector(walkRight, gamepadMove.x);
+      walkInput.addScaledVector(walkForward, -gamepadMove.y);
+    }
     if (walkInput.lengthSq() > 0) {
       walkInput.normalize().multiplyScalar(HD.CONFIG.walkSpeed * dt);
       S.playerPosition.add(walkInput);
@@ -393,14 +393,19 @@ HD.Controls = (() => {
     const nextHeight = walkingEyeHeight(S.playerPosition.x, S.playerPosition.z);
     const stairTransition = previousZone === 'stairs' || nextZone === 'stairs';
     const maximumStepHeight = stairTransition ? 1.2 : 0.85;
-    const unsafeDrop = Math.abs(nextHeight - walkPrevious.y) > maximumStepHeight;
+    const rise = nextHeight - previousGroundHeight;
+    const hasJumpClearance = jumpOffset > 0.001 &&
+      previousEyeHeight >= nextHeight - 0.08;
+    const unsafeRise = rise > maximumStepHeight && !hasJumpClearance;
+    const adjacentRows = areAdjacentRows(previousZone, nextZone);
     const skippedStairs = previousZone !== nextZone &&
       previousZone !== "stairs" &&
-      nextZone !== "stairs";
+      nextZone !== "stairs" &&
+      !adjacentRows;
     if (
       insideFence < 1.03 ||
       blocked ||
-      unsafeDrop ||
+      unsafeRise ||
       !isWalkable(S.playerPosition.x, S.playerPosition.z) ||
       skippedStairs
     ) {
@@ -409,12 +414,56 @@ HD.Controls = (() => {
     }
     S.playerPosition.x = THREE.MathUtils.clamp(S.playerPosition.x, -128, 128);
     S.playerPosition.z = THREE.MathUtils.clamp(S.playerPosition.z, -136, 89);
-    S.playerPosition.y = walkingEyeHeight(S.playerPosition.x, S.playerPosition.z);
+
+    const groundEyeHeight = walkingEyeHeight(
+      S.playerPosition.x,
+      S.playerPosition.z,
+    );
+    const steppingOnSupportedSurface = jumpOffset <= 0.001 &&
+      groundEyeHeight >= previousGroundHeight - 0.08;
+
+    if (steppingOnSupportedSurface) {
+      S.playerPosition.y = groundEyeHeight;
+      jumpOffset = 0;
+      jumpVelocity = 0;
+    } else {
+      jumpVelocity -= 18 * dt;
+      S.playerPosition.y = previousEyeHeight + jumpVelocity * dt;
+
+      if (S.playerPosition.y <= groundEyeHeight) {
+        S.playerPosition.y = groundEyeHeight;
+        jumpVelocity = 0;
+      }
+
+      jumpOffset = Math.max(0, S.playerPosition.y - groundEyeHeight);
+    }
+
     camera.position.copy(S.playerPosition);
+  }
+
+  function areAdjacentRows(firstZone, secondZone) {
+    if (!firstZone?.startsWith('row-') || !secondZone?.startsWith('row-')) {
+      return false;
+    }
+
+    const firstRow = Number(firstZone.slice(4));
+    const secondRow = Number(secondZone.slice(4));
+    return Math.abs(firstRow - secondRow) <= 1;
+  }
+
+  function jump() {
+    if (S.paused || S.mode === 'phone' || S.vendorOpen || S.counterOpen) return;
+    if (jumpOffset > 0.001) return;
+    // A 1.78-unit apex clears the 1.5-unit rise between seating rows.
+    jumpVelocity = 8;
+    jumpOffset = 0.01;
+    HD.Audio?.cue?.('jump');
   }
   function collidesWithBarrier(x, z) {
     return [...(HD.world.barriers || []), ...(HD.world.structuralBarriers || [])].some((barrier) => {
-      const floorY = S.playerPosition.y - HD.CONFIG.eyeHeight;
+      // Jump height never bypasses fences or storefront walls. Barrier-level
+      // filtering follows the floor beneath the player instead of their arc.
+      const floorY = S.playerPosition.y - HD.CONFIG.eyeHeight - jumpOffset;
       if (floorY > (barrier.maxY ?? 19) || floorY + HD.CONFIG.eyeHeight < (barrier.minY ?? 13.5)) return false;
       const dx = x - barrier.x;
       const dz = z - barrier.z;
@@ -434,7 +483,7 @@ HD.Controls = (() => {
     if (staircaseProgress(x, z) !== null) {
       return 'stairs';
     }
-    const upper = HD.Stadium.upperWalkSurfaceAt?.(
+    const upper = HD.Stadium?.upperWalkSurfaceAt?.(
       x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
     );
     if (upper) return upper.stairs ? 'stairs' : upper.zone;
@@ -451,7 +500,7 @@ HD.Controls = (() => {
     return null;
   }
   function isWalkable(x, z) {
-    if (HD.Stadium.upperWalkSurfaceAt?.(
+    if (HD.Stadium?.upperWalkSurfaceAt?.(
       x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
     )) return true;
     const onStairs = staircaseProgress(x, z) !== null;
@@ -466,7 +515,7 @@ HD.Controls = (() => {
     if (mainStair) {
       return mainStair.height + HD.CONFIG.eyeHeight;
     }
-    const upper = HD.Stadium.upperWalkSurfaceAt?.(
+    const upper = HD.Stadium?.upperWalkSurfaceAt?.(
       x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
     );
     if (upper) return upper.y + HD.CONFIG.eyeHeight;
@@ -533,7 +582,9 @@ HD.Controls = (() => {
       const radiusX = 82.1 + row * 3.25;
       const radiusZ = 51.85 + row * 2.75;
       const distance = Math.sqrt((x / radiusX) ** 2 + (z / radiusZ) ** 2);
-      const tolerance = 1.2 / Math.min(radiusX, radiusZ);
+      // Tier slabs meet one another. A slightly overlapping movement surface
+      // prevents invisible dead strips between the visible concrete rows.
+      const tolerance = 1.55 / Math.min(radiusX, radiusZ);
       if (Math.abs(distance - 1) <= tolerance) return row;
     }
     return null;
@@ -643,25 +694,9 @@ HD.Controls = (() => {
     if (surface) return surface.height;
     return stairs.topHeight;
   }
-  function toggleStanding() {
-    if (S.mode === "phone" || S.vendorOpen || S.counterOpen) return;
-    S.standing = !S.standing;
-    if (S.standing) {
-      S.playerPosition.copy(camera.position);
-      HD.Models.setPlayerStanding(HD.world.localPlayer, true);
-      HD.UI.setMode("walking");
-      HD.UI.announce("You stand up. Use WASD to walk, Space to return to your seat.");
-    } else {
-      S.playerPosition.copy(HD.CONFIG.seat);
-      HD.Models.setPlayerStanding(HD.world.localPlayer, false);
-      HD.UI.setMode("look");
-      HD.UI.announce("You return to your seat.");
-    }
-  }
   function interact() {
     if (S.vendorOpen) return closeVendor();
     if (S.counterOpen) return closeBetCounter();
-    if (!S.standing) return HD.UI.announce("Press Space to stand up first.");
     const shops = HD.world.shopPositions || [];
     const counters = HD.world.betCounterPositions || [];
     const fixers = HD.world.sabotageCounterPositions || [];
@@ -712,15 +747,8 @@ HD.Controls = (() => {
     canvas.requestPointerLock?.();
   }
   function forceStand() {
-    if (!S.standing) toggleStanding();
-  }
-  function sitDown() {
-    closeVendor();
-    closeBetCounter();
-    S.standing = false;
-    HD.Models.setPlayerStanding(HD.world.localPlayer, false);
-    S.playerPosition.copy(HD.CONFIG.seat);
-    HD.UI.setMode("look");
+    S.standing = true;
+    HD.Models.setPlayerStanding(HD.world.localPlayer, true);
   }
   function updateTrajectory() {
     const item = HD.CONFIG.items[S.selectedItem];
@@ -767,8 +795,14 @@ HD.Controls = (() => {
   // Equipped items and pause flow
   // ---------------------------------------------------------------------------
 
+  function ownsItem(type) {
+    return Object.hasOwn(HD.CONFIG.items, type) &&
+      Number.isFinite(S.inventory[type]) && S.inventory[type] > 0;
+  }
+
   function selectItem(type, options = {}) {
-    if (!HD.CONFIG.items[type]) return;
+    if (!ownsItem(type)) return;
+    cancelCharge();
     S.selectedItem = type;
     Object.entries(HD.world.heldItems).forEach(([id, model]) => {
       model.visible = id === type;
@@ -810,6 +844,7 @@ HD.Controls = (() => {
 
     const replacement = nextOwnedItem(thrownType);
     if (!replacement) {
+      S.selectedItem = null;
       setMode("look");
       HD.UI.announce(`${HD.CONFIG.items[thrownType].name} depleted. No throwables remain.`);
       return;
@@ -823,6 +858,7 @@ HD.Controls = (() => {
     );
   }
   function openMenu() {
+    Object.keys(S.movement).forEach((direction) => { S.movement[direction] = false; });
     S.paused = true;
     setMode("look");
     document.exitPointerLock?.();
@@ -839,6 +875,79 @@ HD.Controls = (() => {
     }
     canvas.requestPointerLock?.();
   }
+
+  function updateGamepad(dt) {
+    const pads = navigator.getGamepads?.() || [];
+    const pad = [...pads].find(Boolean);
+    if (!pad) {
+      if (activeGamepad !== null) HD.UI.announce('Controller disconnected.');
+      activeGamepad = null;
+      gamepadMove.x = gamepadMove.y = 0;
+      gamepadButtons = [];
+      gamepadTrigger = false;
+      return;
+    }
+    if (activeGamepad !== pad.index) HD.UI.announce('Controller connected.');
+    activeGamepad = pad.index;
+    const deadzone = HD.Settings.controllerDeadzone();
+    gamepadMove.x = gamepadAxis(pad.axes[0], deadzone);
+    gamepadMove.y = gamepadAxis(pad.axes[1], deadzone);
+    if (!S.paused && S.matchStarted && S.mode !== 'phone') {
+      S.yaw -= gamepadAxis(pad.axes[2], deadzone) * dt * 2.5;
+      S.pitch = THREE.MathUtils.clamp(
+        S.pitch - gamepadAxis(pad.axes[3], deadzone) * dt * 2.1,
+        -Math.PI / 2 + 0.02,
+        Math.PI / 2 - 0.02,
+      );
+    }
+    const pressed = pad.buttons.map((button) => button.pressed);
+    const edge = (index) => pressed[index] && !gamepadButtons[index];
+    if (edge(9)) {
+      if (S.paused && S.matchStarted) closeMenu();
+      else if (!S.paused && S.matchStarted) openMenu();
+    }
+    if (S.paused || !S.matchStarted) {
+      navigateInterface(pad, edge);
+      gamepadButtons = pressed;
+      return;
+    }
+    if (edge(3)) setMode(S.mode === 'phone' ? 'look' : 'phone');
+    if (edge(1) && S.mode === 'phone') setMode('look');
+    if (S.mode === 'phone') {
+      navigateInterface(pad, edge);
+      gamepadButtons = pressed;
+      return;
+    }
+    if (edge(0)) interact();
+    if (edge(2)) setMode(S.mode === 'throw' ? 'look' : 'throw');
+    if (edge(4) || edge(5)) cycleItem();
+    const trigger = pad.buttons[7]?.value || 0;
+    const triggerPressed = trigger > 0.35;
+    if (triggerPressed && !gamepadTrigger) startCharge('gamepad');
+    if (!triggerPressed && gamepadTrigger && chargeSource === 'gamepad') releaseThrow();
+    gamepadTrigger = triggerPressed;
+    gamepadButtons = pressed;
+  }
+
+  function gamepadAxis(value = 0, deadzone = 0.16) {
+    const magnitude = Math.abs(value);
+    if (magnitude <= deadzone) return 0;
+    return Math.sign(value) * (magnitude - deadzone) / (1 - deadzone);
+  }
+
+  function navigateInterface(pad, edge) {
+    const direction = edge(12) || edge(14) ? -1 : edge(13) || edge(15) ? 1 : 0;
+    const controls = [...document.querySelectorAll(
+      'button:not([hidden]):not(:disabled), select:not([hidden]):not(:disabled), input:not([hidden]):not(:disabled)',
+    )].filter((element) => element.offsetParent !== null);
+    if (direction && controls.length) {
+      const current = Math.max(0, controls.indexOf(document.activeElement));
+      controls[(current + direction + controls.length) % controls.length].focus();
+      HD.Audio?.cue?.('uiHover');
+    }
+    if (edge(0) && document.activeElement?.click) document.activeElement.click();
+  }
+
   return {
     init,
     update,
@@ -849,6 +958,7 @@ HD.Controls = (() => {
     closeVendor,
     closeBetCounter,
     forceStand,
-    sitDown,
+    updateGamepad,
+    gamepadAxis,
   };
 })();

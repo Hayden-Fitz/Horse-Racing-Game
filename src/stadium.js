@@ -17,11 +17,6 @@ HD.Stadium = (() => {
   const FIXER_ANGLE = Math.PI - 0.28;
   const REPLAY_ANGLE = 1.34 + Math.PI;
   const CAMERA_BAY_ANGLES = [0.6, Math.PI + 0.6];
-
-  function inCameraBay(row, angle) {
-    return row <= 2 && CAMERA_BAY_ANGLES.some(bay =>
-      angleDistance(angle, bay) < 0.085);
-  }
   const SECONDARY_ENTRANCE_ANGLES = Object.freeze([0, Math.PI]);
   const CONCOURSE_FACILITIES = Object.freeze([
     { angle: 0.2, label: 'RESTROOMS', accent: 0x256b9b },
@@ -478,7 +473,7 @@ HD.Stadium = (() => {
             return point.distanceToSquared(position) < 2.25;
           });
         });
-        if (detailedPlayerSeat || inStairAisle || besideSupport || inCameraBay(row, angle)) {
+        if (detailedPlayerSeat || inStairAisle || besideSupport) {
           [seatBases, seatBacks, crowdBodies, crowdHeads].forEach((batch) => {
             hideInstance(dummy, batch, instance);
           });
@@ -1068,7 +1063,7 @@ HD.Stadium = (() => {
           return seat.row === row && seat.column === column;
         });
         const placement = grandstandSeat(row, column);
-        if (!blockedByStairs && !playerSeat && !inCameraBay(row, angle) &&
+        if (!blockedByStairs && !playerSeat &&
             !seatingIntersectsStairs(placement.avatar)) {
           candidates.push({ row, column });
         }
@@ -3421,43 +3416,38 @@ HD.Stadium = (() => {
 
   function addStairRails(root, span, segments) {
     const railHeight = 2.8;
-    const points = [{ progress: 0, height: HD.CONFIG.stairs.bottomHeight }];
-    segments.forEach(segment => {
-      points.push({ progress: segment.end, height: segment.height });
-    });
+    const bottom = HD.CONFIG.stairs.bottomHeight;
+    const top = HD.CONFIG.stairs.topHeight;
+    const postCount = 9;
 
-    points.forEach((point, index) => {
-      const distance = span * point.progress;
+    for (let index = 0; index < postCount; index++) {
+      const progress = index / (postCount - 1);
+      const height = THREE.MathUtils.lerp(bottom, top, progress);
       const post = cylinder(
         0.1,
         0.1,
         railHeight,
         ARENA_COLORS.railing,
         root,
-        [0, point.height + railHeight / 2, distance],
+        [0, height + railHeight / 2, span * progress],
         7,
       );
       post.name = 'Visual-only center stair handrail post';
       post.userData.noArenaBatch = true;
       post.userData.collision = false;
-      if (index === points.length - 1) return;
-      const next = points[index + 1];
-      const run = (next.progress - point.progress) * span;
-      const rise = next.height - point.height;
-      const rail = box(
-        [0.22, 0.22, Math.sqrt(run * run + rise * rise) + 0.12],
-        ARENA_COLORS.railing,
-        root,
-        [0, (point.height + next.height) / 2 + railHeight,
-          (point.progress + next.progress) * span / 2],
-      );
-      rail.name = index === 0
-        ? 'Visual-only center stair handrail'
-        : 'Visual-only center stair handrail segment';
-      rail.userData.noArenaBatch = true;
-      rail.userData.collision = false;
-      rail.rotation.x = -Math.atan2(rise, run);
-    });
+    }
+
+    const rise = top - bottom;
+    const rail = box(
+      [0.22, 0.22, Math.sqrt(span * span + rise * rise) + 0.16],
+      ARENA_COLORS.railing,
+      root,
+      [0, (bottom + top) / 2 + railHeight, span / 2],
+    );
+    rail.name = 'Visual-only straight center stair handrail';
+    rail.userData.noArenaBatch = true;
+    rail.userData.collision = false;
+    rail.rotation.x = -Math.atan2(rise, span);
   }
 
   function mainStairSegments(angle, start, path) {
@@ -3605,7 +3595,7 @@ HD.Stadium = (() => {
   function createConcessionMenus(shop) {
     const menus = [
       { title: "TRACK SNACKS", items: ["hotdog", "soda", "carrot"] },
-      { title: "FAN FAVORITES", items: ["horseshoe", "pillow", "chair"] },
+      { title: "FAN FAVORITES", items: ["horseshoe", "waterBottle", "chair"] },
     ];
 
     menus.forEach((menu, index) => {
@@ -4106,25 +4096,6 @@ HD.Stadium = (() => {
       const target = oval(62, 34, angle);
       stations.push(['seating-bay-' + index, position.x, floor, position.z,
         target.x, target.z]);
-      const bay = new THREE.Group();
-      bay.name = 'Reserved seating camera bay ' + index;
-      bay.position.set(position.x, floor, position.z);
-      bay.rotation.y = Math.atan2(target.x - position.x, target.z - position.z);
-      scene.add(bay);
-      box([8, 0.22, 4.8], ARENA_COLORS.concrete, bay, [0, -0.11, 0]);
-      for (const side of [-1, 1]) {
-        box([0.12, 1.25, 4.8], ARENA_COLORS.railing, bay, [side * 3.9, 0.625, 0]);
-      }
-      box([8, 1.25, 0.12], ARENA_COLORS.railing, bay, [0, 0.625, -2.35]);
-      const sign = createTextSign('CAMERA CREW', 0xffdf75);
-      sign.position.set(0, 0.6, 2.42);
-      sign.rotation.y = 0;
-      sign.scale.set(3.6, 0.65, 1);
-      bay.add(sign);
-      HD.world.barriers.push({
-        type: 'box', x: position.x, z: position.z, angle: bay.rotation.y,
-        halfWidth: 4, halfDepth: 2.4, minY: floor - 0.3, maxY: floor + 5,
-      });
     });
     HD.world.broadcastCameras = stations.map(([id, x, y, z, tx, tz]) => {
       const root = new THREE.Group();
@@ -4133,39 +4104,43 @@ HD.Stadium = (() => {
       const crewScale = 1.45;
       root.scale.setScalar(crewScale);
       root.rotation.y = Math.atan2(tx - x, tz - z);
-      scene.add(root);
-      const dark = 0x27333e;
-      box([2.7, 0.1, 2.8], 0x747e83, root, [0, 0.05, -0.25]);
-      for (let leg = 0; leg < 3; leg++) {
-        const angle = leg / 3 * Math.PI * 2;
-        const bottom = new THREE.Vector3(Math.cos(angle) * 0.8, 0.12, Math.sin(angle) * 0.8);
-        const top = new THREE.Vector3(0, 2.75, 0);
-        const direction = top.clone().sub(bottom);
-        const support = cylinder(0.055, 0.085, direction.length(), dark, root);
-        support.position.copy(bottom).add(top).multiplyScalar(0.5);
-        support.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+      const physicalCrew = !id.startsWith('seating-bay-');
+
+      if (physicalCrew) {
+        scene.add(root);
+        const dark = 0x27333e;
+        box([2.7, 0.1, 2.8], 0x747e83, root, [0, 0.05, -0.25]);
+        for (let leg = 0; leg < 3; leg++) {
+          const angle = leg / 3 * Math.PI * 2;
+          const bottom = new THREE.Vector3(Math.cos(angle) * 0.8, 0.12, Math.sin(angle) * 0.8);
+          const top = new THREE.Vector3(0, 2.75, 0);
+          const direction = top.clone().sub(bottom);
+          const support = cylinder(0.055, 0.085, direction.length(), dark, root);
+          support.position.copy(bottom).add(top).multiplyScalar(0.5);
+          support.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+        }
+        box([0.85, 0.7, 1.3], dark, root, [0, 3.02, 0.15]);
+        const lens = cylinder(0.24, 0.29, 0.5, 0x111b24, root, [0, 3.02, 1]);
+        lens.rotation.x = Math.PI / 2;
+        box([0.5, 0.35, 0.08], 0x76b9c6, root, [-0.56, 3.09, -0.23]);
+        for (const side of [-1, 1]) {
+          cylinder(0.15, 0.17, 1.3, dark, root, [side * 0.24, 0.88, -1.05], 8);
+          box([0.37, 0.2, 0.6], dark, root, [side * 0.24, 0.2, -0.94]);
+          const arm = cylinder(0.12, 0.14, 0.92, 0x266990, root, [side * 0.48, 2.15, -0.66], 8);
+          arm.rotation.x = -0.7;
+        }
+        cylinder(0.4, 0.33, 1.1, 0x266990, root, [0, 2.05, -1.05], 10);
+        sphere(0.34, 0xd7a67e, root, [0, 2.97, -1.05]);
+        sphere(0.13, dark, root, [-0.33, 2.98, -1.05]);
       }
-      box([0.85, 0.7, 1.3], dark, root, [0, 3.02, 0.15]);
-      const lens = cylinder(0.24, 0.29, 0.5, 0x111b24, root, [0, 3.02, 1]);
-      lens.rotation.x = Math.PI / 2;
-      box([0.5, 0.35, 0.08], 0x76b9c6, root, [-0.56, 3.09, -0.23]);
-      for (const side of [-1, 1]) {
-        cylinder(0.15, 0.17, 1.3, dark, root, [side * 0.24, 0.88, -1.05], 8);
-        box([0.37, 0.2, 0.6], dark, root, [side * 0.24, 0.2, -0.94]);
-        const arm = cylinder(0.12, 0.14, 0.92, 0x266990, root, [side * 0.48, 2.15, -0.66], 8);
-        arm.rotation.x = -0.7;
-      }
-      cylinder(0.4, 0.33, 1.1, 0x266990, root, [0, 2.05, -1.05], 10);
-      sphere(0.34, 0xd7a67e, root, [0, 2.97, -1.05]);
-      sphere(0.13, dark, root, [-0.33, 2.98, -1.05]);
       const target = new THREE.Vector3(tx, 2, tz);
       const camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.1, 450);
       camera.name = 'Replay viewpoint: ' + id;
       camera.position.set(x, y + 3.02 * crewScale, z);
       camera.lookAt(target);
       scene.add(camera);
-      if (y > 1) HD.world.barriers.push({ x, z, radius: 2.6 });
-      return { id, root, camera, target };
+      if (physicalCrew && y > 1) HD.world.barriers.push({ x, z, radius: 2.6 });
+      return { id, root, camera, target, physicalCrew };
     });
   }
 

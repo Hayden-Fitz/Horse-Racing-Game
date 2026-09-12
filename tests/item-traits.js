@@ -33,9 +33,9 @@ async function run() {
   inventory.horseshoe = 0;
   inventory.unknownItem = 3;
   assert.equal(HD.nextInventoryItem(inventory, "hotdog"), null);
-  inventory.pillow = 1;
+  inventory.waterBottle = 1;
   inventory.soda = 1;
-  assert.equal(HD.nextInventoryItem(inventory, "chair"), "pillow",
+  assert.equal(HD.nextInventoryItem(inventory, "chair"), "soda",
     "Category selection must wrap around the inventory order");
   const chair = HD.itemThrowProfile(HD.CONFIG.items.chair);
   assert.ok(hotdog.rangeMultiplier > chair.rangeMultiplier);

@@ -2,6 +2,15 @@
 
 // Shared purchase/delivery rules; UI panels only present their results.
 HD.Concessions = (() => {
+  const PHONE_CATALOG = new Set([
+    'hotdog',
+    'soda',
+    'horseshoe',
+    'carrot',
+    'waterBottle',
+    'beachBall',
+  ]);
+
   function quote(id, source = "phone") {
     const item = Object.hasOwn(HD.CONFIG.items, id) && HD.CONFIG.items[id];
     if (!item || !["phone", "vendor"].includes(source)) {
@@ -9,6 +18,11 @@ HD.Concessions = (() => {
     }
     if (source === "phone" && item.vendorOnly) {
       return { error: "This item is only sold at the stands." };
+    }
+    if (source === 'phone' && !PHONE_CATALOG.has(id)) {
+      return {
+        error: 'Concessions delivery only carries food, drinks, foam horseshoes, and beach balls.',
+      };
     }
     const price = source === "vendor"
       ? Math.ceil(item.price * (1 - HD.CONFIG.vendorDiscount))
@@ -66,5 +80,10 @@ HD.Concessions = (() => {
     return arrived;
   }
 
-  return { quote, purchase, update };
+  return {
+    quote,
+    purchase,
+    update,
+    phoneCatalog: () => [...PHONE_CATALOG],
+  };
 })();

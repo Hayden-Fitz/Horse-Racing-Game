@@ -106,9 +106,12 @@ async function run() {
   assert.ok(!broadcast.some(station => station.id.startsWith('walk-')));
   for (let i = 0; i < 2; i++) {
     const bay = HD.world.scene.getObjectByName('Reserved seating camera bay ' + i);
-    assert.ok(bay, 'Relocated crews need marked reserved platforms');
-    assert.ok((bay.position.x / 82.1) ** 2 + (bay.position.z / 51.85) ** 2 > 1,
-      'Camera bays must sit inside seating, not on the walkway');
+    assert.equal(bay, undefined,
+      'Seating viewpoints must use normal crowd seats, not camera platforms');
+    const station = broadcast.find(entry => entry.id === 'seating-bay-' + i);
+    assert.equal(station.physicalCrew, false);
+    assert.equal(station.root.parent, null,
+      'Virtual seating cameras must not render camera operators');
   }
   for (const station of broadcast) {
     assert.ok(station.camera.isPerspectiveCamera);
@@ -118,7 +121,7 @@ async function run() {
     const { x, y, z } = station.root.position;
     if (y < 1) {
       assert.ok((x / 49) ** 2 + (z / 22) ** 2 < 0.9, 'Infield crew must stay off the racing surface');
-    } else {
+    } else if (station.physicalCrew) {
       assert.ok(HD.world.barriers.some((barrier) => barrier.x === x && barrier.z === z));
     }
   }
@@ -295,7 +298,7 @@ async function run() {
   );
   assert.equal(
     HD.world.staircases.filter((staircase) => {
-      return staircase.getObjectByName('Visual-only center stair handrail');
+      return staircase.getObjectByName('Visual-only straight center stair handrail');
     }).length,
     4,
     'Every public staircase needs one centered visual-only handrail',
@@ -304,19 +307,10 @@ async function run() {
     HD.world.staircases.every(staircase => {
       const posts = staircase.children.filter(object =>
         object.name === 'Visual-only center stair handrail post');
-      return posts.length === staircase.userData.staircase.treadCount + 1 &&
-        posts.every(post => {
-          const height = post.geometry.parameters.height;
-          return Math.abs(post.position.y - height / 2 -
-            staircase.userData.staircase.surfaceProfile.find(segment =>
-              Math.abs(segment.end * THREE.Vector3.prototype.distanceTo.call(
-                new THREE.Vector3(...staircase.userData.staircase.start),
-                new THREE.Vector3(...staircase.userData.staircase.end),
-              ) - post.position.z) < 0.001)?.height) < 0.001 ||
-            Math.abs(post.position.z) < 0.001;
-        });
+      return posts.length === 9 &&
+        posts.every(post => post.userData.collision === false);
     }),
-    'Center handrail posts must start on the stair surfaces',
+    'Center handrail posts must form a lightweight collision-free straight line',
   );
   assert.ok(
     HD.world.scene.getObjectByName('Solid upper-concourse foundation'),
@@ -367,6 +361,7 @@ async function run() {
   let renderTarget = null;
   let renderCount = 0;
   let failRender = false;
+  let interpolatedScale = false;
   HD.world.renderer = {
     shadowMap: { autoUpdate: true },
     getRenderTarget: () => renderTarget,
@@ -374,6 +369,15 @@ async function run() {
     render() {
       renderCount++;
       assert.equal(HD.world.replayBillboard.root.visible, false);
+      if (HD.Broadcast.diagnostics.replaying) {
+        HD.world.scene.children.forEach((mesh) => {
+          if (mesh.name !== 'Broadcast replay double' || !mesh.visible) return;
+          const units = (mesh.scale.x - 1) * 1000;
+          if (units > 0 && units < 110 && Math.abs(units - Math.round(units)) > 0.01) {
+            interpolatedScale = true;
+          }
+        });
+      }
       if (failRender) throw new Error("Test render failure");
     },
   };
@@ -384,6 +388,11 @@ async function run() {
   });
   for (let i = 0; i < 20; i++) HD.Broadcast.update(0.1);
   assert.ok(renderCount > 0, "TV must render a real camera feed");
+  const beforeInvalidTime = HD.Broadcast.diagnostics;
+  const rendersBeforeInvalidTime = renderCount;
+  [NaN, Infinity, -Infinity, 0, -1].forEach((dt) => HD.Broadcast.update(dt));
+  assert.deepEqual(HD.Broadcast.diagnostics, beforeInvalidTime);
+  assert.equal(renderCount, rendersBeforeInvalidTime, 'Invalid time must not render or alter replay history');
   const horse = HD.state.horses[0];
   const originalPosition = horse.position.clone();
   const nearby = HD.state.horses[1];
@@ -404,15 +413,19 @@ async function run() {
   airborne.position.set(10, 12, 0);
   HD.state.projectiles.push({mesh: airborne, position: airborne.position, velocity: new THREE.Vector3(1, 2, 0)});
   for (let i = 0; i < 110; i++) {
+    nearby.scale.setScalar(1 + i * 0.001);
     HD.Broadcast.update(0.1);
     assert.equal(HD.Broadcast.diagnostics.subjectId, horse.uuid, 'Airborne items must not steal live coverage');
   }
+  projectile.mesh = airborne;
   HD.state.projectiles.pop();
   HD.Broadcast.impact(nearby, projectile);
   for (let i = 0; i < 9; i++) HD.Broadcast.update(0.1);
   assert.equal(HD.Broadcast.diagnostics.replaying, false, 'Keep showing live action during the one-second delay');
   for (let i = 0; i < 2; i++) HD.Broadcast.update(0.1);
   assert.equal(HD.Broadcast.diagnostics.replaying, true, 'Nearby impacts replay after about one second');
+  assert.equal(HD.Broadcast.diagnostics.projectileChase, true,
+    'Recorded projectile impacts must activate the invisible chase camera');
   assert.ok(HD.Broadcast.diagnostics.replaying, "A major hit must trigger delayed replay");
   assert.ok(horse.position.equals(originalPosition), "Replay must not move real horses");
   assert.equal(horse.visible, true);
@@ -426,6 +439,8 @@ async function run() {
   failRender = false;
   for (let i = 0; i < 200; i++) HD.Broadcast.update(0.1);
   assert.ok(!HD.Broadcast.diagnostics.replaying, "Replay must return to live coverage");
+  assert.ok(interpolatedScale, 'Playback must interpolate recorded scales between samples');
+  assert.equal(nearby.scale.x, 1.109, 'Replay must not change live horse scale');
   assert.equal(HD.Broadcast.diagnostics.subjectId, horse.uuid, 'Playback must return to the current leader');
   assert.ok(HD.Broadcast.diagnostics.samples <= 122, "History must be bounded");
   HD.state.phase = "betting";

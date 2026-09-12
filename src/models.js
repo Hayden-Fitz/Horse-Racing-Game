@@ -569,73 +569,474 @@ HD.Models = (() => {
     person.userData.standing = standing;
   }
 
-  function jockeyCharacter(silkColor) {
-    const root = new THREE.Group();
-    const skin = 0xdca677;
-    const torso = mesh(
-      new THREE.CylinderGeometry(0.52, 0.62, 1.35, 12),
-      0xf4f1e8,
-      root,
-      [0, 1.65, 0],
-    );
-    torso.scale.z = 0.72;
+  // Shared primitives keep the articulated field inexpensive to render.
+  const horseSphere = new THREE.SphereGeometry(1, 12, 8);
+  const horseCylinder = new THREE.CylinderGeometry(1, 1, 1, 10);
+  const horseMaterials = new Map();
 
-    const head = sphere(0.55, skin, root, [0, 3.15, 0]);
-    head.scale.set(0.92, 1.04, 0.92);
-    const helmet = mesh(
-      new THREE.SphereGeometry(0.61, 14, 8, 0, Math.PI * 2, 0, 1.7),
-      0x1d1d1c,
-      root,
-    );
-    helmet.position.y = 3.5;
-    box([0.86, 0.09, 0.42], 0x1d1d1c, root, [0, 3.4, -0.38]);
-    addRodBetween(root, [-0.46, 3.38, -0.08], [-0.33, 2.87, -0.4], 0.035, 0x20201f);
-    addRodBetween(root, [0.46, 3.38, -0.08], [0.33, 2.87, -0.4], 0.035, 0x20201f);
+  function horsePart(parent, color, position, scale, geometry = horseSphere) {
+    if (!horseMaterials.has(color)) {
+      horseMaterials.set(color, new THREE.MeshStandardMaterial({
+        color, roughness: 0.72, metalness: 0.015,
+      }));
+    }
+    const part = new THREE.Mesh(geometry, horseMaterials.get(color));
+    part.position.set(...position);
+    part.scale.set(...scale);
+    part.castShadow = part.receiveShadow = true;
+    parent.add(part);
+    return part;
+  }
 
-    for (let row = 0; row < 3; row++) {
-      for (let column = 0; column < 3; column++) {
-        if ((row + column) % 2) continue;
-        box(
-          [0.34, 0.34, 0.035],
-          silkColor,
-          root,
-          [-0.34 + column * 0.34, 2.02 - row * 0.34, -0.52],
-        );
+  function horseJoint(parent, name, position) {
+    const joint = new THREE.Group();
+    joint.name = name;
+    joint.position.set(...position);
+    parent.add(joint);
+    return joint;
+  }
+
+  function horseRod(parent, start, end, radius, color) {
+    const a = new THREE.Vector3(...start);
+    const b = new THREE.Vector3(...end);
+    const rod = horsePart(parent, color, [0, 0, 0],
+      [radius, a.distanceTo(b), radius], horseCylinder);
+    rod.position.copy(a).add(b).multiplyScalar(0.5);
+    rod.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0), b.sub(a).normalize(),
+    );
+    return rod;
+  }
+
+  // Rings [x, y, halfDepth, halfHeight] form continuous barrel/neck/head surfaces.
+  function horseLoft(parent, rings, color, sides = 16) {
+    // Interpolate the profile too, so shoulders and muzzle do not form hard bands.
+    const profile = [];
+    for (let i = 0; i < rings.length - 1; i++) {
+      const p0 = rings[Math.max(0, i - 1)];
+      const p1 = rings[i];
+      const p2 = rings[i + 1];
+      const p3 = rings[Math.min(rings.length - 1, i + 2)];
+      for (let sample = 0; sample < 4; sample++) {
+        const t = sample / 4;
+        profile.push(p1.map((value, axis) => {
+          const result = 0.5 * ((2 * value) + (-p0[axis] + p2[axis]) * t
+            + (2 * p0[axis] - 5 * value + 4 * p2[axis] - p3[axis]) * t * t
+            + (-p0[axis] + 3 * value - 3 * p2[axis] + p3[axis]) * t * t * t);
+          return axis > 1 ? Math.max(0.008, result) : result;
+        }));
       }
     }
-    box([1.18, 0.18, 0.78], 0x20201f, root, [0, 0.98, 0]);
-
-    [-1, 1].forEach((side) => {
-      const arm = cylinder(
-        0.13,
-        0.16,
-        1.25,
-        silkColor,
-        root,
-        [side * 0.76, 1.65, 0],
-        10,
-      );
-      arm.rotation.z = side * -0.16;
-      sphere(0.18, 0x20201f, root, [side * 0.86, 1.02, 0]);
-      const leg = new THREE.Group();
-      leg.position.set(side * 0.34, 0.88, 0);
-      root.add(leg);
-      const thigh = cylinder(0.18, 0.21, 0.92, 0xf1eee7, leg, [0, -0.38, 0], 10);
-      thigh.rotation.x = -0.55;
-      const lowerLeg = cylinder(
-        0.16,
-        0.18,
-        0.95,
-        0xf1eee7,
-        leg,
-        [0, -1.02, -0.28],
-        10,
-      );
-      lowerLeg.rotation.x = 0.48;
-      box([0.46, 0.64, 0.58], 0x20201f, leg, [0, -1.57, -0.06]);
-      box([0.48, 0.12, 0.62], silkColor, leg, [0, -1.25, -0.12]);
+    profile.push(rings[rings.length - 1]);
+    rings = profile;
+    const positions = [];
+    const indices = [];
+    rings.forEach(([x, y, depth, height]) => {
+      for (let side = 0; side < sides; side++) {
+        const angle = side / sides * Math.PI * 2;
+        positions.push(x, y + Math.cos(angle) * height, Math.sin(angle) * depth);
+      }
     });
+    for (let ring = 0; ring < rings.length - 1; ring++) {
+      for (let side = 0; side < sides; side++) {
+        const a = ring * sides + side;
+        const b = ring * sides + (side + 1) % sides;
+        indices.push(a, b, a + sides, b, b + sides, a + sides);
+      }
+    }
+    for (const end of [0, rings.length - 1]) {
+      const center = positions.length / 3;
+      positions.push(rings[end][0], rings[end][1], 0);
+      for (let side = 0; side < sides; side++) {
+        const a = end * sides + side;
+        const b = end * sides + (side + 1) % sides;
+        indices.push(...(end === 0 ? [center, b, a] : [center, a, b]));
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return horsePart(parent, color, [0, 0, 0], [1, 1, 1], geometry);
+  }
+
+  function createHorseLeg(body, front, side, coat, sock) {
+    const root = horseJoint(body, (front ? "Shoulder" : "Hip") + side,
+      [front ? 1.08 : -1.18, front ? 2.57 : 2.43, side * 0.48]);
+    const proximalLength = front ? 0.48 : 0.72;
+    const upperLength = front ? 1.08 : 0.96;
+    const lowerLength = front ? 1.36 : 1.34;
+    horsePart(root, coat, [0, -proximalLength * 0.33, 0],
+      [front ? 0.27 : 0.35, proximalLength * 0.85, 0.26]);
+    const upper = horseJoint(root, front ? "Elbow" : "Stifle",
+      [0, -proximalLength, 0]);
+    horsePart(upper, coat, [0, -upperLength * 0.43, 0],
+      [front ? 0.17 : 0.22, upperLength * 0.57, 0.17]);
+    const lower = horseJoint(upper, front ? "Knee" : "Hock",
+      [0, -upperLength, 0]);
+    horsePart(lower, coat, [0, 0, 0], [0.12, 0.15, 0.115]);
+    horsePart(lower, coat, [0, -lowerLength * 0.46, 0],
+      [0.087, lowerLength * 0.51, 0.09]);
+    if (sock) {
+      horsePart(lower, 0xe9e1cf, [0, -lowerLength * 0.85, 0],
+        [0.094, lowerLength * 0.19, 0.099]);
+    }
+    const fetlock = horseJoint(lower, "Fetlock", [0, -lowerLength, 0]);
+    horsePart(fetlock, sock ? 0xe9e1cf : coat, [0, 0, 0],
+      [0.12, 0.14, 0.12]);
+    horsePart(fetlock, sock ? 0xe9e1cf : coat, [0.035, -0.12, 0],
+      [0.093, 0.16, 0.1]);
+    const hoof = horseJoint(fetlock, "Hoof", [0.055, -0.27, 0]);
+    const hoofMesh = horsePart(hoof, 0x302923, [0.035, -0.03, 0],
+      [0.185, 0.14, 0.155],
+      new THREE.CylinderGeometry(0.8, 1, 1, 10));
+    hoofMesh.rotation.z = -0.1;
+    horsePart(hoof, 0x181b1d, [0.04, -0.105, 0],
+      [0.19, 0.025, 0.16], horseCylinder);
+    root.userData = {
+      front, side, upper, lower, fetlock, hoof,
+      proximalLength, upperLength, lowerLength,
+    };
     return root;
+  }
+
+  function jockeyCharacter(silkColor) {
+    const root = new THREE.Group();
+    root.name = "Racing jockey";
+    const skin = 0xdba57a;
+    const white = 0xeee9dd;
+    const boot = 0x20262c;
+    horsePart(root, white, [-0.12, 0.04, 0], [0.32, 0.23, 0.4]);
+    const torso = horseJoint(root, "Jockey torso", [0, 0.18, 0]);
+    horsePart(torso, silkColor, [0.27, 0.3, 0], [0.33, 0.55, 0.36])
+      .rotation.z = -0.83;
+    horsePart(torso, white, [0.27, 0.3, 0], [0.337, 0.14, 0.367])
+      .rotation.z = -0.83;
+    const head = horseJoint(torso, "Jockey head", [0.72, 0.72, 0]);
+    horsePart(head, skin, [0.04, 0.03, 0], [0.29, 0.34, 0.27]);
+    horsePart(head, silkColor, [0, 0.18, 0], [0.335, 0.3, 0.31],
+      new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.56));
+    horsePart(head, boot, [0.025, 0.135, 0], [0.345, 0.045, 0.317]);
+    horsePart(head, boot, [0.24, 0.135, 0], [0.27, 0.035, 0.29]);
+    horseRod(head, [0, 0.1, -0.27], [0.14, -0.23, -0.2], 0.025, boot);
+    horseRod(head, [0, 0.1, 0.27], [0.14, -0.23, 0.2], 0.025, boot);
+    const hands = [];
+    [-1, 1].forEach((side) => {
+      horseRod(torso, [0.47, 0.58, side * 0.27], [0.58, 0.17, side * 0.48], 0.115, silkColor);
+      horsePart(torso, white, [0.53, 0.35, side * 0.4], [0.12, 0.11, 0.12]);
+      horseRod(torso, [0.58, 0.17, side * 0.48], [1.05, 0.24, side * 0.38], 0.085, silkColor);
+      hands.push(horsePart(torso, boot, [1.05, 0.24, side * 0.38], [0.12, 0.095, 0.095]));
+      // Knees forward, heels back: both legs straddle the horse and saddle.
+      horseRod(root, [-0.12, 0.03, side * 0.34], [0.38, -0.42, side * 0.83], 0.17, white);
+      horsePart(root, white, [0.38, -0.42, side * 0.83], [0.16, 0.16, 0.16]);
+      horseRod(root, [0.38, -0.42, side * 0.83], [-0.2, -0.94, side * 0.9], 0.12, boot);
+      horsePart(root, boot, [-0.07, -1.0, side * 0.91], [0.26, 0.13, 0.14]);
+    });
+    root.userData = { torso, head, hands };
+    return root;
+  }
+
+  function batchHorseParts(root, movingParts = new Set()) {
+    // Only fuse rigid siblings. Joint pivots and animated reins remain separate.
+    for (const child of [...root.children]) {
+      if (child.isGroup) batchHorseParts(child, movingParts);
+    }
+    const batches = new Map();
+    for (const child of root.children) {
+      if (!child.isMesh || movingParts.has(child)) continue;
+      const batch = batches.get(child.material) || [];
+      batch.push(child);
+      batches.set(child.material, batch);
+    }
+    for (const [material, parts] of batches) {
+      if (parts.length < 2) continue;
+      const positions = [];
+      const normals = [];
+      const uv = [];
+      for (const part of parts) {
+        part.updateMatrix();
+        const geometry = part.geometry.index
+          ? part.geometry.toNonIndexed() : part.geometry.clone();
+        geometry.applyMatrix4(part.matrix);
+        positions.push(...geometry.attributes.position.array);
+        normals.push(...geometry.attributes.normal.array);
+        uv.push(...geometry.attributes.uv?.array || new Float32Array(geometry.attributes.position.count * 2));
+        geometry.dispose();
+        root.remove(part);
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      geometry.computeBoundingSphere();
+      const combined = new THREE.Mesh(geometry, material);
+      combined.name = root.name + " surface";
+      combined.castShadow = combined.receiveShadow = true;
+      root.add(combined);
+    }
+  }
+
+  function horseSaddlecloth(parent, color, side) {
+    const shape = new THREE.Shape();
+    const width = 1.35;
+    const height = 0.83;
+    const radius = 0.14;
+    shape.moveTo(radius, 0);
+    shape.lineTo(width - radius, 0);
+    shape.quadraticCurveTo(width, 0, width, radius);
+    shape.lineTo(width, height - radius);
+    shape.quadraticCurveTo(width, height, width - radius, height);
+    shape.lineTo(radius, height);
+    shape.quadraticCurveTo(0, height, 0, height - radius);
+    shape.lineTo(0, radius);
+    shape.quadraticCurveTo(0, 0, radius, 0);
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.065, bevelEnabled: true, bevelSegments: 2,
+      steps: 1, bevelSize: 0.025, bevelThickness: 0.02, curveSegments: 4,
+    });
+    geometry.translate(-0.83, -0.42, -0.0325);
+    const cloth = horsePart(parent, color, [-0.08, 2.76, side * 0.66], [1, 1, 1], geometry);
+    cloth.rotation.x = side * 0.15;
+  }
+
+  function buildHorseVisual(body, data, index) {
+    const coat = data.coat;
+    const maneColor = new THREE.Color(coat).multiplyScalar(0.25).getHex();
+    horseLoft(body, [
+      [-1.96, 2.43, 0.018, 0.05], [-1.53, 2.43, 0.6, 0.78],
+      [-0.85, 2.39, 0.7, 0.83], [0.05, 2.36, 0.65, 0.75],
+      [0.82, 2.47, 0.61, 0.83], [1.35, 2.48, 0.45, 0.64],
+      [1.62, 2.5, 0.025, 0.06],
+    ], coat, 20);
+    horsePart(body, coat, [0.66, 3.01, 0], [0.62, 0.34, 0.4]);
+    const neck = horseJoint(body, "Neck base", [1.0, 2.79, 0]);
+    horseLoft(neck, [
+      [-0.34, 0.02, 0.48, 0.49], [0.0, 0.42, 0.42, 0.7],
+      [0.39, 0.91, 0.3, 0.63], [0.72, 1.27, 0.24, 0.35],
+      [0.86, 1.31, 0.18, 0.22],
+    ], coat);
+    for (let tuft = 0; tuft < 8; tuft++) {
+      const t = tuft / 7;
+      horsePart(neck, maneColor,
+        [-0.31 + t * 0.98, 0.48 + t * 1.06, 0],
+        [0.16, 0.21 - t * 0.06, 0.095]).rotation.z = -0.42;
+    }
+    const head = horseJoint(neck, "Poll / head", [0.8, 1.27, 0]);
+    horseLoft(head, [
+      [-0.17, 0.03, 0.2, 0.23], [0.02, 0.03, 0.32, 0.41],
+      [0.39, -0.13, 0.265, 0.32], [0.84, -0.39, 0.22, 0.23],
+      [1.05, -0.47, 0.23, 0.19],
+    ], coat);
+    const muzzleColor = new THREE.Color(coat).lerp(new THREE.Color(0x594438), 0.52).getHex();
+    horsePart(head, muzzleColor, [0.97, -0.46, 0], [0.27, 0.205, 0.25]);
+    const jaw = horseJoint(head, "Jaw", [0.23, -0.3, 0]);
+    horsePart(jaw, coat, [0.29, -0.085, 0], [0.5, 0.13, 0.22]);
+    const ears = [];
+    [-1, 1].forEach((side) => {
+      horsePart(head, coat, [0.1, -0.09, side * 0.21], [0.3, 0.28, 0.17]);
+      horsePart(head, 0x151511, [0.22, 0.12, side * 0.296], [0.1, 0.086, 0.031]);
+      horsePart(head, 0xf9f5e8, [0.25, 0.146, side * 0.322], [0.023, 0.025, 0.009]);
+      horsePart(head, 0x2b211c, [1.08, -0.41, side * 0.205], [0.075, 0.046, 0.028]);
+      const ear = horseJoint(head, "Ear" + side, [-0.015, 0.37, side * 0.19]);
+      horsePart(ear, coat, [0.015, 0.16, 0], [0.09, 0.21, 0.075]);
+      horsePart(ear, 0x997060, [0.082, 0.17, 0], [0.014, 0.135, 0.041]);
+      ears.push(ear);
+      horseRod(head, [0, 0.22, side * 0.325], [0.84, -0.37, side * 0.245], 0.036, data.color);
+      horseRod(head, [-0.1, 0.21, side * 0.3], [0.1, -0.33, side * 0.3], 0.029, data.color);
+    });
+    horsePart(head, data.color, [0.8, -0.36, 0],
+      [0.24, 0.047, 0.264], horseCylinder).rotation.z = Math.PI / 2 - 0.48;
+    horsePart(head, maneColor, [0.18, 0.36, 0], [0.26, 0.1, 0.12]).rotation.z = -0.4;
+    if (index % 3 !== 1) {
+      const forehead = [
+        [0.1, 0.43, 0.034], [0.27, 0.30, 0.055],
+        [0.48, 0.145, 0.05], [0.65, 0.005, 0.041], [0.8, -0.12, 0.025],
+      ];
+      const vertices = [];
+      const faces = [];
+      forehead.forEach(([x, y, width], i) => {
+        vertices.push(x, y, -width, x, y, width);
+        if (i) faces.push(i * 2 - 2, i * 2, i * 2 - 1, i * 2 - 1, i * 2, i * 2 + 1);
+      });
+      const blaze = new THREE.BufferGeometry();
+      blaze.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+      blaze.setIndex(faces);
+      blaze.computeVertexNormals();
+      horsePart(head, 0xeee6d7, [0, 0, 0], [1, 1, 1], blaze);
+    }
+    const tail = horseJoint(body, "Tail dock", [-1.68, 2.73, 0]);
+    horseLoft(tail, [
+      [-0.64, -0.43, 0.14, 0.19], [-0.45, -0.21, 0.16, 0.2],
+      [-0.12, -0.06, 0.12, 0.12], [0.06, 0, 0.09, 0.09],
+    ], maneColor, 10);
+    const tailTip = horseJoint(tail, "Tail tip", [-0.64, -0.43, 0]);
+    horseLoft(tailTip, [
+      [-0.56, -0.7, 0.012, 0.025], [-0.38, -0.54, 0.1, 0.16],
+      [-0.14, -0.24, 0.16, 0.24], [0.02, 0, 0.14, 0.19],
+    ], maneColor, 10);
+
+    const legs = [];
+    for (const front of [false, true]) {
+      for (const side of [-1, 1]) {
+        legs.push(createHorseLeg(body, front, side, coat, (index + legs.length) % 3 === 0));
+      }
+    }
+    horsePart(body, data.color, [-0.21, 3.06, 0], [0.84, 0.18, 0.74]);
+    [-1, 1].forEach((side) => {
+      horseSaddlecloth(body, data.color, side);
+      horseRod(body, [-0.27, 3.17, side * 0.58], [-0.27, 2.06, side * 0.9],
+        0.027, 0x4b3325);
+      horseRod(body, [-0.4, 2.04, side * 0.92], [0.04, 2.04, side * 0.92],
+        0.034, 0x8e9294);
+    });
+    horsePart(body, 0x38271f, [-0.28, 3.22, 0], [0.65, 0.17, 0.49]);
+    const jockey = jockeyCharacter(data.color);
+    jockey.position.set(-0.2, 3.32, 0);
+    body.add(jockey);
+    const reins = [-1, 1].map(() =>
+      horseRod(body, [0, 0, 0], [1, 0, 0], 0.022, 0x453023));
+    batchHorseParts(body, new Set([...reins, ...jockey.userData.hands]));
+    return { body, legs, neck, head, jaw, ears, tail, tailTip, jockey, reins,
+      frontLegs: legs.filter(leg => leg.userData.front),
+      hindLegs: legs.filter(leg => !leg.userData.front),
+      motion: 0, phase: index * 0.9, lastTime: null,
+      pointA: new THREE.Vector3(), pointB: new THREE.Vector3(),
+      up: new THREE.Vector3(0, 1, 0),
+    };
+  }
+
+  function poseHorseLeg(leg, x, y, lift, bodyPitch, bodyY) {
+    const limb = leg.userData;
+    const proximalAngle = limb.front ? 0.06 + lift * 0.15 : 0.56 - lift * 0.22;
+    leg.rotation.z = proximalAngle;
+    // Inverse body pitch keeps planted feet on dirt while the barrel bobs.
+    const worldX = leg.position.x + x;
+    const worldY = y - bodyY;
+    const cosine = Math.cos(bodyPitch);
+    const sine = Math.sin(bodyPitch);
+    const dx = cosine * worldX + sine * worldY - leg.position.x
+      - Math.sin(proximalAngle) * limb.proximalLength;
+    const dy = -sine * worldX + cosine * worldY - leg.position.y
+      + Math.cos(proximalAngle) * limb.proximalLength;
+    const a = limb.upperLength;
+    const b = limb.lowerLength;
+    const distanceSquared = Math.max(0.01, dx * dx + dy * dy);
+    const bend = (limb.front ? -1 : 1) * Math.acos(
+      THREE.MathUtils.clamp((distanceSquared - a * a - b * b) / (2 * a * b), -0.98, 0.995),
+    );
+    const upperAngle = Math.atan2(dx, -dy)
+      - Math.atan2(b * Math.sin(bend), a + b * Math.cos(bend));
+    limb.upper.rotation.z = upperAngle - proximalAngle;
+    limb.lower.rotation.z = bend;
+    limb.fetlock.rotation.z = -upperAngle - bend - bodyPitch + lift * (limb.front ? -0.5 : 0.3);
+    limb.hoof.rotation.z = lift * -0.35;
+  }
+
+  function animateHorse(horse, elapsed, active = true, groundSpeed) {
+    const rig = horse.userData.rig;
+    if (!rig) return;
+    const data = horse.userData.data;
+    const time = Number.isFinite(elapsed) ? elapsed : (rig.lastTime ?? 0);
+    const dt = rig.lastTime === null ? 0 : THREE.MathUtils.clamp(time - rig.lastTime, 0, 0.05);
+    rig.lastTime = time;
+    const base = Number.isFinite(data.baseSpeed) ? Math.max(0.001, data.baseSpeed) : 0.04;
+    const speed = Number.isFinite(data.motionSpeed) ? Math.max(0, data.motionSpeed) : 0;
+    const requestedMotion = active ? THREE.MathUtils.clamp(speed / base, 0, 1.5) : 0;
+    rig.motion += (requestedMotion - rig.motion) * (1 - Math.exp(-dt * 10));
+    const movement = rig.motion;
+    const amount = THREE.MathUtils.smoothstep(movement, 0.005, 0.17);
+    const gallopBlend = THREE.MathUtils.smoothstep(movement, 0.3, 0.72);
+    const stance = THREE.MathUtils.lerp(0.64, 0.34, gallopBlend);
+    const travel = THREE.MathUtils.lerp(0.58, 0.94,
+      THREE.MathUtils.smoothstep(movement, 0.15, 1)) * amount;
+    // The oval has different local curvature/radius. Use actual distance per
+    // second to keep the planted foot travelling backward at the ground speed.
+    const cadence = Number.isFinite(groundSpeed) && travel > 0.01
+      ? THREE.MathUtils.clamp(groundSpeed * stance * Math.PI / travel, 0, 28)
+      : (3.5 + movement * 10.5) * amount;
+    rig.phase = (rig.phase + dt * cadence) % (Math.PI * 2);
+    const phase = rig.phase;
+    const bob = Math.sin(phase * 2) * 0.026 * amount
+      + Math.max(0, Math.sin(phase - 0.3)) * 0.09 * gallopBlend;
+    const pitch = Math.sin(phase - 0.6) * 0.036 * gallopBlend;
+    const stunned = Number.isFinite(data.ragdoll) && data.ragdoll > 0;
+    rig.body.position.set(0, stunned ? 0.36 : bob, 0);
+    rig.body.rotation.set(stunned ? Math.sin(time * 13) * 0.45 : 0, 0,
+      stunned ? 0.8 + Math.sin(time * 9) * 0.15 : pitch);
+    const contacts = [0, 0.12, 0.4, 0.53];
+    const walkContacts = [0, 0.5, 0.75, 0.25];
+    rig.legs.forEach((leg, index) => {
+      const offset = THREE.MathUtils.lerp(walkContacts[index], contacts[index], gallopBlend);
+      const cycle = ((phase / (Math.PI * 2) - offset) % 1 + 1) % 1;
+      let reach;
+      let lift = 0;
+      if (cycle < stance) {
+        reach = 1 - 2 * cycle / stance;
+      } else {
+        const swing = (cycle - stance) / (1 - stance);
+        reach = -Math.cos(swing * Math.PI);
+        lift = Math.pow(Math.sin(swing * Math.PI), 1.35) * amount;
+      }
+      leg.position.y = leg.userData.front ? 2.57 - 0.14 * amount : 2.43;
+      const restX = leg.userData.front ? 0.03 : -0.08;
+      poseHorseLeg(leg, restX + reach * travel,
+        -0.33 + lift * (0.32 + 0.55 * gallopBlend),
+        lift, stunned ? 0 : pitch, stunned ? 0 : bob);
+    });
+    rig.neck.rotation.z = -0.045 * movement + Math.sin(phase - 0.5) * 0.047 * amount;
+    rig.head.rotation.z = 0.025 * Math.sin(time * 1.3) * (1 - amount)
+      + Math.sin(phase + 0.7) * 0.06 * amount;
+    rig.head.rotation.y = Math.sin(time * 0.6 + data.poolIndex) * 0.025;
+    rig.jaw.rotation.z = Math.max(0, Math.sin(time * 1.8)) * 0.018 * (1 - amount);
+    rig.ears.forEach((ear, index) => {
+      ear.rotation.z = -0.16 + 0.09 * Math.sin(time * 2.2 + index * 2.7);
+      ear.rotation.x = (index ? 1 : -1) * 0.12;
+    });
+    rig.tail.rotation.y = Math.sin(phase * 0.5 + time * 0.7) * (0.06 + movement * 0.1);
+    rig.tail.rotation.z = -movement * 0.2 + Math.sin(phase - 0.7) * 0.09 * amount;
+    rig.tailTip.rotation.z = Math.sin(phase - 1.3) * 0.13 * amount;
+    rig.jockey.userData.torso.rotation.z = -0.035 * movement
+      - Math.sin(phase - 0.6) * 0.04 * amount;
+    rig.jockey.userData.head.rotation.z = -rig.jockey.userData.torso.rotation.z * 0.55;
+    // Attach reins to both the animated bit and the rider's gloves.
+    rig.body.updateWorldMatrix(true, false);
+    rig.reins.forEach((rein, index) => {
+      const side = index ? 1 : -1;
+      rig.pointA.set(0.84, -0.37, side * 0.25);
+      rig.head.localToWorld(rig.pointA);
+      rig.body.worldToLocal(rig.pointA);
+      rig.jockey.userData.hands[index].getWorldPosition(rig.pointB);
+      rig.body.worldToLocal(rig.pointB);
+      rein.position.copy(rig.pointA).add(rig.pointB).multiplyScalar(0.5);
+      rein.scale.y = rig.pointB.sub(rig.pointA).length();
+      rein.quaternion.setFromUnitVectors(rig.up, rig.pointB.normalize());
+    });
+    data.gaitPhase = rig.phase;
+  }
+
+  function addSaddleNumber(body, number) {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 128;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#fff9ed";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = "bold 88px sans-serif";
+    context.fillText(number, 64, 68);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshBasicMaterial({
+      map: texture, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1,
+    });
+    const geometry = new THREE.PlaneGeometry(0.51, 0.51);
+    [-1, 1].forEach(side => {
+      const numberMesh = new THREE.Mesh(geometry, material);
+      numberMesh.position.set(-0.68, 2.74, side * 0.755);
+      numberMesh.rotation.y = side < 0 ? Math.PI : 0;
+      numberMesh.rotation.x = side * 0.15;
+      body.add(numberMesh);
+    });
   }
 
   function horse(data, index) {
@@ -648,100 +1049,10 @@ HD.Models = (() => {
     const resistanceRating = data.resistance || 75;
     root.add(body);
     root.userData.body = body;
-    const torso = mesh(new THREE.CapsuleGeometry(1.15, 2.4, 5, 10), data.coat, body, [0, 2, 0]);
-    torso.rotation.z = Math.PI / 2;
-    const haunch = sphere(1.08, data.coat, body, [-1.35, 2.05, 0]);
-    haunch.scale.set(1.15, 1, 0.95);
-    const chest = sphere(0.92, data.coat, body, [1.25, 2.18, 0]);
-    chest.scale.set(0.85, 1.12, 0.94);
-    const neck = cylinder(0.62, 0.8, 2.1, data.coat, body, [1.65, 2.7, 0]);
-    neck.rotation.z = -0.55;
-    const head = mesh(new THREE.CapsuleGeometry(0.62, 0.8, 4, 8), data.coat, body, [2.45, 3.45, 0]);
-    head.rotation.z = Math.PI / 2;
-    const muzzle = mesh(new THREE.CapsuleGeometry(0.4, 0.65, 4, 9), data.coat, body, [3.05, 3.25, 0]);
-    muzzle.rotation.z = Math.PI / 2;
-    sphere(0.075, 0x211817, body, [3.42, 3.32, -0.26]);
-    sphere(0.075, 0x211817, body, [3.42, 3.32, 0.26]);
-    sphere(0.1, 0x111111, body, [2.85, 3.72, -0.5]);
-    sphere(0.1, 0x111111, body, [2.85, 3.72, 0.5]);
-    const blaze = box([0.78, 0.08, 0.2], 0xe8dfce, body, [2.68, 3.96, 0]);
-    blaze.rotation.z = -0.18;
-    const bridle = mesh(new THREE.TorusGeometry(0.57, 0.055, 7, 18), 0x2c1c17, body);
-    bridle.position.set(2.7, 3.42, 0);
-    bridle.rotation.y = Math.PI / 2;
-    box([1.25, 0.18, 1.35], 0x2a1b16, body, [1.3, 3.4, 0]);
-    const mane = box([2.2, 0.65, 0.16], 0x241914, body, [0.95, 3.5, 0]);
-    mane.rotation.z = -0.28;
-    for (let tuftIndex = 0; tuftIndex < 5; tuftIndex++) {
-      const tuft = mesh(
-        new THREE.ConeGeometry(0.16, 0.55, 6),
-        0x241914,
-        body,
-        [0.35 + tuftIndex * 0.38, 3.76 + tuftIndex * 0.1, 0],
-      );
-      tuft.rotation.z = -0.28;
-    }
-    const tail = cylinder(0.08, 0.18, 1.8, 0x241914, body, [-2.2, 2.1, 0], 7);
-    tail.rotation.z = -0.8;
-    const ears = [];
-    [-0.34, 0.34].forEach((z) => {
-      const ear = cylinder(0.06, 0.18, 0.65, data.coat, body, [2.18, 4.15, z], 7);
-      ear.rotation.z = -0.3;
-      ears.push(ear);
-    });
-    const legs = [];
-    const frontLegs = [];
-    const hindLegs = [];
-    [-1.15, 1.05].forEach((x, a) =>
-      [-0.64, 0.64].forEach((z, b) => {
-        const leg = cylinder(0.18, 0.25, 2.3, data.coat, body, [x, 0.55, z], 8);
-        leg.userData.phase = ((a + b) % 2) * Math.PI;
-        legs.push(leg);
-        if (x > 0) frontLegs.push(leg);
-        else hindLegs.push(leg);
-        sphere(0.24, data.coat, leg, [0, -0.72, 0]);
-        const hoof = mesh(
-          new THREE.CapsuleGeometry(0.23, 0.3, 4, 9),
-          0x211a17,
-          leg,
-          [0.1, -1.22, 0],
-        );
-        hoof.rotation.z = Math.PI / 2 - 0.08;
-        hoof.scale.set(1.1, 1, 0.92);
-        const shoe = mesh(
-          new THREE.TorusGeometry(0.24, 0.035, 6, 12, Math.PI * 1.65),
-          0x72777a,
-          leg,
-          [0.12, -1.41, 0],
-        );
-        shoe.rotation.x = Math.PI / 2;
-      }),
-    );
-    box([1.5, 0.28, 1.75], data.color, body, [-0.2, 3.03, 0]);
-    box([0.95, 0.18, 1.9], 0x4a2d22, body, [-0.15, 3.2, 0]);
-    [-1, 1].forEach((side) => {
-      addRodBetween(
-        body,
-        [-0.1, 3.16, side * 0.82],
-        [-0.1, 2.18, side * 0.92],
-        0.025,
-        0x30231d,
-      );
-      const stirrup = mesh(
-        new THREE.TorusGeometry(0.2, 0.035, 7, 13),
-        0x8a8c89,
-        body,
-        [-0.1, 2.08, side * 0.94],
-      );
-      stirrup.scale.y = 1.35;
-    });
-    addRodBetween(body, [2.8, 3.42, -0.5], [0.25, 4.05, -0.72], 0.025, 0x2c1c17);
-    addRodBetween(body, [2.8, 3.42, 0.5], [0.25, 4.05, 0.72], 0.025, 0x2c1c17);
-    const jockey = jockeyCharacter(data.color);
-    jockey.scale.setScalar(0.52);
-    jockey.position.set(-0.15, 3.2, 0);
-    jockey.rotation.y = -Math.PI / 2;
-    body.add(jockey);
+    const rig = buildHorseVisual(body, data, Math.max(0, poolIndex));
+    rig.phase = index * 0.9;
+    const { legs, frontLegs, hindLegs, ears, tail, jockey } = rig;
+    addSaddleNumber(body, HD.horseNumber(data));
     const label = numberSprite(HD.horseNumber(data));
     label.position.set(0, 6.15, 0);
     root.add(label);
@@ -754,6 +1065,7 @@ HD.Models = (() => {
       tail,
       jockey,
       numberLabel: label,
+      rig,
       data: {
         ...data,
         index,
@@ -795,7 +1107,27 @@ HD.Models = (() => {
         motionSpeed: 0,
       },
     };
+    animateHorse(root, 0, false);
     return root;
+  }
+
+  function disposeHorse(horse) {
+    // Primitive geometry and coat materials are shared by the entire field.
+    const geometries = new Set();
+    const materials = new Set();
+    horse.traverse(node => {
+      if (node.geometry && node.geometry !== horseSphere && node.geometry !== horseCylinder) {
+        geometries.add(node.geometry);
+      }
+      if (node.material && ![...horseMaterials.values()].includes(node.material)) {
+        materials.add(node.material);
+      }
+    });
+    geometries.forEach(geometry => geometry.dispose());
+    materials.forEach(material => {
+      material.map?.dispose();
+      material.dispose();
+    });
   }
 
   function addRodBetween(parent, startValues, endValues, radius, color) {
@@ -1316,6 +1648,8 @@ HD.Models = (() => {
     playerCharacter,
     setPlayerStanding,
     horse,
+    animateHorse,
+    disposeHorse,
     hotdog,
     soda,
     horseshoe,

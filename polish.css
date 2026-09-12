@@ -2219,6 +2219,76 @@
   text-align: left;
 }
 
+.hotbar-slot > img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 2px #0008);
+  pointer-events: none;
+}
+
+.apps button[data-app=horses] { background-image: url('assets/phone-apps/oddswatch.png'); }
+.apps button[data-app=news] { background-image: url('assets/phone-apps/leaderboard.png'); }
+.apps button[data-app=items] { background-image: url('assets/phone-apps/bank.png'); }
+.apps button.has-notification::after {
+  position: absolute; top: 5px; right: 5px; width: 10px; height: 10px;
+  border: 2px solid white; border-radius: 50%; background: #f04b43;
+  box-shadow: 0 2px 7px #0008; content: '';
+}
+.bank-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+.bank-summary span { display: grid; gap: 3px; padding: 8px 5px; border-radius: 8px; background: #10271c; text-align: center; }
+.bank-summary small { color: #8fa499; font-size: 7px; }
+.bank-summary strong { color: #9ce39c; font-size: 12px; }
+.bank-summary strong.negative { color: #ff968b; }
+.money-requests article, .news-feed article {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 6px; padding: 8px; border-radius: 8px; background: #10271c;
+}
+.money-requests article div { display: flex; gap: 4px; }
+.news-lead {
+  display: grid; gap: 7px; padding: 12px; border-radius: 10px;
+  background: linear-gradient(145deg, #345d43, #172c21);
+}
+
+.news-live {
+  position: relative;
+  width: 100%;
+  margin: 0 0 10px;
+  overflow: hidden;
+  border: 2px solid #527363;
+  border-radius: 12px;
+  background: #07131e;
+  box-shadow: 0 7px 18px #0007;
+}
+
+.news-live canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 768 / 404;
+  object-fit: cover;
+  background: linear-gradient(145deg, #0b2535, #10291f);
+}
+
+.news-live figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  padding: 4px 7px;
+  background: linear-gradient(90deg, #07131eed, #07131eb8);
+  color: #f7f4dd;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.news-live figcaption strong {
+  color: #79edaa;
+  font-size: 8px;
+}
+.news-lead strong { color: #ffe17c; font-size: 15px; }
+
 .settings-panel[hidden] {
   display: none;
 }
@@ -2992,4 +3062,518 @@
 @media (max-width: 560px) {
   .practice-rule-grid { grid-template-columns: 1fr; gap: 16px; }
   .practice-setup footer { flex-direction: column-reverse; }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Hotdog OS flat hardware and individual app identities                       */
+/* -------------------------------------------------------------------------- */
+
+.phone-open .phone {
+  border: 10px solid #111519;
+  border-radius: 44px;
+  background: #edf1ee;
+  box-shadow: 0 28px 75px #000c;
+  color: #152019;
+  padding: 10px 11px 8px;
+}
+
+.phone .speaker {
+  width: 74px;
+  height: 6px;
+  margin-bottom: 5px;
+  background: #080a0c;
+  box-shadow: none;
+}
+
+.phone .phone-status {
+  padding: 3px 7px 9px;
+  border: 0;
+  background: transparent;
+  color: #39443e;
+}
+
+.phone .phone-status strong {
+  color: #18211c;
+}
+
+.phone-signals i {
+  border-color: #28332d;
+  background: linear-gradient(90deg, #28332d 0 78%, transparent 78%);
+}
+
+.phone:not(.app-open) {
+  background:
+    linear-gradient(180deg, #d9e9e1, #f6f3e8 60%, #e4eadf);
+}
+
+.phone:not(.app-open) .apps {
+  gap: 9px 7px;
+  padding: 10px 5px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.phone:not(.app-open) .apps button {
+  min-height: 76px;
+  aspect-ratio: auto;
+  place-items: end center;
+  padding: 58px 1px 2px;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-position: center 2px;
+  background-repeat: no-repeat;
+  background-size: 54px 54px;
+  box-shadow: none;
+  color: #17221c;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-shadow: none;
+}
+
+.phone:not(.app-open) .apps button:hover,
+.phone:not(.app-open) .apps button:focus-visible {
+  filter: brightness(1.05);
+  transform: translateY(-2px);
+}
+
+.apps button[data-app="bet"] {
+  background-image: url("assets/phone-apps/betting-flat.svg");
+}
+
+.apps button[data-app="shop"] {
+  background-image: url("assets/phone-apps/concessions-flat.svg");
+}
+
+.apps button[data-app="horses"] {
+  background-image: url("assets/phone-apps/horses-flat.svg");
+}
+
+.apps button[data-app="bank"] {
+  background-image: url("assets/phone-apps/bank-flat.svg");
+}
+
+.apps button[data-app="news"] {
+  background-image: url("assets/phone-apps/news-flat.svg");
+}
+
+.apps button[data-app="sabotage"] {
+  background-image: url("assets/phone-apps/fixer-flat.svg");
+}
+
+.apps button[data-app="transfer"] {
+  background-image: url("assets/phone-apps/pay-flat.svg");
+}
+
+.apps button[data-app="messages"] {
+  background-image: url("assets/phone-apps/messages-flat.svg");
+}
+
+.phone-home {
+  width: 38px;
+  height: 38px;
+  margin: 5px auto 0;
+  flex: 0 0 38px;
+  border: 2px solid #777f7a;
+  border-radius: 50%;
+  background: #f6f7f5;
+  box-shadow: none;
+}
+
+.phone-home span {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #777f7a;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.phone:not(.app-open) .phone-home {
+  opacity: 1;
+}
+
+.phone-open .app-panel.active {
+  margin: 0 -2px;
+  padding: 12px 10px 18px;
+  border-radius: 18px;
+  background: #f6f7f5;
+  color: #162019;
+}
+
+.phone-open .app-panel .section-title {
+  margin: -12px -10px 12px;
+  padding: 14px 12px 11px;
+  border-radius: 18px 18px 0 0;
+  background: var(--app-header, #23372d);
+  color: white;
+}
+
+.phone-open .app-panel .section-title em {
+  color: var(--app-accent, #ffe073);
+}
+
+.app-panel[data-panel="bet"] {
+  --app-header: #133c31;
+  --app-accent: #87edaa;
+  background: #eef5ef !important;
+}
+
+.app-panel[data-panel="bet"] .horse-choice {
+  border: 1px solid #bdd4c4;
+  background: #fff;
+  color: #153026;
+}
+
+.app-panel[data-panel="bet"] .horse-choice.selected {
+  border-color: #168e5a;
+  background: #dff4e7;
+}
+
+.app-panel[data-panel="bet"] .stake-row label,
+.app-panel[data-panel="bet"] .ticket {
+  background: #dfeae2;
+  color: #173226;
+}
+
+.app-panel[data-panel="shop"] {
+  --app-header: #c92128;
+  --app-accent: #ffd348;
+  background: #fff9e8 !important;
+}
+
+.app-panel[data-panel="shop"] .shop-items {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.app-panel[data-panel="shop"] .shop-item {
+  grid-template-columns: 1fr;
+  min-height: 116px;
+  border: 1px solid #f0dba0;
+  border-radius: 16px;
+  background: #fff;
+  color: #382415;
+}
+
+.app-panel[data-panel="shop"] .shop-item button {
+  border: 0;
+  border-radius: 18px;
+  background: #c92128;
+  color: white;
+}
+
+.app-panel[data-panel="shop"] .item-effect {
+  color: #a62822 !important;
+}
+
+.app-panel[data-panel="horses"] {
+  --app-header: #174a75;
+  --app-accent: #8dd6ff;
+  background: #edf5fb !important;
+}
+
+.app-panel[data-panel="horses"] .odds-profile {
+  border-color: #c1d8e8;
+  background: white;
+  color: #17334b;
+}
+
+.app-panel[data-panel="bank"] {
+  --app-header: #115d58;
+  --app-accent: #8ff1cf;
+  background: #eaf5f2 !important;
+}
+
+.app-panel[data-panel="news"] {
+  --app-header: #9f2f2c;
+  --app-accent: #ffe08a;
+  background: #f8f0dd !important;
+}
+
+.app-panel[data-panel="sabotage"] {
+  --app-header: #2b2635;
+  --app-accent: #d5a8ff;
+  background: #eeebf2 !important;
+}
+
+.app-panel[data-panel="transfer"] {
+  --app-header: #1766a6;
+  --app-accent: #9ee7ff;
+  background: #eaf4fb !important;
+}
+
+.app-panel[data-panel="messages"] {
+  --app-header: #168b50;
+  --app-accent: #b8ffd5;
+  background: #edf7f0 !important;
+}
+
+.phone-open .app-panel input,
+.phone-open .app-panel select {
+  border: 1px solid #b9c7bf;
+  background: white;
+  color: #17221c;
+}
+
+.phone-open .app-panel .tip {
+  color: #56645c;
+}
+
+.app-panel[data-panel="horses"] .odds-profile header small,
+.app-panel[data-panel="horses"] .odds-profile > div span {
+  color: #557086;
+}
+
+.app-panel[data-panel="horses"] .odds-profile > div b {
+  color: #17334b;
+}
+
+.app-panel[data-panel="bank"] .bank-card {
+  border: 0;
+  background: #115d58;
+  color: white;
+}
+
+.app-panel[data-panel="bank"] .bank-summary span {
+  background: white;
+  color: #18443f;
+}
+
+.app-panel[data-panel="bank"] .bank-summary small {
+  color: #56746f;
+}
+
+.app-panel[data-panel="bank"] .ledger > div {
+  border-color: #c1d9d4;
+  background: white;
+  color: #214640;
+}
+
+.app-panel[data-panel="news"] .news-lead {
+  border-left: 5px solid #c44a36;
+  background: white;
+  color: #412d24;
+}
+
+.app-panel[data-panel="news"] .news-lead strong {
+  color: #9f2f2c;
+}
+
+.app-panel[data-panel="news"] .news-feed article {
+  background: #fffaf0;
+  color: #49352a;
+}
+
+.app-panel[data-panel="sabotage"] .horse-choice,
+.app-panel[data-panel="sabotage"] .sabotage-options button {
+  border: 1px solid #d2c7dc;
+  background: white;
+  color: #30283a;
+}
+
+.app-panel[data-panel="sabotage"] .horse-choice.selected {
+  border-color: #7b4ba0;
+  background: #e4d5ef;
+}
+
+.app-panel[data-panel="sabotage"] .sabotage-options small {
+  color: #64566e;
+}
+
+.app-panel[data-panel="transfer"] .transfer-actions button {
+  border-radius: 18px;
+}
+
+.app-panel[data-panel="transfer"] .money-requests article {
+  border-left: 4px solid #2182c4;
+  background: white;
+  color: #183d58;
+}
+
+.app-panel[data-panel="messages"] .message-history {
+  border-color: #c9ded0;
+  background: #fff;
+}
+
+.app-panel[data-panel="messages"] .message-empty {
+  color: #607169;
+}
+
+.app-panel[data-panel="messages"] .message-empty strong {
+  color: #294137;
+}
+
+.app-panel[data-panel="messages"] .chat-message {
+  background: #e4e9e6;
+  box-shadow: none;
+}
+
+.app-panel[data-panel="messages"] .chat-message span {
+  color: #1c2c24;
+}
+
+.app-panel[data-panel="messages"] .chat-message.mine {
+  background: #20a85e;
+}
+
+.app-panel[data-panel="messages"] .chat-message.mine span {
+  color: white;
+}
+
+/* Dark-mode pass: flat surfaces, larger apps, and no reflective edge treatment. */
+.phone-open .phone,
+.phone:not(.app-open) {
+  background: #11171a;
+  color: #edf3ef;
+}
+
+.phone .phone-status { color: #aebbb4; }
+.phone .phone-status strong { color: #f5f7f6; }
+.phone-signals i {
+  border-color: #d8e2dd;
+  background: linear-gradient(90deg, #d8e2dd 0 78%, transparent 78%);
+}
+.phone-widget { border-color: #303b40; box-shadow: none; }
+.phone:not(.app-open) .apps { gap: 10px 7px; }
+.phone:not(.app-open) .apps button {
+  min-height: 88px;
+  padding-top: 68px;
+  background-position: center 1px;
+  background-size: 64px 64px;
+  color: #f0f5f2;
+}
+.phone-home {
+  z-index: 8;
+  border-color: #687279;
+  background: #171d21;
+  pointer-events: auto;
+}
+.phone-home span { border-color: #a9b2b6; }
+.phone-open .app-panel.active {
+  background: var(--app-surface, #182125) !important;
+  color: #eef4f1;
+}
+.app-panel[data-panel="bet"] { --app-surface: #101d19; }
+.app-panel[data-panel="bet"] .horse-choice {
+  border-color: #28483a;
+  background: #182b23;
+  color: #eef7f1;
+}
+.app-panel[data-panel="bet"] .horse-choice.selected {
+  border-color: #52d58b;
+  background: #214c38;
+}
+.app-panel[data-panel="bet"] .horse-choice strong { color: #8cf0b5; }
+.app-panel[data-panel="bet"] .stake-row label,
+.app-panel[data-panel="bet"] .ticket {
+  background: #1d3228;
+  color: #edf6f0;
+}
+.app-panel[data-panel="shop"] { --app-surface: #241817; }
+.app-panel[data-panel="shop"] .shop-item {
+  border-color: #5a3931;
+  background: #34211d;
+  color: #fff4df;
+}
+.app-panel[data-panel="shop"] .item-select { color: #fff4df; }
+.app-panel[data-panel="shop"] .item-icon {
+  display: grid;
+  width: 62px;
+  height: 52px;
+  margin: 0 auto 4px;
+  place-items: center;
+}
+.app-panel[data-panel="shop"] .item-icon img {
+  width: 58px;
+  height: 50px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 4px #0008);
+}
+.app-panel[data-panel="horses"] { --app-surface: #111e28; }
+.app-panel[data-panel="horses"] .odds-profile {
+  border-color: #29485f;
+  background: #192c3a;
+  color: #eaf6ff;
+}
+.app-panel[data-panel="horses"] .odds-profile.active {
+  border-color: #69bdec;
+  background: #21465e;
+}
+.app-panel[data-panel="horses"] .odds-profile > div b { color: #eaf6ff; }
+.horse-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 10px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #0a141b;
+}
+.horse-tabs button {
+  padding: 8px 5px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #8ca5b6;
+  font-size: 9px;
+  font-weight: 900;
+}
+.horse-tabs button.active { background: #2775b6; color: white; }
+.personal-horse-preview {
+  padding: 15px;
+  border: 1px solid #29485f;
+  border-radius: 16px;
+  background: #192c3a;
+  text-align: center;
+}
+.personal-horse-preview[hidden] { display: none; }
+.personal-horse-preview > small {
+  color: #8dd6ff;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+.personal-horse-silhouette {
+  display: grid;
+  width: 86px;
+  height: 86px;
+  margin: 14px auto;
+  place-items: center;
+  border: 2px solid #3f7294;
+  border-radius: 50%;
+  background: #10212d;
+  color: #8dd6ff;
+  font-size: 34px;
+}
+.personal-horse-preview h2 { color: white; }
+.personal-horse-preview ul {
+  display: grid;
+  gap: 6px;
+  margin: 13px 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.personal-horse-preview li {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 9px;
+  background: #10212d;
+}
+.personal-horse-preview li strong { color: #8dd6ff; font-size: 9px; }
+.personal-horse-preview li span { color: #b9cbd6; font-size: 8px; }
+.app-panel[data-panel="bank"] { --app-surface: #10221f; }
+.app-panel[data-panel="news"] { --app-surface: #251c18; }
+.app-panel[data-panel="sabotage"] { --app-surface: #1d1923; }
+.app-panel[data-panel="transfer"] { --app-surface: #101f2b; }
+.app-panel[data-panel="messages"] { --app-surface: #101f18; }
+.phone-open .app-panel input,
+.phone-open .app-panel select {
+  border-color: #46534c;
+  background: #0c1310;
+  color: #f2f6f3;
 }

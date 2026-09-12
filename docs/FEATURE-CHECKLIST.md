@@ -64,7 +64,9 @@ held hotdog and throwing checks: `node scripts/review-models.mjs 9338`.
   results, and the existing day allowances. Full v13 reward choices remain pending.
 - [ ] Add host-owned lobby rules with synchronized client display and live two-client tests.
 - [ ] Connect remaining v13 settings only as their underlying systems become functional.
-- [ ] Audit day-screen callbacks and online victory callbacks for stale-run cancellation.
+- [x] Audit day-screen callbacks and online victory callbacks for stale-run cancellation.
+  Deterministic callback tests cover restart, leaving play and disconnected clients;
+  live two-client reconnect verification remains separate below.
 - [x] Cancel old day-screen timers on restart and guard delayed day progression,
   countdown clearing, and victory checks against restarted runs.
 - [ ] Verify online victory cancellation with two live clients, including reconnects.
@@ -78,6 +80,11 @@ remain pending: this is the first working subset, not the complete settings syst
 - [x] Apply the lobby's race-club visual language to non-phone HUD, overlays,
   settings, counters, results, rankings, and day-change screens.
 - [x] Keep the phone and its applications on their separate phone-specific design.
+- [x] Rebuild Hotdog OS as a flat phone-style interface with a dark hardware
+  bezel, speaker/status bar, circular physical home button, and eight simple
+  no-gloss vector icons. Give Betting, Concessions, Horse Stats, Bank,
+  DerbyNews, Sabotage, DerbyPay and Messages distinct palettes and card styles;
+  use a red/yellow quick-service ordering layout for Concessions.
 - [x] Remove the commentator booth, commentator NPCs, its special stairs, and
   its invisible projectile glass collision.
 - [x] Restore the booth's upper-concourse floor, glass railing, tier segments,
@@ -113,6 +120,37 @@ remain pending: this is the first working subset, not the complete settings syst
 - [x] Show each active item's category alongside its throwing traits in shops.
 
 ## Reference model corrections
+
+### Inventory and input reliability
+
+- [x] Remove the rejected hold-E inventory picker and restore E to immediate
+  contextual interaction.
+- [x] Keep the ten-slot permanent hotbar as the complete inventory selector;
+  number keys and mouse clicks select its fixed, readable item slots.
+- [x] Limit the active catalog to Hotdog, Golden Hotdog, Carrot, Golden Carrot,
+  Soda, Water, Hurdle, Beach Ball, Horseshoe and Chair.
+- [x] Keep eight phone apps: Messages, Horses, DerbyPay, Betting, Concessions,
+  DerbyNews, Bank and Sabotage. Bank replaces the retired Inventory app.
+- [x] Add online DerbyPay money requests with recipient validation, $5-$1,000
+  bounds, an unread badge, and Pay/Decline request cards.
+- [x] Restore the dedicated Bank phone app with current balance, recent ledger,
+  total income, total spending and net-change summaries.
+- [x] Restore the requested phone order: Betting, Concessions, Horse Stats and
+  Bank on the top row; DerbyNews, Sabotage, DerbyPay and Messages on the bottom.
+
+- [x] Reject unowned, non-finite-quantity and unknown item selections before
+  changing the held model; clear selection when the final item is consumed.
+- [x] Cancel the existing throw charge when selecting a different owned item.
+- [x] Cancel pending throws on lost pointer lock, window blur, or race completion.
+- [x] Block movement, camera input, mouse capture and throw charging from the
+  lobby/paused state; clear held movement when opening the menu.
+- [x] Exercise real input handlers for zero-to-full charge timing, capped power,
+  single release, same-category replacement and empty hands.
+
+Verification: node tests/controls-input.js and tests/ui-contract.js (included in
+npm test), full npm test, and node --check on the edited source files.
+
+### Model review
 
 - [x] Round the blue cushion corners and add its perimeter seam.
 - [x] Add the wooden chair's seat frame and rounded backrest.
@@ -150,6 +188,16 @@ them or exposes a booth walk zone.
 - [x] Preserve seat-color identification and synchronized avatar selections.
 - [x] Align the original head with the first-person eye level and shoes with the floor.
 - [x] Start each run standing in the seating area as required by section 81.
+- [x] Remove the sit/stand toggle and seated camera branch. Players now remain
+  standing, and Space performs a gravity-based jump from the current floor or stair.
+- [x] Keep barrier collision anchored to the supporting floor while airborne so
+  jumping cannot bypass the track fence, glass perimeter, counters or shop walls.
+- [x] Let standing players jump from one seating row to the next and fall under
+  gravity when walking off a row edge. Adjacent tier surfaces overlap slightly
+  so visible concrete seams do not become invisible movement blockers.
+- [x] Replace hotbar text glyphs with cached transparent thumbnails rendered once
+  from each active in-game 3D model. Further check: visual framing at narrow UI
+  widths and every graphics preset.
 - [x] Keep players standing at their current intermission position across day transitions.
 
 Verification: imported-player structure/material tests, character animation tests,
@@ -175,6 +223,21 @@ full browser startup/Practice/throw tests, and `artifacts/player-customization.p
 Verification: `npm.cmd test`, `npm.cmd run check`, and
 `node scripts/review-models.mjs 9344`. Whole roster/discovery sections remain open.
 
+## Personal Horse foundation (sections 82–90)
+
+- [x] Add separate Race Directory and My Horse tabs to Horse Stats, with a
+  dark stable-style preview describing naming, customization, entries and limits.
+- [x] Keep Personal Stable controls visibly disabled and labeled COMING SOON;
+  do not imply that unfinished ownership or entry logic is active.
+- [ ] Implement host-authoritative personal-horse ownership, naming, cosmetics,
+  training, eligibility, entry limits and race synchronization.
+- [ ] Give eligible player horses a small, configurable maximum-speed advantage
+  (initial design target: 3%) and balance it through limited starts.
+- [ ] Mark player horses non-bettable for opponents and prohibit owners from
+  betting their own entry; validate the rule on clients and the match host.
+- [ ] Show a clear PLAYER HORSE badge in the field, Horse Stats, starting gate,
+  Stadium Vision, results and network snapshots.
+
 ## Concessions delivery and purchase slice (section 19)
 
 - [x] Extract shared purchase/delivery rules into a separately tested module.
@@ -188,6 +251,11 @@ Verification: `npm.cmd test`, `npm.cmd run check`, and
 - [x] Preserve discounted, instant stand purchases with shared price validation.
 - [x] Verify duplicate-delivery protection, simultaneous arrivals, invalid time
   steps and cleared orders after restarting.
+- [x] Restrict phone concessions to ordinary Hotdog, Soda, Carrot, Water Bottle,
+  Foam Horseshoe and Beach Ball orders. Keep gold items, Hurdle and Chair out of
+  the delivery catalog while retaining their other acquisition routes.
+- [x] Use cached 3D item thumbnails on Concessions product cards and preserve the
+  red/yellow quick-service identity inside the dark-mode phone.
 
 Verification: `npm.cmd test`, syntax checks, and
 `node scripts/review-models.mjs 9343` (real order buttons, complete delivery flow,
@@ -482,22 +550,51 @@ are no longer part of the active arena layout.
 - [x] Rebuild main aisles with broad landings centered on all seven seat rows,
   two shallower connector treads between landings, and matching stepped movement
   height so the player's feet follow the visible concrete.
-- [x] Replace the floating straight center rail with joined sloped/level segments;
-  anchor every post directly on its corresponding tread while retaining no collision.
+- [x] Replace the bumpy segmented center rail with one continuous straight slope
+  and nine evenly spaced, collision-free supports.
 - [x] Browser-test 28 assisted row entries and 56 left/right row exits in
   addition to full bottom-to-top routes; all complete without movement failures.
 - [ ] Finish the remaining arena reference polish.
 
 ### Live broadcast and highlights
 
+- [x] Interpolate replay scale alongside position/rotation without changing live
+  horse transforms; regression-test intermediate sample values during playback.
+- [x] Reuse pose scratch vectors/quaternions and index next-frame records once,
+  removing per-node temporary objects and repeated linear record searches.
+  This reduces allocation work; a browser frame-time comparison remains pending.
+- [x] Reject non-finite/non-positive replay time steps before altering history
+  or rendering. Verify history, visibility and render-target recovery.
+  Verification: npm test, npm run check and broadcast.js syntax check.
+
 - [x] Render a live race camera to the stadium TV, capped at 20 feed frames/sec.
-- [x] Add ten crew viewpoints: four upper concourse, two reserved seating bays,
-  and four infield. Keep walkway clear and reserve bay seats from audience/throwers.
+- [x] Add ten broadcast viewpoints: four upper concourse, two invisible seating
+  viewpoints, and four infield. Keep normal seated crowd NPCs in the seating
+  viewpoints instead of bulky camera platforms/operators.
 - [x] Keep live coverage on the current first-place horse, with changing angles
   and adaptive framing/zoom; airborne items no longer take over the live shot.
 - [x] Keep a bounded 12-second visual history without rewinding game state.
 - [x] Replay impacts within 18 units of the leader (excluding lapped horses)
   after a one-second live aftermath delay, then return to the current leader.
+- [x] Add an invisible projectile chase camera for recorded impacts. Position it
+  five feet behind and above the thrown item and aim down toward the struck
+  horse so both remain centered; fall back to normal replay coverage when a
+  replicated effect has no projectile footage.
+- [x] Label projectile-following highlights as PROJECTILE CAM on Stadium Vision
+  while preserving the struck-horse/item caption and slow-motion progress bar.
+- [x] Mirror the active Stadium Vision program into DerbyNews, including live
+  leader coverage, normal replays, projectile-camera cuts, status and captions.
+  Reuse the existing render target at 5 fps only while the app is open instead
+  of rendering the 3D scene a second time.
+- [x] Add adaptive DerbyNews preview cadence: 20 fps normally to match Stadium
+  Vision, 10 fps under moderate frame pressure, and 5 fps under heavy pressure.
+  Contain GPU readback
+  failures and expose preview/failure diagnostics instead of crashing gameplay.
+- [ ] Profile DerbyNews GPU readback on integrated graphics and lower its preview
+  thresholds if sustained frame time still exceeds the performance target.
+- [ ] Synchronize replay cuts and DerbyNews captions from the match host so every
+  multiplayer client watches the same program at the same moment.
+- [ ] Add a compact post-race highlight index after replay synchronization exists.
   Lead changes alone do not interrupt coverage; allow three seconds between replays.
 - [x] Add LIVE/REPLAY graphics, event captions, and replay progress.
 - [x] Remove lateral stair-entry snapping and extend the continuous outer
@@ -516,6 +613,79 @@ Verification: `npm.cmd test`, `node scripts/review-broadcast.mjs 9355`,
 on port 8080 and a debugging browser on the supplied port.
 
 ## Verification record
+
+### Breadth-pass staging audit
+
+- [x] Bank app restored and Inventory app removed. Automated UI contract passes.
+  Further check: narrow-screen visual review at 150% UI scale.
+- [x] Ten-item hotbar and exact active catalog enforced by regression tests.
+  Further check: first-person grip and ground contact for both golden props.
+- [x] DerbyPay send/request/pay/decline flow implemented with unread notices.
+  Further check: two live Firebase clients, simultaneous payments, reconnects,
+  and server-authoritative balance validation.
+- [x] Controller foundation implemented and dead-zone math covered in tests.
+  Further check: Xbox/PlayStation/Switch-style hardware, complete focus traversal,
+  reconnect behavior, remapping, and controller-specific button glyphs.
+- [x] Opening odds grouping, ticket locking, settlement, and live cutoff covered
+  deterministically. Further check: long-run empirical win-rate calibration and
+  live two-client settlement.
+- [x] Ten-camera live/replay system covered by scene and isolation tests.
+  Further check: long multiplayer sessions, obstruction avoidance, and shared
+  director synchronization.
+
+### Odds, progression and controller follow-up
+
+- [x] Show WIN ticket previews in RaceBet and at betting counters, including
+  selected horse, normalized stake, service fee, total cost and possible return
+  including the stake. Refresh on stake typing/buttons, horse selection and odds
+  renders; disable unaffordable or closed-book submissions.
+- [x] Show the locked possible return on purchased tickets using ticket odds.
+  Verification: tests/bet-preview.js plus the full npm test suite and UI syntax
+  check. PLACE/SHOW/EXACTA/TRIFECTA and browser visual review remain pending.
+
+- [x] Correct opening-book flattening by incorporating permanent base-odds
+  profiles alongside ability, then normalizing against the entered field.
+  Test 30 deterministic six-horse fields for distinct quotes, probability totals,
+  meaningful chance spread and invariance under lane reordering.
+  Verification: npm test and npm run check pass; live first-lap cutoff covered.
+- [x] Fix flattened opening odds (six horses all at 5:1) and review ticket payouts.
+  Target strength groups with similar chances within each group and roughly
+  5-10 percentage-point gaps between groups where suitable, retaining different
+  speed/resistance tradeoffs and normalized probabilities.
+- [x] Replace profile-only opening weights with ranked groups of two or three
+  horses, separated by 5-10 percentage points and normalized to 100%.
+  Gaps depend on the strength contrast of the actual entrants, replacing the
+  earlier fixed 7.5-point layout. Preserve individual stats, stable grouping
+  under lane reorder, locked ticket quotes and live-book updates.
+  Verification: npm test, including group sizes/gaps for 4-8 horses and 30
+  deterministic six-horse fields; config.js and race.js syntax checks.
+  Actual win-frequency calibration remains pending below: these are estimates.
+- [x] Verify that different opponent fields produce different probabilities and
+  displayed quotes, using 30 deterministic matchups.
+- [x] Verify 40 seeded random draws, full-roster eligibility, no duplicate horses,
+  varied fields, no flat opening book, and retention for the scheduled second race.
+- [ ] Calibrate quoted chances against repeated simulated races; verify locked
+  ticket payouts and live odds through the first-lap cutoff.
+- [x] Share ticket payout calculation between local and network results, using
+  each ticket's locked odds and returning its stake without refunding service fees.
+- [x] Wait for a valid winner before marking network results settled, suppress
+  repeated-result payouts, and reset settlement tracking for a fresh run.
+  Regression coverage includes incomplete/invalid winners followed by a valid
+  result, multiple winning quotes, losing tickets, fees, and duplicate snapshots.
+  Verification: npm test plus syntax checks for race.js and ui.js.
+- [x] Reject non-finite stakes/fees and unavailable horse quotes before a bet
+  can mutate the bankroll or ticket list.
+- [ ] Verify payout and reconnect behavior between two live multiplayer clients;
+  automated snapshot checks do not complete the server-authority requirements.
+- [ ] Add progressive upgrades unlocked as players earn more money, with clear
+  milestones, costs and effects respecting the specification's upgrade limits.
+- [x] Add baseline controller support for analog movement/look, interaction,
+  phone and pause navigation, item cycling, and trigger charge/release. Include
+  a persistent 5-35% dead-zone option, connection notices, and basic prompts.
+  Further checks: per-controller remapping, glyph families, focus order on every
+  lobby/app panel, and live disconnect/reconnect testing with physical hardware.
+
+### Existing verification
 
 - Automated UI, player animation, stadium, race and Practice Mode checks pass.
 - Imported-model tests validate 18 assets, vertex colors, finite geometry,

@@ -21,7 +21,10 @@ HD.Race = (() => {
     const previousProgress = new Map(
       S.horses.map((horse) => [horse.userData.data.id, horse.userData.data.progress]),
     );
-    S.horses.forEach((h) => HD.world.scene.remove(h));
+    S.horses.forEach((horse) => {
+      HD.world.scene.remove(horse);
+      HD.Models.disposeHorse(horse);
+    });
     if (
       S.activeHorseIds.length !== C.raceHorseCount ||
       S.horseFieldRacesRemaining <= 0
@@ -32,6 +35,10 @@ HD.Race = (() => {
       return C.horses.find((horse) => horse.id === horseId);
     });
     S.horses = field.map(HD.Models.horse);
+    const openingChances = HD.openingHorseChances(field);
+    S.horses.forEach((horse, index) => {
+      horse.userData.data.openingChance = openingChances[index];
+    });
     updateOdds();
     S.horses.forEach((horse) => {
       horse.userData.data.startingOdds = horse.userData.data.odds;
@@ -100,47 +107,15 @@ HD.Race = (() => {
         -Math.cos(angle) * radiusZ,
         -Math.sin(angle) * radiusX,
       );
-      const safeBaseSpeed = Math.max(0.001, Number.isFinite(d.baseSpeed) ? d.baseSpeed : 0.04);
-      const safeMotionSpeed = Number.isFinite(d.motionSpeed) ? Math.max(0, d.motionSpeed) : 0;
-      const movement = THREE.MathUtils.clamp(safeMotionSpeed / safeBaseSpeed, 0, 1.35);
-      const moving = S.phase === "racing" || S.phase === "finished" || d.staging;
-      const previousGaitTime = Number.isFinite(d.lastGaitTime) ? d.lastGaitTime : S.elapsed;
-      const gaitDelta = THREE.MathUtils.clamp(S.elapsed - previousGaitTime, 0, 0.05);
-      d.lastGaitTime = S.elapsed;
-      d.gaitPhase = Number.isFinite(d.gaitPhase) ? d.gaitPhase : i * 0.7;
-      if (moving && movement > 0.01) {
-        d.gaitPhase += gaitDelta * THREE.MathUtils.lerp(4.5, 15.5, movement / 1.35);
-      }
-      const stridePhase = d.gaitPhase;
-      const gallop = moving ? Math.sin(stridePhase) * movement : 0;
-      const tumble = d.ragdoll > 0 ? Math.sin(S.elapsed * 15) : 0;
-      horse.userData.body.position.x = 0;
-      horse.userData.body.position.y = d.ragdoll > 0
-        ? 0.55
-        : Math.abs(gallop) * 0.28;
-      horse.userData.body.rotation.x = d.ragdoll > 0 ? tumble * 1.15 : 0;
-      horse.userData.body.rotation.z = d.ragdoll > 0
-        ? 1.15 + tumble * 0.35
-        : 0;
-      if (d.ragdoll <= 0) {
-        horse.userData.body.rotation.x = -0.035 * movement + Math.sin(stridePhase * 2) * 0.018 * movement;
-      }
-      if (horse.userData.tail) {
-        horse.userData.tail.rotation.z = -0.8 + gallop * 0.18;
-      }
-      (horse.userData.ears || []).forEach((ear) => {
-        ear.rotation.z = -0.3;
-      });
-      if (horse.userData.jockey) {
-        horse.userData.jockey.position.y = 3.2 + Math.abs(gallop) * 0.12;
-        horse.userData.jockey.rotation.z = -0.08 - movement * 0.08;
-      }
-      (horse.userData.legs || []).forEach((leg) => {
-        if (!leg?.rotation || !leg.position) return;
-        const cycle = Math.sin(stridePhase + leg.userData.phase);
-        leg.rotation.z = cycle * 0.72 * movement;
-        leg.position.y = 0.55 + Math.max(0, -cycle) * 0.12 * movement;
-      });
+      const distancePerLapUnit = Math.PI * 2 * Math.hypot(
+        radiusX * Math.sin(angle), radiusZ * Math.cos(angle),
+      );
+      HD.Models.animateHorse(
+        horse,
+        S.elapsed,
+        S.phase === "racing" || S.phase === "finished" || Boolean(d.staging),
+        Math.max(0, d.motionSpeed || 0) * distancePerLapUnit,
+      );
     });
   }
   function begin() {
@@ -547,9 +522,11 @@ HD.Race = (() => {
     const weights = S.horses.map((horse) => {
       const data = horse.userData.data;
       const racePosition = Math.exp((data.progress - leaderProgress) * 18);
-      const form = Math.pow(data.ability, 6);
+      // The grouped opening book is the prior; race position and effects update
+      // it during live betting without replacing the odds saved on tickets.
+      const form = data.openingChance;
       const status = data.ragdoll > 0 ? 0.25 : data.slow > 0 ? 0.62 : 1;
-      return Math.max(0.001, racePosition * form * status);
+      return Math.max(0.000001, racePosition * form * status);
     });
     const totalWeight = weights.reduce((total, weight) => total + weight, 0);
 
@@ -577,6 +554,16 @@ HD.Race = (() => {
   // Race, round, and day progression
   // ---------------------------------------------------------------------------
 
+  function ticketPayout(winner) {
+    // Return stake plus locked-in profit; service fees are never refunded.
+    return S.bets.reduce((total, ticket) => {
+      if (ticket.horse !== winner ||
+          !Number.isFinite(ticket.amount) || ticket.amount <= 0 ||
+          !Number.isFinite(ticket.odds) || ticket.odds < 0) return total;
+      return total + ticket.amount * (1 + ticket.odds);
+    }, 0);
+  }
+
   function finish() {
     S.phase = "finished";
     S.horseFieldRacesRemaining = Math.max(
@@ -586,10 +573,7 @@ HD.Race = (() => {
     const winner = S.finishOrder[0];
     const winnerData = S.horses[winner].userData.data;
     HD.AI?.settleRace?.(winner);
-    const winningTickets = S.bets.filter((bet) => bet.horse === winner);
-    const returnedStake = winningTickets.reduce((total, bet) => total + bet.amount, 0);
-    const profit = winningTickets.reduce((total, bet) => total + bet.amount * bet.odds, 0);
-    const payout = returnedStake + profit;
+    const payout = ticketPayout(winner);
     if (payout) {
       S.money += payout;
       HD.UI.addLedger(`Race ${S.race} payout`, payout);
@@ -704,6 +688,7 @@ HD.Race = (() => {
     clearTimeout(nextRaceTimeout);
     nextRaceTimeout = null;
     runGeneration++;
+    networkSettlement = '';
     HD.UI.cancelDayTransition?.();
     Object.assign(S, {
       money: C.startingMoney ?? 100,
@@ -1409,7 +1394,9 @@ HD.Race = (() => {
 
   function handleNetworkPhase(previousPhase) {
     const settlementKey = `${S.round}-${S.race}`;
-    if (S.phase === "finished" && networkSettlement !== settlementKey) {
+    const winner = S.finishOrder[0];
+    const validWinner = Number.isInteger(winner) && Boolean(S.horses[winner]);
+    if (S.phase === "finished" && validWinner && networkSettlement !== settlementKey) {
       networkSettlement = settlementKey;
       settleNetworkRace();
     }
@@ -1444,10 +1431,7 @@ HD.Race = (() => {
   function settleNetworkRace() {
     const winner = S.finishOrder[0];
     if (!Number.isInteger(winner)) return;
-    const winningTickets = S.bets.filter((bet) => bet.horse === winner);
-    const returnedStake = winningTickets.reduce((total, bet) => total + bet.amount, 0);
-    const profit = winningTickets.reduce((total, bet) => total + bet.amount * bet.odds, 0);
-    const payout = returnedStake + profit;
+    const payout = ticketPayout(winner);
     if (payout) {
       S.money += payout;
       HD.UI.addLedger(`Race ${S.race} payout`, payout);

@@ -379,7 +379,9 @@ HD.Network = (() => {
     avatar.userData.targetYaw = state.yaw;
     avatar.userData.targetHeadTurn = Number(state.headTurn) || 0;
     avatar.userData.targetHeadPitch = Number(state.pitch) || 0;
-    HD.Models.setPlayerStanding(avatar, state.standing);
+    // Seating was removed from gameplay. Ignore legacy Firebase presence
+    // records so returning players cannot appear seated to newer clients.
+    HD.Models.setPlayerStanding(avatar, true);
     avatar.userData.activity = state.mode === "throw"
       ? "throw"
       : state.mode === "phone"
@@ -404,8 +406,15 @@ HD.Network = (() => {
     Object.entries(lobbyCache.events || {}).forEach(([eventId, event]) => {
       if (processedEvents.has(eventId)) return;
       processedEvents.add(eventId);
-
       if (!event || event.createdAt < joinedAt - 1_000 || event.from === selfId) return;
+      if (event?.type === 'moneyRequest' && event.payload?.to === selfId) {
+        HD.UI.receiveMoneyRequest({
+          id: eventId,
+          from: event.from,
+          fromName: event.payload.fromName || 'A player',
+          amount: Math.max(5, Math.floor(Number(event.payload.amount) || 5)),
+        });
+      }
       if (event.type === "chat" && event.payload) {
         receiveChatEvent(eventId, event);
       }
@@ -558,8 +567,8 @@ HD.Network = (() => {
       yaw: player.rotation.y,
       headTurn: player.userData.headTurn || 0,
       pitch: S.pitch,
-      standing: S.standing,
-      moving: S.standing && Object.values(S.movement).some(Boolean),
+      standing: true,
+      moving: Object.values(S.movement).some(Boolean),
       mode: S.mode,
       selectedItem: S.selectedItem,
       money: S.money,
@@ -716,6 +725,18 @@ HD.Network = (() => {
       money: amount,
       itemId: itemId || "",
       fromName: members.get(selfId)?.name || "A player",
+    });
+    return true;
+  }
+
+  function requestMoney(to, money) {
+    if (!lobby || !members.has(to) || to === selfId) return false;
+    const amount = Math.floor(Number(money) || 0);
+    if (amount < 5 || amount > 1000) return false;
+    postLobbyEvent('moneyRequest', {
+      to,
+      amount,
+      fromName: members.get(selfId)?.name || 'A player',
     });
     return true;
   }
@@ -1281,6 +1302,7 @@ HD.Network = (() => {
     chatHistory,
     sendSabotage,
     sendTransfer,
+    requestMoney,
     transferTargets,
     updateAvatar,
     isConnected,

@@ -19,7 +19,7 @@ HD.Settings = (() => {
     backward: "Move backward",
     left: "Move left",
     right: "Move right",
-    stand: "Stand / sit",
+    stand: "Jump",
     interact: "Interact",
     phone: "Phone",
     throw: "Hold / unhold item",
@@ -49,6 +49,7 @@ HD.Settings = (() => {
       bindings: { ...DEFAULT_BINDINGS },
       fov: 64,
       sensitivity: 100,
+      controllerDeadzone: 16,
       uiScale: 100,
       reducedMotion: false,
       highContrast: false,
@@ -134,6 +135,12 @@ HD.Settings = (() => {
       "#mouse-sensitivity",
       "#sensitivity-value",
       "sensitivity",
+      (value) => `${value}%`,
+    );
+    bindRange(
+      "#controller-deadzone",
+      "#controller-deadzone-value",
+      "controllerDeadzone",
       (value) => `${value}%`,
     );
     bindRange("#ui-scale", "#ui-scale-value", "uiScale", (value) => `${value}%`, () => {
@@ -414,6 +421,10 @@ HD.Settings = (() => {
     return values.sensitivity / 100;
   }
 
+  function controllerDeadzone() {
+    return THREE.MathUtils.clamp(values.controllerDeadzone / 100, 0.05, 0.35);
+  }
+
   function reducedMotion() {
     return values.reducedMotion;
   }
@@ -473,6 +484,7 @@ HD.Settings = (() => {
     binding,
     matches,
     sensitivity,
+    controllerDeadzone,
     reducedMotion,
     fov,
     modelDetail,

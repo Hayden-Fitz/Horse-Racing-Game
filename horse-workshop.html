@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hotdog Derby - Horse workshop</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #171f29; color: #ece5d9; font: 15px system-ui; }
+    header { padding: 18px 26px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 22px; }
+    a { color: #f5cb71; }
+    button, select { padding: 9px 14px; background: #2b3a4c; color: white; border: 1px solid #536780; border-radius: 8px; }
+    button { cursor: pointer; }
+    label { display: flex; align-items: center; gap: 8px; }
+    canvas { display: block; width: 100%; height: calc(100vh - 145px); }
+    footer { padding: 12px 26px; color: #c3ceda; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HORSE WORKSHOP</h1>
+    <select id="coat" aria-label="Horse"></select>
+    <label>Speed <input id="speed" type="range" min="0" max="150" value="100"><output id="speed-label">100%</output></label>
+    <button id="pause">Pause</button>
+    <button data-view="side">Side</button>
+    <button data-view="front">Front</button>
+    <button data-view="three">Three-quarter</button>
+    <button data-view="rear">Rear</button>
+    <a href="index.html">Back to game</a>
+  </header>
+  <canvas id="horse-view"></canvas>
+  <footer>Drag to orbit. Scroll to zoom. Inspect walking, galloping and boosted strides. <span id="stats"></span></footer>
+  <script type="module" src="src/horse-workshop.mjs"></script>
+</body>
+</html>

@@ -14,6 +14,31 @@ const html = read("index.html");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
 assert.equal(new Set(ids).size, ids.length, "index.html contains duplicate IDs");
+assert.ok(ids.includes('news-live-canvas'),
+  'DerbyNews must include the Stadium Vision livestream canvas');
+for (const icon of [
+  'betting-flat.svg',
+  'concessions-flat.svg',
+  'horses-flat.svg',
+  'bank-flat.svg',
+  'news-flat.svg',
+  'fixer-flat.svg',
+  'pay-flat.svg',
+  'messages-flat.svg',
+]) {
+  assert.ok(read('polish.css').includes(icon), 'Missing flat phone icon: ' + icon);
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'phone-apps', icon)),
+    'Flat phone icon file is missing: ' + icon);
+}
+const broadcastSource = read('src/broadcast.js');
+assert.ok(broadcastSource.includes('readRenderTargetPixels'),
+  'DerbyNews must reuse the Stadium Vision render instead of rendering twice');
+assert.ok(broadcastSource.includes('smoothedFrameTime > 0.04'),
+  'DerbyNews must reduce preview cadence when browser frame time degrades');
+assert.ok(broadcastSource.includes(': 20,'),
+  'DerbyNews must target the same 20 fps cadence as Stadium Vision');
+assert.ok(broadcastSource.includes('newsReadbackFailures++'),
+  'A failed DerbyNews GPU copy must not crash the game broadcast');
 
 const sources = [
   "src/audio.js",
@@ -84,16 +109,18 @@ assert.ok(ids.includes("lobby-private"), "The private lobby button is missing");
 assert.ok(ids.includes("winner-coins"), "The Winner Coins balance is missing");
 assert.ok(ids.includes("avatar-unlock"), "The cosmetic unlock control is missing");
 assert.ok(
-  sandbox.HD.CONFIG.items.performanceOats.maxSpeedBonus === 0.01,
-  "Champion Oats should add one percent maximum speed",
+  sandbox.HD.CONFIG.items.goldenCarrot.maxSpeedBonus === 0.01,
+  "Golden Carrot should add one percent maximum speed",
 );
 assert.ok(
-  sandbox.HD.CONFIG.items.performanceOats.maxSpeedBonusCap === 0.05,
-  "Champion Oats should stop stacking at five percent",
+  sandbox.HD.CONFIG.items.goldenCarrot.maxSpeedBonusCap === 0.05,
+  "Golden Carrot should stop stacking at five percent",
 );
-assert.ok(
-  sandbox.HD.CONFIG.items.airHorn.panicDuration > 0,
-  "The air horn needs its unique panic effect",
+assert.deepEqual(
+  Object.keys(sandbox.HD.CONFIG.items),
+  ["hotdog", "goldenHotdog", "soda", "horseshoe", "carrot", "goldenCarrot",
+    "hurdle", "waterBottle", "beachBall", "chair"],
+  "The release inventory must contain exactly the requested ten items",
 );
 assert.ok(html.includes('value="640"'), "The 640p resolution option is missing");
 assert.ok(html.includes('value="2160"'), "The 2160p resolution option is missing");
@@ -138,6 +165,21 @@ assert.ok(
   html.includes('data-app="messages"'),
   "The phone home screen is missing the Messages app",
 );
+for (const app of ["messages", "horses", "transfer", "bet", "shop", "news", "bank", "sabotage"]) {
+  assert.ok(html.includes(`data-app="${app}"`), `The phone is missing its ${app} app`);
+}
+const appOrder = ["bet", "shop", "horses", "bank", "news", "sabotage", "transfer", "messages"];
+assert.deepEqual(
+  [...html.matchAll(/data-app="([^"]+)"/g)].slice(0, 8).map((match) => match[1]),
+  appOrder,
+  "Phone apps must retain the requested two-row order",
+);
+assert.ok(
+  ids.includes("bank-money") && ids.includes("bank-income") &&
+    ids.includes("bank-spending") && ids.includes("bank-net") && ids.includes("ledger") &&
+    ids.includes("request-money") && ids.includes("money-requests"),
+  "The phone needs Bank activity and DerbyPay money requests",
+);
 assert.ok(
   !html.toLowerCase().includes("flappy horse"),
   "The retired Flappy Horse app is still present",
@@ -149,9 +191,26 @@ assert.ok(
   "effects-volume",
   "commentator-volume",
   "mute-audio",
+  "controller-deadzone",
 ].forEach((id) => {
   assert.ok(ids.includes(id), `The audio setting #${id} is missing`);
 });
+assert.ok(
+  read("src/controls.js").includes("navigator.getGamepads") &&
+    read("src/main.js").includes("HD.Controls.updateGamepad(realDt)"),
+  "Controller polling must run continuously, including while menus are open",
+);
+assert.ok(
+  !read("src/controls.js").includes("function toggleStanding") &&
+    !read("src/controls.js").includes("function sitDown") &&
+    read("src/controls.js").includes("function jump()"),
+  "Sitting must be removed and Space must use the jump action",
+);
+assert.ok(
+  read("src/main.js").includes("readRenderTargetPixels") &&
+    read("src/ui.js").includes("HD.itemThumbnails"),
+  "Hotbar images must be cached renders of the actual item models",
+);
 assert.ok(
   read("src/boot.js").includes('"audio.js"'),
   "The event-driven audio system is not loaded by the game",

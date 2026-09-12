@@ -7,14 +7,32 @@ HD.Broadcast = (() => {
   const history = [];
   const doubles = new Map();
   const camera = new THREE.PerspectiveCamera(48, 23.8 / 12.5, 0.2, 500);
+  const projectileCamera = new THREE.PerspectiveCamera(
+    52,
+    23.8 / 12.5,
+    0.12,
+    500,
+  );
   const focus = new THREE.Vector3();
   const desired = new THREE.Vector3();
+  const chaseDirection = new THREE.Vector3();
+  const chaseTarget = new THREE.Vector3();
+  const posePosition = new THREE.Vector3();
+  const poseRotation = new THREE.Quaternion();
+  const poseScale = new THREE.Vector3();
+  const nextRecords = new Map();
   let target, overlay, replay, pending;
   let time = 0, sampleClock = 0, renderClock = 0, cooldown = 0;
   let roster = "", previousPhase = "", shot = -1;
   let subjectId = null;
   let status = "LIVE";
   let active = false;
+  let projectileChase = false;
+  let newsCopyAt = -Infinity;
+  let newsPixels = null;
+  let newsImage = null;
+  let smoothedFrameTime = 1 / 60;
+  let newsReadbackFailures = 0;
   const lastEffects = new Map();
   const NEAR_LEADER_DISTANCE = 18;
 
@@ -65,8 +83,10 @@ HD.Broadcast = (() => {
     doubles.clear();
     lastEffects.clear();
     subjectId = null;
+    projectileChase = false;
     replay = pending = null;
     sampleClock = renderClock = cooldown = 0;
+    newsCopyAt = -Infinity;
     shot = -1;
   }
 
@@ -126,6 +146,7 @@ HD.Broadcast = (() => {
         Math.abs(leader.userData.data.progress - horse.userData.data.progress) > 0.12) return;
     pending = {
       at: time, id: horse.uuid,
+      projectileId: projectile.mesh?.uuid || null,
       label: horse.userData.data.name + " — " + projectile.type,
     };
   }
@@ -140,8 +161,9 @@ HD.Broadcast = (() => {
       node.scale.fromArray(record.pose, offset + 7);
       node.visible = !!record.pose[offset + 10];
       if (next && next.pose.length === record.pose.length) {
-        node.position.lerp(new THREE.Vector3().fromArray(next.pose, offset), alpha);
-        node.quaternion.slerp(new THREE.Quaternion().fromArray(next.pose, offset + 3), alpha);
+        node.position.lerp(posePosition.fromArray(next.pose, offset), alpha);
+        node.quaternion.slerp(poseRotation.fromArray(next.pose, offset + 3), alpha);
+        node.scale.lerp(poseScale.fromArray(next.pose, offset + 7), alpha);
       }
     });
     entry.mesh.visible = true;
@@ -156,11 +178,40 @@ HD.Broadcast = (() => {
       (replay.cursor - a.time) / Math.max(0.001, b.time - a.time), 0, 1,
     );
     for (const key of ["horses", "items"]) {
+      nextRecords.clear();
+      for (const record of b[key]) nextRecords.set(record.id, record);
       for (const record of a[key]) {
-        applyPose(record, b[key].find(other => other.id === record.id), alpha);
+        applyPose(record, nextRecords.get(record.id), alpha);
       }
     }
-    return doubles.get(replay.id)?.mesh;
+    nextRecords.clear();
+    return {
+      horse: doubles.get(replay.id)?.mesh,
+      projectile: replay.projectileId
+        ? doubles.get(replay.projectileId)?.mesh
+        : null,
+    };
+  }
+
+  function frameProjectileCamera(projectile, horse) {
+    chaseDirection.copy(horse.position).sub(projectile.position);
+    if (chaseDirection.lengthSq() < 0.001) {
+      chaseDirection.set(0, 0, 1);
+    } else {
+      chaseDirection.normalize();
+    }
+
+    // Stay just behind and above the flying prop. Looking down its travel line
+    // keeps both the projectile and the horse it eventually hits in frame.
+    projectileCamera.position
+      .copy(projectile.position)
+      .addScaledVector(chaseDirection, -5);
+    projectileCamera.position.y += 3.2;
+    chaseTarget.copy(horse.position);
+    chaseTarget.y += 1.35;
+    projectileCamera.lookAt(chaseTarget);
+    projectileCamera.fov = 52;
+    projectileCamera.updateProjectionMatrix();
   }
 
   function chooseCamera(subject, dt) {
@@ -223,9 +274,76 @@ HD.Broadcast = (() => {
     board.texture.needsUpdate = true;
   }
 
+  function copyFeedToDerbyNews(renderer) {
+    if (
+      typeof document === 'undefined' ||
+      typeof document.querySelector !== 'function'
+    ) return;
+    const canvas = document.querySelector('#news-live-canvas');
+    const panel = canvas?.closest?.('[data-panel="news"]');
+    if (!canvas || !panel?.classList.contains('active')) return;
+    if (typeof renderer.readRenderTargetPixels !== 'function') return;
+    const previewInterval = smoothedFrameTime > 0.04
+      ? 0.2
+      : smoothedFrameTime > 0.025
+        ? 0.1
+        : 0.05;
+    if (time - newsCopyAt < previewInterval) return;
+
+    const width = target.width;
+    const height = target.height;
+    const requiredBytes = width * height * 4;
+    if (!newsPixels || newsPixels.length !== requiredBytes) {
+      newsPixels = new Uint8Array(requiredBytes);
+      newsImage = canvas.getContext('2d').createImageData(width, height);
+    }
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+
+    try {
+      renderer.readRenderTargetPixels(
+        target,
+        0,
+        0,
+        width,
+        height,
+        newsPixels,
+      );
+    } catch (error) {
+      newsReadbackFailures++;
+      newsCopyAt = time;
+      return;
+    }
+    const rowBytes = width * 4;
+    for (let row = 0; row < height; row++) {
+      const source = row * rowBytes;
+      const destination = (height - row - 1) * rowBytes;
+      newsImage.data.set(
+        newsPixels.subarray(source, source + rowBytes),
+        destination,
+      );
+    }
+    canvas.getContext('2d').putImageData(newsImage, 0, 0);
+    const statusLabel = document.querySelector('#news-live-status');
+    const caption = document.querySelector('#news-live-caption');
+    if (statusLabel) statusLabel.textContent = status;
+    if (caption) {
+      const leader = currentLeader();
+      caption.textContent = replay
+        ? replay.label
+        : (leader?.userData.data.name || 'Stadium Vision') + ' leads';
+    }
+    newsCopyAt = time;
+  }
+
   function update(dt) {
+    if (!Number.isFinite(dt) || dt <= 0) return;
+    smoothedFrameTime = THREE.MathUtils.lerp(
+      smoothedFrameTime,
+      Math.min(dt, 0.1),
+      0.05,
+    );
     if (!active && !initialize()) return;
-    if (dt <= 0) return;
     time += dt;
     cooldown = Math.max(0, cooldown - dt);
     const signature = S.horses.map(h => h.uuid).join(",");
@@ -260,7 +378,6 @@ HD.Broadcast = (() => {
     if (renderClock < 1 / 20) return;
     const renderDt = renderClock;
     renderClock = 0;
-    status = replay ? "REPLAY  •  SLOW MOTION" : "LIVE";
     const world = HD.world, renderer = world.renderer;
     const hidden = [];
     const previousTarget = renderer.getRenderTarget();
@@ -272,21 +389,35 @@ HD.Broadcast = (() => {
     };
     try {
       let subject;
+      let activeCamera = camera;
+      projectileChase = false;
       if (replay) {
-        subject = frameReplay();
+        const replayFrame = frameReplay();
+        subject = replayFrame.horse;
+        if (subject && replayFrame.projectile) {
+          frameProjectileCamera(replayFrame.projectile, subject);
+          activeCamera = projectileCamera;
+          projectileChase = true;
+        }
         S.horses.forEach(hide);
         S.projectiles.forEach(p => hide(p.mesh));
       } else {
         subject = currentLeader();
       }
       if (!subject) return;
-      chooseCamera(subject, renderDt);
+      if (activeCamera === camera) chooseCamera(subject, renderDt);
+      status = replay
+        ? projectileChase
+          ? "REPLAY  •  PROJECTILE CAM  •  SLOW MOTION"
+          : "REPLAY  •  SLOW MOTION"
+        : "LIVE";
       graphics();
       hide(world.replayBillboard.root);
       hide(world.camera); // First-person hands/phone must never appear in the feed.
       renderer.shadowMap.autoUpdate = false;
       renderer.setRenderTarget(target);
-      renderer.render(world.scene, camera);
+      renderer.render(world.scene, activeCamera);
+      copyFeedToDerbyNews(renderer);
     } finally {
       renderer.setRenderTarget(previousTarget);
       renderer.shadowMap.autoUpdate = shadows;
@@ -301,6 +432,11 @@ HD.Broadcast = (() => {
     get diagnostics() {
       return { status, samples: history.length, doubles: doubles.size,
         pending: !!pending, replaying: !!replay, subjectId,
+        projectileChase,
+        newsPreviewFps: smoothedFrameTime > 0.04
+          ? 5
+          : smoothedFrameTime > 0.025 ? 10 : 20,
+        newsReadbackFailures,
         cameras: HD.world.broadcastCameras?.length || 0 };
     },
   };

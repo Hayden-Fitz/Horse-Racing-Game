@@ -478,6 +478,12 @@ HD.CONFIG = {
       ragdollDuration: 1.8,
       description: "Startles a horse into rearing and briefly stops its stride.",
     },
+    goldenHotdog: {
+      category: 'Rare', name: 'Golden Hotdog', icon: 'G', price: 55,
+      speed: 39, lift: 9, gravity: 18, weight: 2, throwingEase: 4,
+      ragdollDuration: 2.8, slowDuration: 2.4, vendorOnly: true,
+      description: 'A premium hotdog that causes a longer startle and slowdown.',
+    },
     soda: {
       category: "Food",
       name: "Mega Soda",
@@ -519,6 +525,13 @@ HD.CONFIG = {
       resistanceDuration: 8,
       description: "Boosts a horse and grants temporary interference resistance.",
     },
+    goldenCarrot: {
+      category: 'Rare', name: 'Golden Carrot', icon: 'G', price: 60,
+      speed: 40, lift: 9, gravity: 17, weight: 2, throwingEase: 5,
+      boostDuration: 8, resistanceDuration: 12, maxSpeedBonus: 0.01,
+      maxSpeedBonusCap: 0.05, vendorOnly: true,
+      description: 'A rare boost that also raises maximum speed by 1%, up to 5%.',
+    },
     hurdle: {
       category: "Placable",
       name: "Foam Hurdle",
@@ -535,7 +548,7 @@ HD.CONFIG = {
       heldScale: 0.58,
       description: "Stays on the track and forces the first horse it catches to change lanes.",
     },
-    pillow: {
+    waterBottle: {
       category: "Impact",
       name: "Throw Pillow",
       icon: "🛏️",
@@ -549,7 +562,7 @@ HD.CONFIG = {
       vendorOnly: true,
       description: "Concourse exclusive. Light, floaty, and startling.",
     },
-    chair: {
+    beachBall: {
       category: "Impact",
       name: "Folding Chair",
       icon: "🪑",
@@ -564,7 +577,7 @@ HD.CONFIG = {
       vendorOnly: true,
       description: "Concourse exclusive. Heavy, slow, and a powerful startle.",
     },
-    pretzel: {
+    chair: {
       category: "Food",
       name: "Giant Pretzel",
       icon: "🥨",
@@ -691,6 +704,70 @@ HD.CONFIG = {
   characterEyeOffset: 3.28,
   eyeHeight: 4.8,
 };
+
+// Rank the entered profiles, then build groups of two or three contenders.
+// Weighted centering keeps the book at 100% even with uneven group sizes.
+HD.openingHorseChances = (field) => {
+  const sizes = {
+    4: [2, 2],
+    5: [2, 3],
+    6: [2, 2, 2],
+    7: [2, 2, 3],
+    8: [3, 2, 3],
+  }[field.length];
+  if (!sizes) return field.map(() => 1 / field.length);
+  const strength = (horse) =>
+    Math.pow(horse.ability || 1, 6) /
+    Math.pow(1 + (horse.baseOddsTendency ?? 7), 1.5);
+  const ranked = field.map((horse, index) => ({ horse, index }))
+    .sort((a, b) => strength(b.horse) - strength(a.horse) ||
+      a.horse.id.localeCompare(b.horse.id));
+  // Preserve random field selection. The strength contrast between adjacent
+  // groups determines each gap, so different opponents produce different books.
+  let offset = 0;
+  const groupStrengths = sizes.map((size) => {
+    const members = ranked.slice(offset, offset + size);
+    offset += size;
+    return members.reduce((sum, entry) => sum + strength(entry.horse), 0) / size;
+  });
+  const gaps = [0];
+  for (let group = 1; group < sizes.length; group++) {
+    const contrast = Math.log(groupStrengths[group - 1] / groupStrengths[group]);
+    gaps[group] = gaps[group - 1] + 0.05 + 0.05 * Math.tanh(contrast);
+  }
+  const center = sizes.reduce((sum, size, group) => sum + size * gaps[group], 0) / field.length;
+  const chances = [];
+  let rank = 0;
+  sizes.forEach((size, group) => {
+    const chance = 1 / field.length + center - gaps[group];
+    for (let member = 0; member < size; member++) {
+      chances[ranked[rank++].index] = chance;
+    }
+  });
+  return chances;
+};
+
+// The release hotbar is intentionally limited to ten clearly differentiated items.
+delete HD.CONFIG.items.performanceOats;
+delete HD.CONFIG.items.airHorn;
+Object.assign(HD.CONFIG.items.waterBottle, {
+  category: 'Drink', name: 'Water Bottle', icon: 'W', price: 10,
+  speed: 43, lift: 7, gravity: 20, weight: 2, throwingEase: 4,
+  slowDuration: 1.8, vendorOnly: false, ragdollDuration: 0,
+  description: 'A fast, light throw that briefly reduces traction.',
+});
+Object.assign(HD.CONFIG.items.beachBall, {
+  category: 'Bounce', name: 'Beach Ball', icon: 'B', price: 18,
+  speed: 27, lift: 13, gravity: 12, weight: 1, throwingEase: 5,
+  slowDuration: 0, ragdollDuration: 1.2, vendorOnly: false, heldScale: 0.9,
+  description: 'A floaty distraction with a wide collision area.',
+});
+Object.assign(HD.CONFIG.items.chair, {
+  category: 'Impact', name: 'Folding Chair', icon: 'C', price: 42,
+  speed: 25, lift: 9, gravity: 20, weight: 5, throwingEase: 1,
+  slowDuration: 4, ragdollDuration: 3.5, vendorOnly: true,
+  description: 'A heavy concourse exclusive with a powerful startle.',
+});
 
 HD.createInventory = () =>
   Object.fromEntries(Object.keys(HD.CONFIG.items).map((itemId) => [itemId, 0]));

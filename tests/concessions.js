@@ -13,6 +13,18 @@ require("../src/concessions.js");
 const shop = HD.Concessions;
 const state = HD.state;
 
+assert.deepEqual(shop.phoneCatalog(), [
+  "hotdog",
+  "soda",
+  "horseshoe",
+  "carrot",
+  "waterBottle",
+  "beachBall",
+]);
+for (const item of ["goldenHotdog", "goldenCarrot", "hurdle", "chair"]) {
+  assert.ok(shop.quote(item).error, item + " must not appear in phone concessions");
+}
+
 assert.ok(shop.purchase("missing").error);
 assert.ok(shop.purchase("toString").error);
 assert.ok(shop.purchase("chair").error);

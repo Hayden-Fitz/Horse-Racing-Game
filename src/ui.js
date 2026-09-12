@@ -32,7 +32,7 @@ HD.UI = (() => {
     powerFill: $("#power-meter i"),
     powerText: $("#power-meter strong"),
     oddsWatch: $("#odds-watch"),
-    leaderboard: $("#leaderboard-list"),
+    leaderboard: null,
     roundBreak: $("#round-break"),
     breakTimer: $("#break-timer"),
     dayTransition: $("#day-transition"),
@@ -80,6 +80,7 @@ HD.UI = (() => {
   let deliveryRenderTimer = 0;
   let dayTimeout;
   let dayGeneration = 0;
+  const moneyRequests = [];
   const rankingRowHeight = 44;
 
   // ---------------------------------------------------------------------------
@@ -106,8 +107,11 @@ HD.UI = (() => {
     renderOddsWatch();
     renderLeaderboard();
     renderHotbar();
+    renderNews();
+    renderBank();
     renderSabotage();
     renderTransfer();
+    renderMoneyRequests();
     renderChat();
   }
 
@@ -227,10 +231,13 @@ HD.UI = (() => {
         const classes = ["hotbar-slot"];
         if (S.selectedItem === id) classes.push("selected");
         if (!count) classes.push("empty");
+        const thumbnail = HD.itemThumbnails?.[id];
         return `
           <button class="${classes.join(" ")}" data-hotbar-item="${id}">
             <kbd>${index === 9 ? 0 : index + 1}</kbd>
-            <span>${item.icon}</span>
+            ${thumbnail
+              ? `<img src="${thumbnail}" alt="" draggable="false" />`
+              : `<span>${item.icon}</span>`}
             <strong>${count}</strong>
             <small>${shortName}</small>
           </button>
@@ -246,6 +253,34 @@ HD.UI = (() => {
       };
     });
     renderBestBet();
+  }
+
+  function renderNews() {
+    const lead = document.querySelector('#news-lead');
+    const feed = document.querySelector('#news-feed');
+    if (!lead || !feed) return;
+    const leader = [...S.horses].sort((a, b) =>
+      (b.userData.data.progress || 0) - (a.userData.data.progress || 0))[0];
+    const name = leader?.userData.data.name || 'The field';
+    lead.innerHTML = '<small>LIVE FROM HOTDOG DOWNS</small><strong>' + escapeMarkup(name) +
+      (S.phase === 'racing' ? ' sets the pace' : ' heads the race card') +
+      '</strong><span>' + (S.horses.length || C.defaultHorseCount) + ' entrants and ' +
+      S.bets.length + ' active tickets.</span>';
+    const stories = S.ledger.slice(0, 4).map((entry) =>
+      '<article><strong>' + escapeMarkup(entry.label) + '</strong><span>' +
+      (entry.amount >= 0 ? '+' : '') + '$' + entry.amount + '</span></article>');
+    feed.innerHTML = stories.length ? stories.join('') : '<p>No breaking stories yet.</p>';
+  }
+
+  function renderBank() {
+    const income = S.ledger.reduce((total, entry) => total + Math.max(0, entry.amount), 0);
+    const spending = S.ledger.reduce((total, entry) => total + Math.max(0, -entry.amount), 0);
+    const net = income - spending;
+    document.querySelector('#bank-income').textContent = '$' + income;
+    document.querySelector('#bank-spending').textContent = '$' + spending;
+    const netOutput = document.querySelector('#bank-net');
+    netOutput.textContent = (net >= 0 ? '+' : '-') + '$' + Math.abs(net);
+    netOutput.classList.toggle('negative', net < 0);
   }
 
   function renderBestBet() {
@@ -390,6 +425,70 @@ HD.UI = (() => {
     render();
   }
 
+  function requestMoney() {
+    const target = document.querySelector('#transfer-player').value;
+    const input = document.querySelector('#transfer-money');
+    const amount = Math.floor(Number(input.value) || 0);
+    if (!target || amount < 5) return announce('Choose a player and request at least .');
+    if (!HD.Network.isConnected() || !HD.Network.requestMoney(target, amount)) {
+      HD.Audio?.cue?.('error');
+      return announce('Money requests are available in an online lobby.');
+    }
+    el.transferStatus.textContent = 'Requested $' + amount + '.';
+    input.value = 0;
+    HD.Audio?.cue?.('messageSent');
+  }
+
+  function receiveMoneyRequest(request) {
+    if (moneyRequests.some((entry) => entry.id === request.id)) return;
+    moneyRequests.unshift(request);
+    renderMoneyRequests();
+    document.querySelector('[data-app=transfer]')?.classList.add('has-notification');
+    HD.Audio?.cue?.('message');
+  }
+
+  function renderMoneyRequests() {
+    const container = document.querySelector('#money-requests');
+    if (!container) return;
+    container.replaceChildren();
+    if (!moneyRequests.length) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No pending requests.';
+      container.append(empty);
+      return;
+    }
+    moneyRequests.forEach((request) => {
+      const card = document.createElement('article');
+      const copy = document.createElement('span');
+      const actions = document.createElement('div');
+      const pay = document.createElement('button');
+      const decline = document.createElement('button');
+      copy.textContent = request.fromName + ' requested $' + request.amount;
+      pay.textContent = 'PAY';
+      decline.textContent = 'DECLINE';
+      pay.onclick = () => {
+        if (S.money < request.amount || !HD.Network.sendTransfer(request.from, request.amount, '')) {
+          return announce('That request cannot be paid right now.');
+        }
+        addLedger('Paid ' + request.fromName, -request.amount);
+        removeMoneyRequest(request.id);
+        render();
+      };
+      decline.onclick = () => removeMoneyRequest(request.id);
+      actions.append(pay, decline);
+      card.append(copy, actions);
+      container.append(card);
+    });
+  }
+
+  function removeMoneyRequest(id) {
+    const index = moneyRequests.findIndex((request) => request.id === id);
+    if (index >= 0) moneyRequests.splice(index, 1);
+    renderMoneyRequests();
+    document.querySelector('[data-app=transfer]')?.classList
+      .toggle('has-notification', moneyRequests.length > 0);
+  }
+
   function renderChat() {
     if (!el.messageThread || !HD.Network?.chatTargets) return;
     const previousThread = el.messageThread.value || "group";
@@ -484,14 +583,18 @@ HD.UI = (() => {
 
   function renderShop() {
     el.shop.innerHTML = Object.entries(C.items)
-      .filter(([, item]) => !item.vendorOnly)
+      .filter(([id]) => HD.Concessions.phoneCatalog().includes(id))
       .map(([id, item]) => {
         const selected = S.selectedItem === id ? "selected" : "";
         const disabled = S.money < item.price ? "disabled" : "";
+        const thumbnail = HD.itemThumbnails?.[id];
+        const productArt = thumbnail
+          ? '<img src="' + thumbnail + '" alt="" />'
+          : item.icon;
         return `
           <article class="shop-item ${selected}">
             <button class="item-select" data-select-item="${id}">
-              <span class="item-icon">${item.icon}</span>
+              <span class="item-icon">${productArt}</span>
               <span>
                 <strong>${item.name}</strong>
                 <small><b class="item-effect">${itemEffectSummary(item)}</b>${item.description}</small>
@@ -548,6 +651,7 @@ HD.UI = (() => {
       <div class="ticket">
         <span>#${HD.horseNumber(bet.horse)} ${horseName} · ${source}</span>
         <strong>$${bet.amount} @ ${bet.odds}:1</strong>
+        <small>WIN return $${bet.amount * (1 + bet.odds)} (includes stake)</small>
       </div>
     `;
   }
@@ -564,6 +668,7 @@ HD.UI = (() => {
     `;
   }
   function renderCards() {
+    renderBetQuotes();
     const order = [...S.horses].sort((a, b) => b.userData.data.progress - a.userData.data.progress);
     el.list.innerHTML = S.horses
       .map((horse, i) => {
@@ -616,6 +721,11 @@ HD.UI = (() => {
   }
 
   function submitBet(amount, fee, source) {
+    if (!Number.isFinite(amount) || amount < 5 ||
+        !Number.isFinite(fee) || fee < 0) {
+      HD.Audio?.cue?.("error");
+      return announce("Enter a valid bet of at least $5.");
+    }
     if (!isBettingOpen()) {
       HD.Audio?.cue?.("error");
       return announce("The betting book is closed.");
@@ -624,7 +734,10 @@ HD.UI = (() => {
       HD.Audio?.cue?.("error");
       return announce("Not enough money for that ticket and fee.");
     }
-    const d = S.horses[S.selected].userData.data;
+    const d = S.horses[S.selected]?.userData.data;
+    if (!d || !Number.isFinite(d.odds) || d.odds < 0) {
+      return announce("Select a horse with an available betting quote.");
+    }
     if (d.finished) return announce("That horse has already finished.");
     S.money -= amount + fee;
     S.bets.push({ horse: S.selected, amount, odds: d.odds, fee, source });
@@ -702,6 +815,7 @@ HD.UI = (() => {
 
   function showPhoneHome() {
     el.phone.classList.remove("app-open");
+    el.phone.scrollTop = 0;
     document.querySelectorAll("[data-app]").forEach((button) => {
       button.classList.remove("active");
     });
@@ -711,6 +825,10 @@ HD.UI = (() => {
   }
 
   function openPhoneApp(button) {
+    if (button.dataset.app === 'transfer') {
+      button.classList.remove('has-notification');
+      renderMoneyRequests();
+    }
     el.phone.classList.add("app-open");
     document.querySelectorAll("[data-app]").forEach((candidate) => {
       candidate.classList.toggle("active", candidate === button);
@@ -780,6 +898,30 @@ HD.UI = (() => {
     el.roundBreak.hidden = !show;
     el.rankingsButton.hidden = !show || !hasOnlineLeaderboard();
     if (!show) showRankings(false);
+  }
+
+  function renderBetQuotes() {
+    const horse = S.horses[S.selected]?.userData.data;
+    for (const [input, button, id, online] of [
+      [el.amount, el.bet, 'bet-quote', true],
+      [el.counterAmount, el.counterPlaceBet, 'counter-bet-quote', false],
+    ]) {
+      const output = document.getElementById(id);
+      if (!output) continue;
+      const amount = normalizedStake(input);
+      const fee = online ? Math.max(1, Math.ceil(amount * C.onlineBetFeeRate)) : 0;
+      const valid = Number.isFinite(amount) && Number.isFinite(fee) &&
+        horse && Number.isFinite(horse.odds) && !horse.finished;
+      const open = isBettingOpen();
+      button.disabled = !valid || !open || amount + fee > S.money;
+      output.textContent = !open ? 'Betting closed.' : !valid
+        ? 'Enter a valid stake and select a horse.'
+        : 'WIN · #' + HD.horseNumber(horse) + ' ' + horse.name +
+          ' · Stake $' + amount + ' + fee $' + fee +
+          ' = $' + (amount + fee) + ' total. Return if won: $' +
+          (amount * (1 + horse.odds)) + ' (includes stake).' +
+          (amount + fee > S.money ? ' Insufficient funds.' : '');
+    }
   }
   function itemTraitSummary(item) {
     const traits = HD.itemThrowProfile(item);
@@ -862,7 +1004,7 @@ HD.UI = (() => {
         `;
       })
       .join("");
-    el.counterPlaceBet.disabled = !open || S.money < 5;
+    renderBetQuotes();
     el.counterHorses.querySelectorAll("[data-counter-horse]").forEach((button) => {
       button.onclick = () => {
         S.selected = Number(button.dataset.counterHorse);
@@ -908,6 +1050,8 @@ HD.UI = (() => {
     renderVendor();
   }
   el.bet.onclick = placeOnlineBet;
+  el.amount.addEventListener('input', renderBetQuotes);
+  el.counterAmount.addEventListener('input', renderBetQuotes);
   el.toggle.onclick = () => HD.Controls.setMode(S.mode === "phone" ? "look" : "phone");
   el.menuPlay.onclick = () => HD.MatchSetup.open();
   el.menuResume.onclick = () => HD.Controls.closeMenu();
@@ -916,6 +1060,7 @@ HD.UI = (() => {
   el.counterPlaceBet.onclick = placeCounterBet;
   el.counterClose.onclick = () => HD.Controls.closeBetCounter();
   el.sendTransfer.onclick = sendTransfer;
+  document.querySelector('#request-money').onclick = requestMoney;
   el.rankingsButton.onclick = () => {
     showRankings(true, `DAY ${S.round} CURRENT RANKINGS`);
   };
@@ -927,13 +1072,30 @@ HD.UI = (() => {
     .querySelectorAll(".stake-step")
     .forEach(
       (b) =>
-        (b.onclick = () =>
-          (el.amount.value = Math.max(5, Number(el.amount.value || 5) + Number(b.dataset.step)))),
+        (b.onclick = () => {
+          el.amount.value = Math.max(5, Number(el.amount.value || 5) + Number(b.dataset.step));
+          renderBetQuotes();
+        }),
     );
   document.querySelectorAll("[data-app]").forEach((button) => {
     button.onclick = () => openPhoneApp(button);
   });
-  el.phoneHome.onclick = showPhoneHome;
+  el.phoneHome.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showPhoneHome();
+  };
+  document.querySelectorAll('[data-horse-tab]').forEach((button) => {
+    button.onclick = () => {
+      const selectedTab = button.dataset.horseTab;
+      document.querySelectorAll('[data-horse-tab]').forEach((candidate) => {
+        candidate.classList.toggle('active', candidate === button);
+      });
+      document.querySelectorAll('[data-horse-view]').forEach((panel) => {
+        panel.hidden = panel.dataset.horseView !== selectedTab;
+      });
+    };
+  });
   el.messageThread.onchange = renderChat;
   el.messageCompose.onsubmit = sendChatMessage;
   updateLeaderboardAvailability();
@@ -945,6 +1107,7 @@ HD.UI = (() => {
     updateLeaderboardAvailability,
     renderChat,
     receiveChatMessage,
+    receiveMoneyRequest,
     phone,
     announce,
     showRaceWinner,

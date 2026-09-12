@@ -98,7 +98,7 @@ HD.world.scene = new THREE.Scene();
 HD.UI = new Proxy({}, { get: () => () => {} });
 HD.Network = { isConnected: () => false };
 await import("../src/race.js");
-for (const id of ["hotdog", "soda", "chair", "pillow", "hurdle"]) {
+for (const id of ["hotdog", "soda", "chair", "waterBottle", "beachBall", "hurdle"]) {
   HD.Race.launch(id, new THREE.Vector3(0, 8, 60), new THREE.Vector3(1, 2, 0), { consume: false, visualOnly: true });
 }
 for (let step = 0; step < 300; step++) HD.Race.updateProjectiles(0.025);

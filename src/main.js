@@ -51,6 +51,7 @@ HD.Game = (() => {
     sunlight.shadow.camera.right = sunlight.shadow.camera.top = 82;
     scene.add(sunlight);
     HD.Stadium.build(scene);
+    createItemThumbnails(renderer);
     freezeStaticStadium(scene);
     camera.position.copy(HD.CONFIG.seat);
     HD.Race.resetHorses();
@@ -60,7 +61,7 @@ HD.Game = (() => {
     HD.UI.addLedger("Round 1 bankroll", 100);
     HD.UI.render();
     HD.UI.countdown(String(HD.CONFIG.preparationDuration));
-    HD.UI.setMode(S.standing ? "walking" : "look");
+    HD.UI.setMode("walking");
     bindGraphicsControl();
     addEventListener("resize", resize);
     document.addEventListener("visibilitychange", () => {
@@ -74,6 +75,7 @@ HD.Game = (() => {
     const realDt = Math.min((now - previous) / 1000, 0.2);
     const dt = Math.min(realDt, 0.04);
     previous = now;
+    HD.Controls.updateGamepad(realDt);
     const onlineSimulation = HD.Network.isConnected() && HD.Network.isPlaying();
     const simulationActive = !S.paused || onlineSimulation;
     if (simulationActive) {
@@ -187,6 +189,59 @@ HD.Game = (() => {
       object.updateMatrix();
       object.matrixAutoUpdate = false;
     });
+  }
+
+  function createItemThumbnails(renderer) {
+    const size = 96;
+    const target = new THREE.WebGLRenderTarget(size, size, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+    });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 30);
+    camera.position.set(3.2, 2.5, 4.2);
+    camera.lookAt(0, 0, 0);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x594c3b, 2.8));
+    const light = new THREE.DirectionalLight(0xffedc0, 3.5);
+    light.position.set(-3, 5, 4);
+    scene.add(light);
+    const pixels = new Uint8Array(size * size * 4);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const context = canvas.getContext('2d');
+    const previousTarget = renderer.getRenderTarget();
+    const previousColor = renderer.getClearColor(new THREE.Color()).clone();
+    const previousAlpha = renderer.getClearAlpha();
+    HD.itemThumbnails = {};
+
+    Object.keys(HD.CONFIG.items).forEach((id) => {
+      const model = HD.Models.throwable(id);
+      const bounds = new THREE.Box3().setFromObject(model);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const dimensions = bounds.getSize(new THREE.Vector3());
+      const scale = 2.25 / Math.max(dimensions.x, dimensions.y, dimensions.z, 0.01);
+      model.scale.multiplyScalar(scale);
+      model.position.sub(center.multiplyScalar(scale));
+      model.rotation.y = -0.55;
+      scene.add(model);
+      renderer.setRenderTarget(target);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear();
+      renderer.render(scene, camera);
+      renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
+      const image = context.createImageData(size, size);
+      for (let y = 0; y < size; y++) {
+        const source = (size - y - 1) * size * 4;
+        image.data.set(pixels.subarray(source, source + size * 4), y * size * 4);
+      }
+      context.putImageData(image, 0, 0);
+      HD.itemThumbnails[id] = canvas.toDataURL('image/png');
+      scene.remove(model);
+    });
+    renderer.setRenderTarget(previousTarget);
+    renderer.setClearColor(previousColor, previousAlpha);
+    target.dispose();
   }
 
   function belongsToDynamicRoot(object, roots) {

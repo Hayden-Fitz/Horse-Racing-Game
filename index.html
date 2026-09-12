@@ -30,14 +30,14 @@
         <div id="race-winner-banner" class="race-winner-banner"></div>
         <div id="announcement" class="announcement">Click the stadium to look around</div>
         <div id="crosshair" class="crosshair">+</div>
-        <div id="mode-badge" class="mode-badge">SEATED</div>
+        <div id="mode-badge" class="mode-badge">WALKING</div>
         <div id="power-meter" class="power-meter" hidden>
           <span>THROW POWER</span>
           <div><i></i></div>
           <strong>55%</strong>
         </div>
         <div class="camera-help">
-          <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand <kbd>WASD</kbd> Walk <kbd>E</kbd> Interact
+          <kbd>Mouse</kbd> Look <kbd>Space</kbd> Jump <kbd>WASD</kbd> Walk <kbd>E</kbd> Interact
           <kbd>F</kbd> Hold / unhold <kbd>Left mouse</kbd> Charge / throw <kbd>Shift</kbd> Phone <kbd>Esc</kbd> Menu
         </div>
         <div id="race-progress" class="race-progress"><div></div></div>
@@ -69,13 +69,13 @@
           </div>
         </section>
         <nav class="apps" aria-label="Phone home screen">
-          <button data-app="bet">RaceBet</button>
-          <button data-app="shop">TrackMart</button>
-          <button data-app="odds">OddsWatch</button>
+          <button data-app="bet">Betting</button>
+          <button data-app="shop">Concessions</button>
+          <button data-app="horses">Horse Stats</button>
           <button data-app="bank">Bank</button>
-          <button data-app="leaders">Leaderboard</button>
-          <button data-app="sabotage">Fixer</button>
-          <button data-app="transfer">TrackPay</button>
+          <button data-app="news">DerbyNews</button>
+          <button data-app="sabotage">Sabotage</button>
+          <button data-app="transfer">DerbyPay</button>
           <button data-app="messages">Messages</button>
         </nav>
         <section class="app-panel" data-panel="bet">
@@ -89,6 +89,7 @@
               >STAKE $<input id="bet-amount" type="number" min="5" step="5" value="10" /></label
             ><button class="stake-step" data-step="5">+</button>
           </div>
+          <p id="bet-quote" class="tip"></p>
           <button id="place-bet" class="primary">PLACE BET + 8% ONLINE FEE</button>
           <p class="tip">RaceBet charges an 8% service fee. Stadium betting counters are free.</p>
           <div class="ticket-title">YOUR TICKETS</div>
@@ -103,19 +104,52 @@
             moving horse and use the trajectory guide.
           </p>
         </section>
-        <section class="app-panel" data-panel="bank">
-          <div class="balance">
+        <section class="app-panel horses-app" data-panel="horses">
+          <div class="section-title"><span>HORSES</span><em>FULL DIRECTORY</em></div>
+          <nav class="horse-tabs" aria-label="Horse Stats sections">
+            <button class="active" data-horse-tab="directory">Race Directory</button>
+            <button data-horse-tab="personal">My Horse</button>
+          </nav>
+          <div data-horse-view="directory">
+            <div id="odds-watch" class="odds-watch"></div>
+          </div>
+          <section class="personal-horse-preview" data-horse-view="personal" hidden>
+            <small>PERSONAL STABLE · COMING SOON</small>
+            <div class="personal-horse-silhouette">★</div>
+            <h2>Your horse. Your colors.</h2>
+            <p>Name, customize, train, and enter your own horse in eligible races.</p>
+            <ul>
+              <li><strong>Owner's Edge</strong><span>Proposed +3% maximum speed</span></li>
+              <li><strong>Fair Betting</strong><span>Other players cannot bet on your horse</span></li>
+              <li><strong>Entry Limit</strong><span>Limited starts keep normal horses relevant</span></li>
+            </ul>
+            <button type="button" disabled>PERSONAL STABLE COMING SOON</button>
+          </section>
+        </section>
+        <section class="app-panel news-app" data-panel="news">
+          <div class="section-title"><span>DERBYNEWS</span><em>TRACK WIRE</em></div>
+          <figure class="news-live">
+            <canvas id="news-live-canvas" width="768" height="404"></canvas>
+            <figcaption>
+              <strong id="news-live-status">LIVE</strong>
+              <span id="news-live-caption">Stadium Vision</span>
+            </figcaption>
+          </figure>
+          <article id="news-lead" class="news-lead"></article>
+          <div id="news-feed" class="news-feed"></div>
+        </section>
+        <section class="app-panel bank-app" data-panel="bank">
+          <div class="section-title"><span>BANK</span><em>RACE-DAY ACCOUNT</em></div>
+          <div class="balance bank-card">
             <small>AVAILABLE BALANCE</small><strong id="bank-money">$100</strong>
           </div>
+          <div class="bank-summary">
+            <span><small>MONEY IN</small><strong id="bank-income">$0</strong></span>
+            <span><small>MONEY OUT</small><strong id="bank-spending">$0</strong></span>
+            <span><small>NET CHANGE</small><strong id="bank-net">$0</strong></span>
+          </div>
+          <div class="ticket-title">RECENT ACTIVITY</div>
           <div id="ledger" class="ledger"></div>
-        </section>
-        <section class="app-panel" data-panel="odds">
-          <div class="section-title"><span>HORSE DIRECTORY</span><em>ALL 24 HORSES</em></div>
-          <div id="odds-watch" class="odds-watch"></div>
-        </section>
-        <section class="app-panel" data-panel="leaders">
-          <div class="section-title"><span>MATCH STANDINGS</span><em>LIVE MATCH</em></div>
-          <div id="leaderboard-list" class="leaderboard-list"></div>
         </section>
         <section class="app-panel" data-panel="sabotage">
           <div class="section-title"><span>THE FIXER</span><em>PRE-RACE ONLY</em></div>
@@ -128,8 +162,8 @@
           <div id="sabotage-status" class="deliveries">No fixer hired for this race.</div>
         </section>
         <section class="app-panel" data-panel="transfer">
-          <div class="section-title"><span>TRACKPAY</span><em>PLAYER TRANSFERS</em></div>
-          <p class="tip">Send money or one owned item to another player. Transfers are immediate.</p>
+          <div class="section-title"><span>DERBYPAY</span><em>PAYMENTS & REQUESTS</em></div>
+          <p class="tip">Send money or an item, or request money from another player.</p>
           <label class="transfer-field">
             Recipient
             <select id="transfer-player"></select>
@@ -144,8 +178,12 @@
               <select id="transfer-item"></select>
             </label>
           </div>
-          <button id="send-transfer" class="primary">SEND TRANSFER</button>
+          <div class="transfer-actions">
+            <button id="send-transfer" class="primary">SEND</button>
+            <button id="request-money">REQUEST MONEY</button>
+          </div>
           <div id="transfer-status" class="deliveries">Choose a player and something to send.</div>
+          <div id="money-requests" class="money-requests"></div>
         </section>
         <section class="app-panel messages-app" data-panel="messages">
           <div class="section-title"><span>MESSAGES</span><em>LOBBY CHAT</em></div>
@@ -336,6 +374,11 @@
                   <output id="sensitivity-value">100%</output>
                 </label>
                 <label>
+                  Controller dead zone
+                  <input id="controller-deadzone" type="range" min="5" max="35" value="16" />
+                  <output id="controller-deadzone-value">16%</output>
+                </label>
+                <label>
                   HUD opacity
                   <input id="hud-opacity" type="range" min="55" max="100" value="92" />
                   <output id="hud-opacity-value">92%</output>
@@ -386,9 +429,10 @@
             </fieldset>
           </section>
           <div class="menu-controls">
-            <kbd>Mouse</kbd> Look <kbd>Space</kbd> Stand/sit <kbd>WASD</kbd> Walk
+            <kbd>Mouse</kbd> Look <kbd>Space</kbd> Jump <kbd>WASD</kbd> Walk
             <kbd>E</kbd> Shop <kbd>Shift</kbd> Phone <kbd>F</kbd> Hold / unhold <kbd>Q</kbd> Item
             <kbd>Left mouse</kbd> Charge / throw <kbd>Esc</kbd> Menu
+            <span><kbd>Gamepad</kbd> sticks move/look · Y phone · X item · RT throw · Menu pause</span>
           </div>
         </div>
         <aside class="lobby-avatar-card">
@@ -514,6 +558,7 @@
               <input id="counter-bet-amount" type="number" min="5" step="5" value="10" />
             </label>
           </div>
+          <p id="counter-bet-quote" class="tip"></p>
           <button id="counter-place-bet" class="primary">PLACE FEE-FREE BET</button>
           <button id="counter-close">CLOSE [E]</button>
         </div>

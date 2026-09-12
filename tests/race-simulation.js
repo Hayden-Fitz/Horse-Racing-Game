@@ -68,6 +68,20 @@ async function run() {
       (total, horse) => total + horse.userData.data.liveChance, 0,
     );
     assert.ok(Math.abs(probability - 1) < 1e-10, "Active field probabilities must total one");
+    const groups = new Map();
+    HD.state.horses.forEach((horse) => {
+      const chance = horse.userData.data.liveChance;
+      groups.set(chance, (groups.get(chance) || 0) + 1);
+    });
+    assert.ok(groups.size >= 2, 'Every field needs distinct contender groups');
+    assert.ok([...groups.values()].every((size) => size === 2 || size === 3),
+      'Each chance group must contain two or three horses');
+    const groupedChances = [...groups.keys()].sort((a, b) => b - a);
+    for (let group = 1; group < groupedChances.length; group++) {
+      const gap = groupedChances[group - 1] - groupedChances[group];
+      assert.ok(gap >= 0.05 - 1e-10 && gap <= 0.1 + 1e-10,
+        'Adjacent groups must differ by five to ten percentage points');
+    }
     HD.state.horses.forEach((horse, lane) => {
       assert.equal(horse.userData.data.number, identities.get(horse.userData.data.id));
       assert.equal(horse.userData.data.lane, lane, "Starting lanes must never wrap");
@@ -82,20 +96,82 @@ async function run() {
   HD.CONFIG.raceHorseCount = 6;
   HD.Race.resetHorses({ forceStart: true });
 
-  const boostedHorse = HD.state.horses[0];
-  const boostedHorseId = boostedHorse.userData.data.id;
-  const oatsPosition = boostedHorse.position.clone().add(new THREE.Vector3(0, 2.2, 0));
+  // Exercise deterministic fields across the full roster.
+  const openingBooks = new Set();
+  const openingQuotes = new Set();
+  for (let offset = 0; offset < HD.CONFIG.horses.length; offset++) {
+    HD.state.activeHorseIds = Array.from({ length: 6 }, (_, index) =>
+      HD.CONFIG.horses[(offset + index) % HD.CONFIG.horses.length].id,
+    );
+    HD.state.horseFieldRacesRemaining = 2;
+    HD.Race.resetHorses({ forceStart: true });
+    const field = HD.state.horses.map((horse) => horse.userData.data);
+    assert.ok(new Set(field.map((horse) => horse.odds)).size >= 3,
+      'Opening odds must distinguish different profiles');
+    const chances = field.map((horse) => horse.liveChance);
+    openingBooks.add([...chances].sort((a, b) => b - a)
+      .map((chance) => chance.toFixed(6)).join(','));
+    openingQuotes.add(field.map((horse) => horse.odds).sort((a, b) => a - b).join(','));
+    assert.ok(Math.max(...chances) - Math.min(...chances) > 0.05,
+      'Distinct profiles must have a meaningful chance spread');
+    assert.ok(Math.abs(chances.reduce((sum, chance) => sum + chance, 0) - 1) < 1e-10);
+    const quotes = new Map(field.map((horse) => [horse.id, horse.odds]));
+    HD.state.activeHorseIds.reverse();
+    HD.Race.resetHorses({ forceStart: true });
+    HD.state.horses.forEach((horse) => {
+      assert.equal(horse.userData.data.odds, quotes.get(horse.userData.data.id),
+        'Opening quotes must not depend on lane order');
+    });
+  }
+  // Restore the field used by the item-effect checks below.
+  assert.ok(openingBooks.size > 10, 'Different opponents must produce different probability books');
+  assert.ok(openingQuotes.size > 1, 'Displayed odds must vary across different matchups');
+  const originalRandom = Math.random;
+  const randomFields = new Set();
+  const drawnHorses = new Set();
+  let seed = 271828;
+  HD.state.horseBag = HD.CONFIG.horses.map((horse) => horse.id);
+  HD.state.activeHorseIds = [];
+  try {
+    Math.random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let draw = 0; draw < 40; draw++) {
+      HD.state.horseFieldRacesRemaining = 0;
+      HD.Race.resetHorses({ forceStart: true });
+      const ids = [...HD.state.activeHorseIds];
+      assert.equal(new Set(ids).size, 6, 'Random fields cannot contain duplicate horses');
+      ids.forEach((id) => drawnHorses.add(id));
+      randomFields.add([...ids].sort().join(','));
+      assert.ok(new Set(HD.state.horses.map((horse) => horse.userData.data.odds)).size >= 2,
+        'A randomly drawn opening field must never flatten to one quote');
+      HD.state.horseFieldRacesRemaining = 1;
+      HD.Race.resetHorses({ forceStart: true });
+      assert.deepEqual(HD.state.activeHorseIds, ids,
+        'Odds grouping must not replace horses during their scheduled second race');
+    }
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert.ok(randomFields.size >= 35, 'Random draws must preserve matchup variety');
+  assert.equal(drawnHorses.size, HD.CONFIG.horses.length, 'All roster horses remain eligible');
+  HD.state.activeHorseIds = HD.CONFIG.horses.slice(0, 6).map((horse) => horse.id);
+  HD.Race.resetHorses({ forceStart: true });
+  const activeBoostedHorse = HD.state.horses[0];
+  const boostedHorseId = activeBoostedHorse.userData.data.id;
+  const oatsPosition = activeBoostedHorse.position.clone().add(new THREE.Vector3(0, 2.2, 0));
   HD.Race.launch(
-    "performanceOats",
+    "goldenCarrot",
     oatsPosition,
     new THREE.Vector3(),
     { consume: false },
   );
   HD.Race.updateProjectiles(0.016);
   assert.equal(
-    boostedHorse.userData.data.maxSpeedBonus,
+    activeBoostedHorse.userData.data.maxSpeedBonus,
     0.01,
-    "Champion Oats did not add one percent maximum speed",
+    "Golden Carrot did not add one percent maximum speed",
   );
   HD.Race.resetHorses();
   const persistentHorse = HD.state.horses.find((horse) => {
@@ -104,7 +180,7 @@ async function run() {
   assert.equal(
     persistentHorse.userData.data.maxSpeedBonus,
     0.01,
-    "Champion Oats did not persist between races",
+    "Golden Carrot did not persist between races",
   );
 
   persistentHorse.userData.data.progress = 2.6;
@@ -278,6 +354,70 @@ async function run() {
   HD.Race.restart(); // Also cancels the completed race's delayed next-race callback.
   assert.equal(HD.state.race, 1);
   assert.equal(HD.state.phase, "betting");
+
+  // Settlement uses ticket quotes, excludes losing tickets and phone fees, and
+  // waits for a valid result before marking a network race as settled.
+  HD.state.bets = [
+    { horse: 0, amount: 10, odds: 3, fee: 1 },
+    { horse: 0, amount: 20, odds: 7, fee: 2 },
+    { horse: 1, amount: 50, odds: 30, fee: 5 },
+  ];
+  HD.state.money = 100;
+  const result = HD.Race.networkSnapshot();
+  result.phase = 'finished';
+  result.finishOrder = [];
+  result.horses[0].odds = 1;
+  HD.Race.applyNetworkSnapshot(result);
+  assert.equal(HD.state.money, 100, 'Incomplete results must not settle');
+  result.finishOrder = [999];
+  HD.Race.applyNetworkSnapshot(result);
+  assert.equal(HD.state.money, 100, 'Invalid winners must not settle');
+  result.finishOrder = [0, 1, 2, 3, 4, 5];
+  HD.Race.applyNetworkSnapshot(result);
+  assert.equal(HD.state.money, 300, 'Pay 40 + 160 using locked ticket quotes');
+  HD.Race.applyNetworkSnapshot(result);
+  assert.equal(HD.state.money, 300, 'Repeated results must not pay twice');
+  HD.Race.restart();
+
+  // Exercise the delayed online reward without waiting on wall-clock timers.
+  const realSetTimeout = global.setTimeout;
+  const originalNetwork = HD.Network;
+  let rewardCallback;
+  let rewardClaims = 0;
+  let connected = true;
+  let playing = true;
+  try {
+    global.setTimeout = (callback) => { rewardCallback = callback; return 0; };
+    HD.Network = {
+      isConnected: () => connected,
+      isHost: () => true,
+      isPlaying: () => playing,
+      claimMatchWinReward: () => { rewardClaims++; },
+    };
+    const finalResult = HD.Race.networkSnapshot();
+    finalResult.phase = 'matchOver';
+    HD.Race.applyNetworkSnapshot(finalResult);
+    assert.equal(typeof rewardCallback, 'function');
+    const staleReward = rewardCallback;
+    HD.Race.restart();
+    staleReward();
+    assert.equal(rewardClaims, 0, 'Restart must invalidate an old victory callback');
+    HD.Race.applyNetworkSnapshot(finalResult);
+    playing = false;
+    rewardCallback();
+    assert.equal(rewardClaims, 0, 'Leaving play must prevent a delayed reward');
+    playing = true;
+    connected = false;
+    rewardCallback();
+    assert.equal(rewardClaims, 0, 'Disconnected players cannot claim delayed rewards');
+    connected = true;
+    rewardCallback();
+    assert.equal(rewardClaims, 1, 'The active completed match may claim its reward');
+  } finally {
+    global.setTimeout = realSetTimeout;
+    HD.Network = originalNetwork;
+  }
+  HD.Race.restart();
 
   let completeDay;
   HD.UI.showDay = (day, callback) => { completeDay = callback; };
