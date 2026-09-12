@@ -28,6 +28,8 @@ async function run() {
     assert.equal(limb.lower.parent, limb.upper);
     assert.equal(limb.fetlock.parent, limb.lower);
     assert.equal(limb.hoof.parent, limb.fetlock);
+    assert.ok(limb.proximalLength + limb.upperLength + limb.lowerLength < 2.65,
+      'Horse limbs must retain the shortened proportions');
   }
   assert.equal(rig.head.parent, rig.neck);
   assert.equal(rig.jaw.parent, rig.head);

@@ -663,36 +663,36 @@ HD.Models = (() => {
   function createHorseLeg(body, front, side, coat, sock) {
     const root = horseJoint(body, (front ? "Shoulder" : "Hip") + side,
       [front ? 1.08 : -1.18, front ? 2.57 : 2.43, side * 0.48]);
-    const proximalLength = front ? 0.48 : 0.72;
-    const upperLength = front ? 1.08 : 0.96;
-    const lowerLength = front ? 1.36 : 1.34;
+    const proximalLength = (front ? 0.48 : 0.72) * 0.86;
+    const upperLength = (front ? 1.08 : 0.96) * 0.86;
+    const lowerLength = (front ? 1.36 : 1.34) * 0.86;
     horsePart(root, coat, [0, -proximalLength * 0.33, 0],
-      [front ? 0.27 : 0.35, proximalLength * 0.85, 0.26]);
+      [front ? 0.33 : 0.4, proximalLength * 0.85, 0.31]);
     const upper = horseJoint(root, front ? "Elbow" : "Stifle",
       [0, -proximalLength, 0]);
     horsePart(upper, coat, [0, -upperLength * 0.43, 0],
-      [front ? 0.17 : 0.22, upperLength * 0.57, 0.17]);
+      [front ? 0.22 : 0.28, upperLength * 0.57, 0.22]);
     const lower = horseJoint(upper, front ? "Knee" : "Hock",
       [0, -upperLength, 0]);
-    horsePart(lower, coat, [0, 0, 0], [0.12, 0.15, 0.115]);
+    horsePart(lower, coat, [0, 0, 0], [0.155, 0.15, 0.15]);
     horsePart(lower, coat, [0, -lowerLength * 0.46, 0],
-      [0.087, lowerLength * 0.51, 0.09]);
+      [0.12, lowerLength * 0.51, 0.12]);
     if (sock) {
       horsePart(lower, 0xe9e1cf, [0, -lowerLength * 0.85, 0],
-        [0.094, lowerLength * 0.19, 0.099]);
+        [0.128, lowerLength * 0.19, 0.13]);
     }
     const fetlock = horseJoint(lower, "Fetlock", [0, -lowerLength, 0]);
     horsePart(fetlock, sock ? 0xe9e1cf : coat, [0, 0, 0],
-      [0.12, 0.14, 0.12]);
+      [0.15, 0.14, 0.15]);
     horsePart(fetlock, sock ? 0xe9e1cf : coat, [0.035, -0.12, 0],
-      [0.093, 0.16, 0.1]);
+      [0.12, 0.16, 0.13]);
     const hoof = horseJoint(fetlock, "Hoof", [0.055, -0.27, 0]);
     const hoofMesh = horsePart(hoof, 0x302923, [0.035, -0.03, 0],
-      [0.185, 0.14, 0.155],
+      [0.22, 0.14, 0.19],
       new THREE.CylinderGeometry(0.8, 1, 1, 10));
     hoofMesh.rotation.z = -0.1;
     horsePart(hoof, 0x181b1d, [0.04, -0.105, 0],
-      [0.19, 0.025, 0.16], horseCylinder);
+      [0.225, 0.025, 0.195], horseCylinder);
     root.userData = {
       front, side, upper, lower, fetlock, hoof,
       proximalLength, upperLength, lowerLength,
@@ -947,7 +947,7 @@ HD.Models = (() => {
     const amount = THREE.MathUtils.smoothstep(movement, 0.005, 0.17);
     const gallopBlend = THREE.MathUtils.smoothstep(movement, 0.3, 0.72);
     const stance = THREE.MathUtils.lerp(0.64, 0.34, gallopBlend);
-    const travel = THREE.MathUtils.lerp(0.58, 0.94,
+    const travel = THREE.MathUtils.lerp(0.5, 0.82,
       THREE.MathUtils.smoothstep(movement, 0.15, 1)) * amount;
     // The oval has different local curvature/radius. Use actual distance per
     // second to keep the planted foot travelling backward at the ground speed.
@@ -960,7 +960,9 @@ HD.Models = (() => {
       + Math.max(0, Math.sin(phase - 0.3)) * 0.09 * gallopBlend;
     const pitch = Math.sin(phase - 0.6) * 0.036 * gallopBlend;
     const stunned = Number.isFinite(data.ragdoll) && data.ragdoll > 0;
-    rig.body.position.set(0, stunned ? 0.36 : bob, 0);
+    // Lower the barrel along with the shorter limbs, not the hoof contact plane.
+    const bodyHeight = bob - 0.45;
+    rig.body.position.set(0, stunned ? 0.1 : bodyHeight, 0);
     rig.body.rotation.set(stunned ? Math.sin(time * 13) * 0.45 : 0, 0,
       stunned ? 0.8 + Math.sin(time * 9) * 0.15 : pitch);
     const contacts = [0, 0.12, 0.4, 0.53];
@@ -981,7 +983,7 @@ HD.Models = (() => {
       const restX = leg.userData.front ? 0.03 : -0.08;
       poseHorseLeg(leg, restX + reach * travel,
         -0.33 + lift * (0.32 + 0.55 * gallopBlend),
-        lift, stunned ? 0 : pitch, stunned ? 0 : bob);
+        lift, stunned ? 0 : pitch, stunned ? -0.45 : bodyHeight);
     });
     rig.neck.rotation.z = -0.045 * movement + Math.sin(phase - 0.5) * 0.047 * amount;
     rig.head.rotation.z = 0.025 * Math.sin(time * 1.3) * (1 - amount)

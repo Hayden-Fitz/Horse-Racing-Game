@@ -249,7 +249,8 @@ HD.Race = (() => {
     S.horses.forEach((horse, i) => {
       const d = horse.userData.data;
       if (d.finished) {
-        d.progress += Math.max(0.012, d.coastSpeed || d.baseSpeed * 0.55) * dt;
+        d.motionSpeed = Math.max(0.012, d.coastSpeed || d.baseSpeed * 0.55);
+        d.progress += d.motionSpeed * dt;
         d.coastSpeed = Math.max(d.baseSpeed * 0.35, (d.coastSpeed || d.baseSpeed) * (1 - dt * 0.22));
         return;
       }

@@ -7,6 +7,7 @@
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="polish.css" />
+    <link rel="stylesheet" href="phone-polish.css" />
   </head>
   <body>
     <main id="app">
@@ -61,7 +62,7 @@
           <strong>HOTDOG OS</strong>
           <span class="phone-signals">5G <i></i></span>
         </div>
-        <section class="phone-widget" aria-label="Personal race-day photo and clock">
+        <section class="phone-widget" aria-label="Race-day clock">
           <div>
             <strong id="phone-home-clock">9:41</strong>
             <span id="phone-home-date">RACE DAY</span>
@@ -96,7 +97,7 @@
           <div id="tickets" class="tickets">No bets placed.</div>
         </section>
         <section class="app-panel" data-panel="shop">
-          <div class="section-title"><span>THROWABLES</span><em>TRACKSIDE DELIVERY</em></div>
+          <div class="section-title"><span>CONCESSIONS</span><em>DELIVERED TO YOU</em></div>
           <div id="deliveries" class="deliveries">No active deliveries.</div>
           <div id="shop-items" class="shop-items"></div>
           <p class="tip">
@@ -163,18 +164,22 @@
         </section>
         <section class="app-panel" data-panel="transfer">
           <div class="section-title"><span>DERBYPAY</span><em>PAYMENTS & REQUESTS</em></div>
-          <p class="tip">Send money or an item, or request money from another player.</p>
+          <div class="pay-balance">
+            <span>Available to send</span>
+            <strong id="transfer-balance">$0</strong>
+            <small>Your race-day wallet</small>
+          </div>
           <label class="transfer-field">
-            Recipient
+            To
             <select id="transfer-player"></select>
           </label>
           <div class="transfer-grid">
             <label>
-              Money
+              Amount ($)
               <input id="transfer-money" type="number" min="0" step="5" value="0" />
             </label>
             <label>
-              Item
+              Add a gift
               <select id="transfer-item"></select>
             </label>
           </div>
@@ -183,6 +188,7 @@
             <button id="request-money">REQUEST MONEY</button>
           </div>
           <div id="transfer-status" class="deliveries">Choose a player and something to send.</div>
+          <h3 class="pay-requests-title">Requests</h3>
           <div id="money-requests" class="money-requests"></div>
         </section>
         <section class="app-panel messages-app" data-panel="messages">

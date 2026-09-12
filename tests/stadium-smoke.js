@@ -362,16 +362,39 @@ async function run() {
   let renderCount = 0;
   let failRender = false;
   let interpolatedScale = false;
+  let replayPlayerVisible = false;
+  let centeredProjectile = false;
+  const player = new THREE.Group();
+  player.name = 'Recorded test player';
+  const hand = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+  player.add(hand);
+  player.layers.set(2);
+  HD.world.localPlayer = player;
+  HD.world.scene.add(player);
+  const playerStart = player.position.clone();
   HD.world.renderer = {
     shadowMap: { autoUpdate: true },
     getRenderTarget: () => renderTarget,
     setRenderTarget: value => { renderTarget = value; },
-    render() {
+    render(scene, camera) {
       renderCount++;
       assert.equal(HD.world.replayBillboard.root.visible, false);
       if (HD.Broadcast.diagnostics.replaying) {
+        assert.equal(player.visible, false, 'Hide live players only during replay rendering');
         HD.world.scene.children.forEach((mesh) => {
           if (mesh.name !== 'Broadcast replay double' || !mesh.visible) return;
+          if (mesh.children.length === 1 && mesh.children[0].geometry === hand.geometry) {
+            replayPlayerVisible = true;
+          }
+          if (mesh.geometry?.type === 'BoxGeometry' && !mesh.children.length) {
+            camera.updateMatrixWorld(true);
+            const projection = mesh.position.clone().project(camera);
+            if (Math.abs(projection.x) < 0.0001 && Math.abs(projection.y) < 0.0001) {
+              centeredProjectile = true;
+              assert.ok(camera.position.y > mesh.position.y,
+                'Chase camera must remain above the prop, even close to impact');
+            }
+          }
           const units = (mesh.scale.x - 1) * 1000;
           if (units > 0 && units < 110 && Math.abs(units - Math.round(units)) > 0.01) {
             interpolatedScale = true;
@@ -426,6 +449,10 @@ async function run() {
   assert.equal(HD.Broadcast.diagnostics.replaying, true, 'Nearby impacts replay after about one second');
   assert.equal(HD.Broadcast.diagnostics.projectileChase, true,
     'Recorded projectile impacts must activate the invisible chase camera');
+  assert.ok(replayPlayerVisible, 'Replay must render recorded player bodies');
+  assert.ok(centeredProjectile, 'Projectile must project to the center of its chase camera');
+  assert.ok(player.position.equals(playerStart), 'Replay cannot alter real player transforms');
+  assert.equal(player.visible, true, 'Replay rendering restores player visibility');
   assert.ok(HD.Broadcast.diagnostics.replaying, "A major hit must trigger delayed replay");
   assert.ok(horse.position.equals(originalPosition), "Replay must not move real horses");
   assert.equal(horse.visible, true);
@@ -433,6 +460,7 @@ async function run() {
   failRender = true;
   assert.throws(() => HD.Broadcast.update(0.1), /Test render failure/);
   assert.equal(horse.visible, true, "Render failure must restore real horses");
+  assert.equal(player.visible, true, 'Render failure must restore players too');
   assert.equal(HD.world.replayBillboard.root.visible, true);
   assert.equal(HD.world.renderer.shadowMap.autoUpdate, true);
   assert.equal(renderTarget, null);
@@ -446,6 +474,13 @@ async function run() {
   HD.state.phase = "betting";
   HD.Broadcast.update(0.1);
   assert.equal(HD.Broadcast.diagnostics.samples, 0, "New race clears old footage");
+  HD.state.phase = 'racing';
+  const beforeSmoothPlayback = renderCount;
+  for (let i = 0; i < 60; i++) HD.Broadcast.update(1 / 60);
+  assert.equal(renderCount - beforeSmoothPlayback, 60,
+    'TV should render every frame at 60 fps instead of the old 20 fps cap');
+  assert.ok(HD.Broadcast.diagnostics.samples >= 29 &&
+    HD.Broadcast.diagnostics.samples <= 31, 'Capture poses at 30 Hz for smooth interpolation');
 
   console.log("Stadium geometry, ten cameras, live feed and isolated bounded replays passed.");
 

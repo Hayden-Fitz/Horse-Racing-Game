@@ -1,0 +1,259 @@
+/* Phone-only refinements. Leave stadium vendors and the lobby untouched. */
+.phone-open .phone:not(.app-open) {
+  background: #122c36 url("assets/phone-apps/quiet-hills.svg") center / cover;
+}
+
+.phone:not(.app-open) .phone-widget {
+  min-height: 150px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.phone:not(.app-open) .phone-widget > div {
+  top: 20px;
+  bottom: auto;
+  gap: 8px;
+  text-align: center;
+}
+
+.phone-widget strong {
+  font-size: 52px;
+  font-weight: 400;
+  letter-spacing: -2px;
+  text-shadow: none;
+}
+
+.phone:not(.app-open) .apps {
+  border: 0;
+  background: transparent;
+}
+
+.phone:not(.app-open) .apps button {
+  text-shadow: 0 1px 3px #000;
+}
+
+/* A compact menu: product, short effect, price. */
+.app-panel[data-panel="shop"] {
+  --app-surface: #211a18;
+}
+
+.app-panel[data-panel="shop"] .shop-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 8px;
+  border: 1px solid #513b30;
+  border-radius: 14px;
+  background: #2c231e;
+}
+
+.app-panel[data-panel="shop"] .shop-item.selected {
+  border-color: #e9b85c;
+  box-shadow: none;
+}
+
+.app-panel[data-panel="shop"] .shop-item .item-select {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: start;
+  gap: 3px;
+  width: 100%;
+  padding: 3px 0 9px;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff1d7;
+  text-align: center;
+}
+
+.app-panel[data-panel="shop"] .item-select > span:last-of-type {
+  width: 100%;
+}
+
+.app-panel[data-panel="shop"] .item-select strong {
+  display: block;
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.app-panel[data-panel="shop"] .item-select .product-summary {
+  display: block;
+  min-height: 15px;
+  margin: 2px 0 0;
+  color: #c9b6a3;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.app-panel[data-panel="shop"] .item-select em {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: #181512;
+  color: #f1dbaa;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.app-panel[data-panel="shop"] .shop-item .item-buy {
+  width: 100%;
+  min-height: 32px;
+  padding: 7px 3px;
+  border-radius: 8px;
+  background: #f2bc55;
+  color: #281b12;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.app-panel[data-panel="shop"] .item-buy:disabled {
+  opacity: 0.45;
+}
+
+/* DerbyPay: balance, recipient, amount and two distinct actions. */
+.app-panel[data-panel="transfer"] {
+  --app-surface: #101c29;
+}
+
+.pay-balance {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0 18px;
+  padding: 20px 12px;
+  border: 1px solid #33516f;
+  border-radius: 16px;
+  background: #192c40;
+  text-align: center;
+}
+
+.pay-balance span,
+.pay-balance small {
+  color: #a9bdd0;
+  font-size: 11px;
+}
+
+.pay-balance strong {
+  color: #fff;
+  font-size: 34px;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.app-panel[data-panel="transfer"] label {
+  color: #afc5dc;
+  font-size: 11px;
+}
+
+.app-panel[data-panel="transfer"] input,
+.app-panel[data-panel="transfer"] select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px;
+  border: 1px solid #39536d;
+  border-radius: 10px;
+  background: #152637;
+  color: #f3f7fc;
+  font-size: 12px;
+}
+
+.app-panel[data-panel="transfer"] .transfer-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin: 14px 0;
+}
+
+.app-panel[data-panel="transfer"] .transfer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.app-panel[data-panel="transfer"] .transfer-actions button {
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 9px 5px;
+  border: 1px solid #579cdb;
+  border-radius: 10px;
+  background: #1d3d59;
+  color: #d3eaff;
+  font-size: 11px;
+}
+
+.app-panel[data-panel="transfer"] #send-transfer {
+  background: #4297e2;
+  color: #071625;
+}
+
+.app-panel[data-panel="transfer"] .transfer-actions button:disabled {
+  opacity: 0.4;
+}
+
+.app-panel[data-panel="transfer"] .deliveries,
+.app-panel[data-panel="transfer"] .money-requests > p {
+  color: #a6b8c9;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pay-requests-title {
+  margin: 22px 0 8px;
+  color: #edf4fb;
+  font-size: 14px;
+}
+
+.app-panel[data-panel="transfer"] .money-requests article {
+  padding: 12px;
+  border: 1px solid #33516f;
+  border-radius: 12px;
+  background: #192c40;
+  color: #edf4fb;
+  overflow-wrap: anywhere;
+}
+
+.news-live canvas {
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
+}
+
+.app-panel[data-panel="shop"] .section-title em {
+  background: #f2bc55;
+  color: #342213;
+}
+
+.app-panel[data-panel="transfer"] .section-title em {
+  background: #275789;
+  color: #edf5ff;
+}
+
+.app-panel[data-panel="transfer"] .transfer-actions button {
+  box-shadow: none;
+}
+
+.app-panel[data-panel="transfer"] .deliveries {
+  margin-top: 10px;
+  background: transparent;
+}
+
+@media (max-height: 760px) {
+  .phone:not(.app-open) .phone-widget {
+    min-height: 100px;
+  }
+
+  .phone:not(.app-open) .phone-widget > div {
+    top: 8px;
+    gap: 5px;
+  }
+
+  .phone-widget strong {
+    font-size: 38px;
+  }
+}

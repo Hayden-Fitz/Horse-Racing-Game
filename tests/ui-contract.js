@@ -31,12 +31,12 @@ for (const icon of [
     'Flat phone icon file is missing: ' + icon);
 }
 const broadcastSource = read('src/broadcast.js');
-assert.ok(broadcastSource.includes('readRenderTargetPixels'),
-  'DerbyNews must reuse the Stadium Vision render instead of rendering twice');
-assert.ok(broadcastSource.includes('smoothedFrameTime > 0.04'),
-  'DerbyNews must reduce preview cadence when browser frame time degrades');
-assert.ok(broadcastSource.includes(': 20,'),
-  'DerbyNews must target the same 20 fps cadence as Stadium Vision');
+assert.ok(broadcastSource.includes('map: target.texture'),
+  'DerbyNews must reuse the TV texture rather than render the stadium twice');
+assert.ok(broadcastSource.includes('renderer.render(newsScene, newsCamera)'),
+  'Phone video must resolve the same tone mapping and output color as the TV');
+assert.ok(!broadcastSource.includes('readRenderTargetPixels'),
+  'Phone video must not introduce blocking GPU-to-CPU pixel readback');
 assert.ok(broadcastSource.includes('newsReadbackFailures++'),
   'A failed DerbyNews GPU copy must not crash the game broadcast');
 

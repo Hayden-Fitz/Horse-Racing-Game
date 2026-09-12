@@ -427,8 +427,12 @@ HD.Controls = (() => {
       jumpOffset = 0;
       jumpVelocity = 0;
     } else {
-      jumpVelocity -= 18 * dt;
-      S.playerPosition.y = previousEyeHeight + jumpVelocity * dt;
+      // Game characters are larger than metre scale. Keep a natural, quicker
+      // fall and integrate acceleration analytically for consistent frame rates.
+      const gravity = 28;
+      S.playerPosition.y = previousEyeHeight + jumpVelocity * dt
+        - 0.5 * gravity * dt * dt;
+      jumpVelocity -= gravity * dt;
 
       if (S.playerPosition.y <= groundEyeHeight) {
         S.playerPosition.y = groundEyeHeight;
@@ -442,6 +446,10 @@ HD.Controls = (() => {
   }
 
   function areAdjacentRows(firstZone, secondZone) {
+    if ((firstZone === 'row-0' && secondZone === 'track-walk') ||
+        (secondZone === 'row-0' && firstZone === 'track-walk')) {
+      return true;
+    }
     if (!firstZone?.startsWith('row-') || !secondZone?.startsWith('row-')) {
       return false;
     }
@@ -455,7 +463,7 @@ HD.Controls = (() => {
     if (S.paused || S.mode === 'phone' || S.vendorOpen || S.counterOpen) return;
     if (jumpOffset > 0.001) return;
     // A 1.78-unit apex clears the 1.5-unit rise between seating rows.
-    jumpVelocity = 8;
+    jumpVelocity = 10;
     jumpOffset = 0.01;
     HD.Audio?.cue?.('jump');
   }

@@ -131,7 +131,44 @@ async function run() {
   assert.equal(state.selectedItem, null, 'An exhausted inventory clears selection');
   assert.equal(state.mode, 'look');
   assert.equal(HD.world.heldItem.visible, false);
-  console.log('Input lifecycle: owned selection, charge cancellation, typing and menu isolation passed.');
+  // Walk off the front row away from all stairs. Do not teleport onto the floor.
+  const rowAngle = 1.05;
+  state.yaw = Math.atan2(Math.cos(rowAngle) * 82.1, Math.sin(rowAngle) * 51.85);
+  state.playerPosition.set(
+    Math.cos(rowAngle) * 82.1,
+    HD.CONFIG.grandstandBaseHeight + HD.CONFIG.eyeHeight,
+    Math.sin(rowAngle) * 51.85,
+  );
+  state.movement.forward = true;
+  let startedFalling = false;
+  let previousY = state.playerPosition.y;
+  for (let i = 0; i < 60; i++) {
+    HD.Controls.update(1 / 120);
+    if (state.playerPosition.y < previousY) {
+      startedFalling = true;
+      assert.ok(previousY - state.playerPosition.y < 0.02,
+        'Leaving the row must start a gravity-driven fall, not snap down');
+      break;
+    }
+    previousY = state.playerPosition.y;
+  }
+  assert.ok(startedFalling, 'No invisible barrier may block leaving the bottom row');
+  state.movement.forward = false;
+  state.mode = 'phone';
+  for (let i = 0; i < 120; i++) HD.Controls.update(1 / 120);
+  assert.ok(Math.abs(state.playerPosition.y - (1.65 + HD.CONFIG.eyeHeight)) < 0.001,
+    'Gravity must continue with the phone open and land on the walkway');
+
+  state.mode = 'look';
+  HD.Settings.matches = (event, action) => action === 'stand' && event.code === 'Space';
+  const baseY = state.playerPosition.y;
+  handlers.keydown(key('Space'));
+  for (let i = 0; i < 30; i++) HD.Controls.update(1 / 120);
+  assert.ok(Math.abs(state.playerPosition.y - baseY - 1.625) < 0.002,
+    'Jump height follows the analytic 28-unit gravity arc');
+  for (let i = 0; i < 100; i++) HD.Controls.update(1 / 120);
+  assert.ok(Math.abs(state.playerPosition.y - baseY) < 0.001);
+  console.log('Input lifecycle, bottom-row falling, phone gravity and jump arc passed.');
 }
 
 run().catch((error) => {

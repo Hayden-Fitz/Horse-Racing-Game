@@ -370,12 +370,14 @@ HD.UI = (() => {
 
   function renderTransfer() {
     if (!el.transferPlayer) return;
+    const balance = document.querySelector('#transfer-balance');
+    if (balance) balance.textContent = '$' + S.money.toLocaleString();
     const targets = HD.Network.isConnected()
       ? HD.Network.transferTargets()
       : HD.AI.transferTargets();
     const previousTarget = el.transferPlayer.value;
     el.transferPlayer.innerHTML = targets.length
-      ? targets.map((target) => `<option value="${target.id}">${target.name}</option>`).join("")
+      ? targets.map((target) => `<option value="${escapeMarkup(target.id)}">${escapeMarkup(target.name)}</option>`).join("")
       : '<option value="">No other players online</option>';
     if (targets.some((target) => target.id === previousTarget)) {
       el.transferPlayer.value = previousTarget;
@@ -388,6 +390,8 @@ HD.UI = (() => {
       .join("");
     if (ownedItems.some(([id]) => id === previousItem)) el.transferItem.value = previousItem;
     el.sendTransfer.disabled = !targets.length;
+    const requestButton = document.querySelector('#request-money');
+    if (requestButton) requestButton.disabled = !targets.length || !HD.Network.isConnected();
   }
 
   function sendTransfer() {
@@ -429,7 +433,9 @@ HD.UI = (() => {
     const target = document.querySelector('#transfer-player').value;
     const input = document.querySelector('#transfer-money');
     const amount = Math.floor(Number(input.value) || 0);
-    if (!target || amount < 5) return announce('Choose a player and request at least .');
+    if (!target || !Number.isFinite(amount) || amount < 5) {
+      return announce('Choose a player and request at least $5.');
+    }
     if (!HD.Network.isConnected() || !HD.Network.requestMoney(target, amount)) {
       HD.Audio?.cue?.('error');
       return announce('Money requests are available in an online lobby.');
@@ -597,13 +603,12 @@ HD.UI = (() => {
               <span class="item-icon">${productArt}</span>
               <span>
                 <strong>${item.name}</strong>
-                <small><b class="item-effect">${itemEffectSummary(item)}</b>${item.description}</small>
-                <small class="item-traits">${itemTraitSummary(item)}</small>
+                <small class="product-summary">${productEffectLabel(item)}</small>
               </span>
               <em>x${S.inventory[id]}</em>
             </button>
             <button class="item-buy" data-buy-item="${id}" ${disabled}>
-              ORDER $${item.price} · 12s
+              ORDER $${item.price} · ${C.phoneDeliveryDuration}s
             </button>
           </article>
         `;
@@ -617,6 +622,14 @@ HD.UI = (() => {
       button.onclick = () => buy(button.dataset.buyItem);
     });
   }
+  function productEffectLabel(item) {
+    if (item.ragdollDuration && item.slowDuration) return "Slow + stun";
+    if (item.boostDuration && item.resistanceDuration) return "Speed + protection";
+    if (item.ragdollDuration) return "Stun · " + item.ragdollDuration + "s";
+    if (item.slowDuration) return "Slow · " + item.slowDuration + "s";
+    return "Trackside utility";
+  }
+
   function itemEffectSummary(item) {
     const effects = [];
     if (item.slowDuration) effects.push(`SLOW 65% · ${item.slowDuration}s`);

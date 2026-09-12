@@ -21,6 +21,9 @@ HD.Broadcast = (() => {
   const poseRotation = new THREE.Quaternion();
   const poseScale = new THREE.Vector3();
   const nextRecords = new Map();
+  const actorVersions = new WeakMap();
+  let actorVersion = 0;
+  let newsScene, newsCamera;
   let target, overlay, replay, pending;
   let time = 0, sampleClock = 0, renderClock = 0, cooldown = 0;
   let roster = "", previousPhase = "", shot = -1;
@@ -29,8 +32,6 @@ HD.Broadcast = (() => {
   let active = false;
   let projectileChase = false;
   let newsCopyAt = -Infinity;
-  let newsPixels = null;
-  let newsImage = null;
   let smoothedFrameTime = 1 / 60;
   let newsReadbackFailures = 0;
   const lastEffects = new Map();
@@ -60,11 +61,22 @@ HD.Broadcast = (() => {
     const board = HD.world.replayBillboard;
     if (!board || !HD.world.renderer) return false;
     target = new THREE.WebGLRenderTarget(768, 404, {
+      type: THREE.HalfFloatType,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       generateMipmaps: false,
     });
-    board.screen.material.map = target.texture;
+    // Unlit white video surface: stadium lighting must not tint the broadcast.
+    board.screen.material = new THREE.MeshBasicMaterial({ map: target.texture });
+    camera.layers.enable(2);
+    projectileCamera.layers.enable(2);
+    newsScene = new THREE.Scene();
+    newsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
+    newsCamera.position.z = 1;
+    newsScene.add(new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.MeshBasicMaterial({ map: target.texture, depthTest: false }),
+    ));
     overlay = new THREE.Mesh(board.screen.geometry, new THREE.MeshBasicMaterial({
       map: board.texture, transparent: true, depthWrite: false, toneMapped: false,
     }));
@@ -90,8 +102,8 @@ HD.Broadcast = (() => {
     shot = -1;
   }
 
-  function remember(mesh) {
-    let entry = doubles.get(mesh.uuid);
+  function remember(mesh, id = mesh.uuid) {
+    let entry = doubles.get(id);
     if (!entry) {
       const clone = visualClone(mesh);
       clone.name = "Broadcast replay double";
@@ -99,19 +111,45 @@ HD.Broadcast = (() => {
       const nodes = [];
       clone.traverse(node => {
         node.matrixAutoUpdate = true;
+        node.layers.set(0);
         nodes.push(node);
       });
       entry = { mesh: clone, nodes, lastSeen: time };
-      doubles.set(mesh.uuid, entry);
+      doubles.set(id, entry);
       HD.world.scene.add(clone);
     }
     entry.lastSeen = time;
-    const pose = [];
+    const pose = new Float32Array(entry.nodes.length * 11);
+    let offset = 0;
     mesh.traverse(node => {
-      pose.push(...node.position.toArray(), ...node.quaternion.toArray(),
-        ...node.scale.toArray(), node.visible ? 1 : 0);
+      node.position.toArray(pose, offset);
+      node.quaternion.toArray(pose, offset + 3);
+      node.scale.toArray(pose, offset + 7);
+      pose[offset + 10] = node.visible ? 1 : 0;
+      offset += 11;
     });
-    return { id: mesh.uuid, pose };
+    return { id, pose };
+  }
+
+  function playerActors() {
+    return [...new Set([
+      HD.world.localPlayer,
+      ...(HD.world.remotePlayers?.values() || []),
+    ].filter(Boolean))];
+  }
+
+  function rememberActor(mesh) {
+    // Equipping an item or changing an outfit can change the hierarchy. Keep
+    // the old visual version for old frames instead of mixing incompatible rigs.
+    const nodes = [];
+    mesh.traverse(node => nodes.push(node.uuid));
+    const signature = nodes.join(',');
+    let version = actorVersions.get(mesh);
+    if (!version || version.signature !== signature) {
+      version = { signature, id: mesh.uuid + ':actor:' + (++actorVersion) };
+      actorVersions.set(mesh, version);
+    }
+    return remember(mesh, version.id);
   }
 
   function capture() {
@@ -125,10 +163,11 @@ HD.Broadcast = (() => {
       }
       lastEffects.set(horse.uuid, effect);
     }
-    const horses = S.horses.map(remember);
+    const horses = S.horses.map(horse => remember(horse));
     const items = S.projectiles.filter(p => p.mesh && p.velocity?.lengthSq() > 1)
       .slice(0, 24).map(p => remember(p.mesh));
-    history.push({ time, horses, items });
+    const players = playerActors().filter(mesh => mesh.visible).map(rememberActor);
+    history.push({ time, horses, items, players });
     while (history.length && history[0].time < time - 12) history.shift();
     for (const [id, entry] of doubles) {
       if (time - entry.lastSeen > 13) {
@@ -177,7 +216,7 @@ HD.Broadcast = (() => {
     const alpha = THREE.MathUtils.clamp(
       (replay.cursor - a.time) / Math.max(0.001, b.time - a.time), 0, 1,
     );
-    for (const key of ["horses", "items"]) {
+    for (const key of ["horses", "items", "players"]) {
       nextRecords.clear();
       for (const record of b[key]) nextRecords.set(record.id, record);
       for (const record of a[key]) {
@@ -195,6 +234,7 @@ HD.Broadcast = (() => {
 
   function frameProjectileCamera(projectile, horse) {
     chaseDirection.copy(horse.position).sub(projectile.position);
+    chaseDirection.y = 0;
     if (chaseDirection.lengthSq() < 0.001) {
       chaseDirection.set(0, 0, 1);
     } else {
@@ -206,11 +246,12 @@ HD.Broadcast = (() => {
     projectileCamera.position
       .copy(projectile.position)
       .addScaledVector(chaseDirection, -5);
-    projectileCamera.position.y += 3.2;
-    chaseTarget.copy(horse.position);
-    chaseTarget.y += 1.35;
+    projectileCamera.position.y += 1.25;
+    // Aim at the prop itself, not the horse: it stays at screen centre while
+    // the struck horse remains behind it along the camera's viewing direction.
+    chaseTarget.copy(projectile.position);
     projectileCamera.lookAt(chaseTarget);
-    projectileCamera.fov = 52;
+    projectileCamera.fov = 58;
     projectileCamera.updateProjectionMatrix();
   }
 
@@ -282,48 +323,44 @@ HD.Broadcast = (() => {
     const canvas = document.querySelector('#news-live-canvas');
     const panel = canvas?.closest?.('[data-panel="news"]');
     if (!canvas || !panel?.classList.contains('active')) return;
-    if (typeof renderer.readRenderTargetPixels !== 'function') return;
-    const previewInterval = smoothedFrameTime > 0.04
-      ? 0.2
-      : smoothedFrameTime > 0.025
-        ? 0.1
-        : 0.05;
-    if (time - newsCopyAt < previewInterval) return;
+    if (!renderer.domElement || !renderer.getViewport) return;
 
     const width = target.width;
     const height = target.height;
-    const requiredBytes = width * height * 4;
-    if (!newsPixels || newsPixels.length !== requiredBytes) {
-      newsPixels = new Uint8Array(requiredBytes);
-      newsImage = canvas.getContext('2d').createImageData(width, height);
-    }
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
 
+    const viewport = renderer.getViewport(new THREE.Vector4());
+    const scissor = renderer.getScissor(new THREE.Vector4());
+    const scissorTest = renderer.getScissorTest();
+    const previousTarget = renderer.getRenderTarget();
+    const pixelRatio = renderer.getPixelRatio();
+    const copyWidth = Math.min(width, renderer.domElement.width);
+    const copyHeight = Math.min(height, renderer.domElement.height);
     try {
-      renderer.readRenderTargetPixels(
-        target,
-        0,
-        0,
-        width,
-        height,
-        newsPixels,
+      // Resolve through the same tone mapping and output colour space as the TV.
+      // A small fullscreen GPU pass + canvas copy avoids synchronous pixel
+      // readback, CPU row-flipping and the old dark/green linear-colour preview.
+      renderer.setRenderTarget(null);
+      renderer.setViewport(0, 0, copyWidth / pixelRatio, copyHeight / pixelRatio);
+      renderer.setScissor(0, 0, copyWidth / pixelRatio, copyHeight / pixelRatio);
+      renderer.setScissorTest(true);
+      renderer.render(newsScene, newsCamera);
+      canvas.getContext('2d').drawImage(
+        renderer.domElement,
+        0, renderer.domElement.height - copyHeight, copyWidth, copyHeight,
+        0, 0, width, height,
       );
     } catch (error) {
       newsReadbackFailures++;
       newsCopyAt = time;
       return;
+    } finally {
+      renderer.setRenderTarget(previousTarget);
+      renderer.setViewport(viewport);
+      renderer.setScissor(scissor);
+      renderer.setScissorTest(scissorTest);
     }
-    const rowBytes = width * 4;
-    for (let row = 0; row < height; row++) {
-      const source = row * rowBytes;
-      const destination = (height - row - 1) * rowBytes;
-      newsImage.data.set(
-        newsPixels.subarray(source, source + rowBytes),
-        destination,
-      );
-    }
-    canvas.getContext('2d').putImageData(newsImage, 0, 0);
     const statusLabel = document.querySelector('#news-live-status');
     const caption = document.querySelector('#news-live-caption');
     if (statusLabel) statusLabel.textContent = status;
@@ -353,8 +390,8 @@ HD.Broadcast = (() => {
     }
     previousPhase = S.phase;
     sampleClock += dt;
-    if (sampleClock >= 0.1) {
-      sampleClock %= 0.1;
+    if (sampleClock >= 1 / 30) {
+      sampleClock %= 1 / 30;
       if (S.phase === "racing" || pending) capture();
     }
     if (pending && time >= pending.at + 1) {
@@ -375,9 +412,9 @@ HD.Broadcast = (() => {
       }
     }
     renderClock += dt;
-    if (renderClock < 1 / 20) return;
+    if (renderClock + 1e-6 < 1 / 60) return;
     const renderDt = renderClock;
-    renderClock = 0;
+    renderClock %= 1 / 60;
     const world = HD.world, renderer = world.renderer;
     const hidden = [];
     const previousTarget = renderer.getRenderTarget();
@@ -394,13 +431,14 @@ HD.Broadcast = (() => {
       if (replay) {
         const replayFrame = frameReplay();
         subject = replayFrame.horse;
-        if (subject && replayFrame.projectile) {
+        if (subject && replayFrame.projectile?.visible) {
           frameProjectileCamera(replayFrame.projectile, subject);
           activeCamera = projectileCamera;
           projectileChase = true;
         }
         S.horses.forEach(hide);
         S.projectiles.forEach(p => hide(p.mesh));
+        playerActors().forEach(hide);
       } else {
         subject = currentLeader();
       }
@@ -433,9 +471,8 @@ HD.Broadcast = (() => {
       return { status, samples: history.length, doubles: doubles.size,
         pending: !!pending, replaying: !!replay, subjectId,
         projectileChase,
-        newsPreviewFps: smoothedFrameTime > 0.04
-          ? 5
-          : smoothedFrameTime > 0.025 ? 10 : 20,
+        newsPreviewFps: Math.min(60, Math.round(1 / smoothedFrameTime)),
+        recordedPlayers: history.at(-1)?.players.length || 0,
         newsReadbackFailures,
         cameras: HD.world.broadcastCameras?.length || 0 };
     },
