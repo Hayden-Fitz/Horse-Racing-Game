@@ -1,14 +1,15 @@
 ===============================================================
 HOTDOG DERBY
-REMAINING DEVELOPMENT SPECIFICATION
+MASTER DEVELOPMENT SPECIFICATION — STATUS
 ===============================================================
 
 Purpose
 -------
 
-This replaces the previous full master specification with the work that is
-still required. Completed work is intentionally omitted. For implementation
-history and automated checks, use FEATURE-CHECKLIST.md.
+This is the current master status list. Every requirement remains visible so it
+can be revisited. [x] means implemented and verified; [u] means unfinished,
+partially implemented, or still awaiting required manual/hosted verification.
+For detailed implementation history and checks, use FEATURE-CHECKLIST.md.
 
 This document remains authoritative for unfinished design. Do not re-add
 removed mechanics or superseded arena features.
@@ -17,20 +18,20 @@ removed mechanics or superseded arena features.
 Current design decisions that must remain
 ----------------------------------------
 
-- Hotdog Derby is an eight-human-player online horse-racing party roguelike.
+- [x] Hotdog Derby is an eight-human-player online horse-racing party roguelike.
   Single Player is a configurable solo sandbox, not a fake AI multiplayer game.
-- Players never attack, damage, stun, or knock back other players. Throwables
+- [x] Players never attack, damage, stun, or knock back other players. Throwables
   affect horses, track objects, obstacles, and race conditions.
-- The active inventory is exactly ten hotbar slots: Hotdog, Golden Hotdog,
+- [x] The active inventory is exactly ten hotbar slots: Hotdog, Golden Hotdog,
   Carrot, Golden Carrot, Soda, Water Bottle, Hurdle, Beach Ball, Foam
   Horseshoe, and Chair. Do not restore the removed inventory wheel.
-- The non-phone UI uses the clubhouse/lobby visual language. The phone keeps
+- [x] The non-phone UI uses the clubhouse/lobby visual language. The phone keeps
   its own dark Hotdog OS design.
-- Fixer services are always enabled. The commentator booth, horse tunnel,
+- [x] Fixer services are always enabled. The commentator booth, horse tunnel,
   former parking lots, exterior road ring, and exterior gatehouses are removed.
-- The current arena is the simplified single-bowl version. Do not restore the
+- [x] The current arena is the simplified single-bowl version. Do not restore the
   experimental stacked green/blue floors or old stair towers.
-- The current supplied player model and supplied item GLBs are the source
+- [u] The current supplied player model and supplied item GLBs are the source
   geometry. Preserve their triangles and proportions while improving materials,
   animation and layered cosmetics.
 
@@ -38,17 +39,17 @@ Current design decisions that must remain
 1. Release-critical multiplayer and hosting
 -------------------------------------------
 
-- Deploy and verify the new WebSocket transport on the selected Cloudflare
+- [u] Deploy and verify the new WebSocket transport on the selected Cloudflare
   Durable Objects free tier. Local Node transport, browser adapter, Cloudflare
   target, atomic seats, permissions, privacy and reconnect tests are complete;
   the hosted endpoint and two-device cloud playtest remain open.
-- Make the host authoritative for lobby membership, rules, race state, money,
+- [u] Make the host authoritative for lobby membership, rules, race state, money,
   items, bets, trades, sabotage, results, replay events and game settings.
-- Synchronize host-owned lobby rules and display them live for every client.
-- Add reconnect handling, host permission checks, membership checks, graceful
+- [x] Synchronize host-owned lobby rules and display them live for every client.
+- [u] Add reconnect handling, host permission checks, membership checks, graceful
   network failure states, anti-duplication / anti-double-spend safeguards, and
   server-authoritative auction/trade transactions.
-- Verify all of the above with two real clients, including reconnect during a
+- [u] Verify all of the above with two real clients, including reconnect during a
   victory/day transition, player equipment/throw replay, DerbyPay requests and
   payouts.
 
@@ -56,96 +57,96 @@ Current design decisions that must remain
 2. Core roguelike run
 ---------------------
 
-- Complete the configurable multi-day run: preparation, buying, betting,
+- [u] Complete the configurable multi-day run: preparation, buying, betting,
   racing, payouts, day results, reward choice, negative effect choice, shopping,
   auctions, legendary opportunities, trading, then next race/day.
-- At each eligible day change, show standings, money, race results and major
+- [u] At each eligible day change, show standings, money, race results and major
   statistics. It must be a polished event screen, not a fabricated solo
   leaderboard.
-- Offer one positive choice from each category: Money, Item and Upgrade. The
+- [u] Offer one positive choice from each category: Money, Item and Upgrade. The
   player picks one. Upgrades are only earned from that choice; never add an
   Upgrade shop, inventory tab, equipment slots or drops.
-- Offer two distinct Negative Effects and require one choice. Effects should
+- [u] Offer two distinct Negative Effects and require one choice. Effects should
   create tradeoffs without making a run unplayable.
-- Keep reward choices randomized, fair and meaningfully different between runs.
-- Build a real economy: expensive high-power opportunities, useful cheap options
+- [u] Keep reward choices randomized, fair and meaningfully different between runs.
+- [u] Build a real economy: expensive high-power opportunities, useful cheap options
   and underdog recovery options. Add progressive upgrades unlocked by money
   progression with clear presentation and balance.
-- End runs with a Championship race made from unique qualifying normal/personal
+- [u] End runs with a Championship race made from unique qualifying normal/personal
   horse winners; keep at most eight, using winning time to break over-cap ties.
 
 
 3. Game settings and Single Player
 ----------------------------------
 
-- Add host-synchronized multiplayer settings and connect each setting only when
+- [u] Add host-synchronized multiplayer settings and connect each setting only when
   its underlying system exists. Settings include days, races, horse count, laps,
   money, crowd chaos/frequency, events/modifiers, player horses/racing, personal
   horse limits, item/legendary availability and upgrades.
-- Enforce setting dependencies across gate slots, lanes, odds, payouts, camera
+- [u] Enforce setting dependencies across gate slots, lanes, odds, payouts, camera
   framing, race logic and UI; reject invalid combinations.
-- Preserve the existing Single Player setup bounds while adding usable sandbox
+- [u] Preserve the existing Single Player setup bounds while adding usable sandbox
   support for the configured systems above. Solo has no player leaderboard or
   simulated player opponents.
-- Recheck phone/setup bounds at 150% UI scale on a narrow display.
+- [u] Recheck phone/setup bounds at 150% UI scale on a narrow display.
 
 
 4. Items, concessions, auctions and inventory
 ----------------------------------------------
 
-- Integrate the ten active item assets with their final effects, physics,
+- [u] Integrate the ten active item assets with their final effects, physics,
   quantities, shops and network state. Review first-person grips for every item.
-- Golden Hotdog and Golden Carrot belong to the legendary economy, not normal
+- [u] Golden Hotdog and Golden Carrot belong to the legendary economy, not normal
   concessions. Design the legendary shop and its availability/economy.
-- Implement the Concessions app Auction tab: three listings, image/name/category
+- [u] Implement the Concessions app Auction tab: three listings, image/name/category
   /description, starting/current bid, bidder, 15-second timer and atomic winner
   settlement.
-- Finish collision, bounce and placement tuning for the standardized item
+- [u] Finish collision, bounce and placement tuning for the standardized item
   effects, and balance each effect's independent strength under multiplayer
   latency. The six effect types and three-effect maximum are implemented.
-- Keep the ten-slot hotbar and automatic same-category replacement. Do not bring
+- [x] Keep the ten-slot hotbar and automatic same-category replacement. Do not bring
   back a hold-E wheel or an inventory phone app.
-- Model any remaining normal/legendary assets only when explicitly added back to
+- [u] Model any remaining normal/legendary assets only when explicitly added back to
   the active catalog.
 
 
 5. Phone apps and social systems
 --------------------------------
 
-- Finish a consistent, polished phone home screen, icons and unique app layouts.
-- Concessions must resemble a real food-ordering app and retain 12-second phone
+- [u] Finish a consistent, polished phone home screen, icons and unique app layouts.
+- [u] Concessions must resemble a real food-ordering app and retain 12-second phone
   delivery. Physical stands remain instant pickup with valid shared pricing.
-- Finish Betting with a distinct racing identity and WIN / PLACE / SHOW / EXACTA
+- [u] Finish Betting with a distinct racing identity and WIN / PLACE / SHOW / EXACTA
   / TRIFECTA flows, ticket previews, locked payouts and live status.
-- Finish Horse Stats: current field, all discovered horses, and Personal Horse
+- [u] Finish Horse Stats: current field, all discovered horses, and Personal Horse
   tabs with correct unavailable states.
-- Complete DerbyPay send/request money, send/request item and atomic trades with
+- [u] Complete DerbyPay send/request money, send/request item and atomic trades with
   explicit confirmation by both parties. Verify this with real clients.
-- Complete dynamic DerbyNews: leaders, odds, hits, stuns, overtakes, payouts,
+- [u] Complete dynamic DerbyNews: leaders, odds, hits, stuns, overtakes, payouts,
   sabotage, rare events, auctions and player-race news.
-- Complete the Sabotage app with costs, targets, risk, detection, active history
+- [u] Complete the Sabotage app with costs, targets, risk, detection, active history
   and result feedback. Supported options must remain legible and balanced.
-- Keep Messages input safe: typing must never trigger gameplay shortcuts.
+- [x] Keep Messages input safe: typing must never trigger gameplay shortcuts.
 
 
 6. Player character, cosmetics and personal horses
 ---------------------------------------------------
 
-- Finish review of the supplied-base player under real game lighting. Correct
+- [u] Finish review of the supplied-base player under real game lighting. Correct
   elbow/knee deformation, hands against held props, walking, phone and throwing
   animation without decimating or replacing the original separate pieces.
-- Confirm material matching with the user on their display. Review newly reported
+- [u] Confirm material matching with the user on their display. Review newly reported
   item-model mismatches as they arise.
-- Expand cosmetics: hats, shirts, pants, shoes, accessories, body colors, emotes
+- [u] Expand cosmetics: hats, shirts, pants, shoes, accessories, body colors, emotes
   and phone themes. Keep cosmetics separate from gameplay upgrades.
-- Implement host-authoritative personal horse ownership, archetype choice,
+- [u] Implement host-authoritative personal horse ownership, archetype choice,
   naming validation/filtering, cosmetics, entries, histories and race limits.
-- Build ten balanced archetypes: Sprinter, Tank, Endurance, Rocket, Smart,
+- [u] Build ten balanced archetypes: Sprinter, Tank, Endurance, Rocket, Smart,
   Agile, Power, Comeback, Balanced and Wildcard.
-- Give eligible player horses a small configurable max-speed advantage, make them
+- [u] Give eligible player horses a small configurable max-speed advantage, make them
   non-bettable by opponents, show clear PLAYER HORSE identity, and implement
   entry/odds/payout updates.
-- Implement player-controlled racing: accelerate, brake, steer and jump, plus
+- [u] Implement player-controlled racing: accelerate, brake, steer and jump, plus
   entry cost/payout. Non-racing players may still bet, throw, sabotage and emote;
   players are never attack targets.
 
@@ -153,14 +154,14 @@ Current design decisions that must remain
 7. Horses, odds and race simulation
 -----------------------------------
 
-- Finish horse/jockey geometry, final rig and speed-scaled animation. Continue
+- [u] Finish horse/jockey geometry, final rig and speed-scaled animation. Continue
   to preserve the improved articulated gait rather than changing the supplied
   horse shape arbitrarily.
-- Calibrate quoted opening chances against repeated simulated races; locked
+- [u] Calibrate quoted opening chances against repeated simulated races; locked
   ticket odds and payout must match actual settlement. Verify with two clients.
-- Preserve active-field-only odds, random field selection and separated strength
+- [x] Preserve active-field-only odds, random field selection and separated strength
   groups; never allow a six-horse all-5:1 book again.
-- Complete AI for momentum, lane changes, overtaking, avoidance of stopped horses,
+- [u] Complete AI for momentum, lane changes, overtaking, avoidance of stopped horses,
   effects, obstacles, stamina, cornering, intelligence and personality.
 - Keep 4–8 lane/gate layouts correct in every horse count and ensure camera
   framing, numbers, odds and payouts update with the field.
@@ -169,33 +170,33 @@ Current design decisions that must remain
 8. Arena, locations, sound and performance
 -------------------------------------------
 
-- Perform remaining arena reference polish: manually traverse every seat row,
+- [u] Perform remaining arena reference polish: manually traverse every seat row,
   stair approach, glass panel, booth approach and vendor interaction in-game.
   Seats must only be removed for true stair footprints, and no booth may clip
   exterior glass.
-- Continue stadium-life details that do not harm frame time: crowd, workers,
+- [u] Continue stadium-life details that do not harm frame time: crowd, workers,
   vendors, posters, flags, plants, signs, cameras and reserved seating.
-- Complete three location themes while retaining recognizable stadium structure:
+- [u] Complete three location themes while retaining recognizable stadium structure:
   Classic, Mountain and Desert. Use clean, layered horizons—not placeholder
   mountains—and give gameplay music a matching identity.
-- Profile the game on integrated graphics and on the powerful PC. Investigate the
+- [u] Profile the game on integrated graphics and on the powerful PC. Investigate the
   intermittent performanceOats fingerprint mismatch and full asset rebuild
   fingerprint failure before release.
-- Benchmark sustained 60-fps trailer capture on the powerful PC.
+- [u] Benchmark sustained 60-fps trailer capture on the powerful PC.
 
 
 9. Replay, highlights and presentation
 --------------------------------------
 
-- Profile DerbyNews GPU readback on integrated graphics and lower its preview
+- [u] Profile DerbyNews GPU readback on integrated graphics and lower its preview
   rate/size only if needed.
-- Synchronize replay cuts, captions and event selection from the host so all
+- [u] Synchronize replay cuts, captions and event selection from the host so all
   clients see the same highlight sequence.
-- Tune obstruction-aware camera selection and highlight selection during long,
+- [u] Tune obstruction-aware camera selection and highlight selection during long,
   busy races. Add a compact post-race highlight index once synchronization exists.
-- Keep live TV/news following the leader unless a nearby impactful event earns a
+- [x] Keep live TV/news following the leader unless a nearby impactful event earns a
   replay. Preserve the projectile-follow camera for strong hits.
-- Finish remaining lobby flow, accessibility, control-remapping and controller
+- [u] Finish remaining lobby flow, accessibility, control-remapping and controller
   focus/glyph validation. Verify platform-specific Quit behavior for Steam.
 
 
@@ -204,21 +205,21 @@ Current design decisions that must remain
 
 Before calling the game release-ready, complete and verify:
 
-- Two-client networking, reconnects, transactions, bets, payouts, player replay
+- [u] Two-client networking, reconnects, transactions, bets, payouts, player replay
   and host authority.
-- Full run loop, rewards/effects, progression, economy, auction and Championship.
-- Personal horses and player-controlled races.
-- Calibrated odds and finished horse/jockey assets/animation.
-- Final asset, phone, UI-scale, controller and accessibility reviews.
-- Arena traversal/polish, all three locations, audio pass and performance targets.
-- Extended replay/highlight test sessions and clean trailer capture.
+- [u] Full run loop, rewards/effects, progression, economy, auction and Championship.
+- [u] Personal horses and player-controlled races.
+- [u] Calibrated odds and finished horse/jockey assets/animation.
+- [u] Final asset, phone, UI-scale, controller and accessibility reviews.
+- [u] Arena traversal/polish, all three locations, audio pass and performance targets.
+- [u] Extended replay/highlight test sessions and clean trailer capture.
 
 
 Implementation rules
 --------------------
 
-- Keep tests updated when a system changes. Run the relevant focused tests and
+- [u] Keep tests updated when a system changes. Run the relevant focused tests and
   the full suite before marking a release gate complete.
-- Treat real two-client/manual visual testing as required where automated tests
+- [u] Treat real two-client/manual visual testing as required where automated tests
   cannot prove behavior.
-- Update FEATURE-CHECKLIST.md as tasks become complete or need further checks.
+- [u] Update FEATURE-CHECKLIST.md as tasks become complete or need further checks.

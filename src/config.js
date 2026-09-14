@@ -826,6 +826,43 @@ HD.CONFIG = {
   eyeHeight: 4.8,
 };
 
+// Oval coordinates are shared by stair geometry and movement.
+HD.StairLayout = {
+  pointAt(angle, progress, lateral = 0) {
+    const s = HD.CONFIG.stairs;
+    const rx = THREE.MathUtils.lerp(s.startX, s.endX, progress);
+    const rz = THREE.MathUtils.lerp(s.startZ, s.endZ, progress);
+    const tangent = Math.hypot(rx * Math.sin(angle), rz * Math.cos(angle));
+    const theta = angle + Math.asin(THREE.MathUtils.clamp(lateral / tangent, -1, 1));
+    return { x: rx * Math.cos(theta), z: rz * Math.sin(theta) };
+  },
+
+  locate(angle, x, z) {
+    const s = HD.CONFIG.stairs;
+    const radiusAt = progress => {
+      const rx = THREE.MathUtils.lerp(s.startX, s.endX, progress);
+      const rz = THREE.MathUtils.lerp(s.startZ, s.endZ, progress);
+      return (x / rx) ** 2 + (z / rz) ** 2;
+    };
+    if (radiusAt(0) < 1 - 1e-8 || radiusAt(1) > 1 + 1e-8) return null;
+    let low = 0, high = 1;
+    for (let i = 0; i < 24; i++) {
+      const middle = (low + high) / 2;
+      if (radiusAt(middle) > 1) low = middle;
+      else high = middle;
+    }
+    const progress = (low + high) / 2;
+    const rx = THREE.MathUtils.lerp(s.startX, s.endX, progress);
+    const rz = THREE.MathUtils.lerp(s.startZ, s.endZ, progress);
+    const theta = Math.atan2(z / rz, x / rx);
+    const difference = Math.atan2(Math.sin(theta - angle), Math.cos(theta - angle));
+    if (Math.abs(difference) > Math.PI / 4) return null;
+    const tangent = Math.hypot(rx * Math.sin(angle), rz * Math.cos(angle));
+    if (Math.abs(Math.sin(difference) * tangent) > s.width / 2) return null;
+    return { progress };
+  },
+};
+
 HD.HorseProfiles = (() => {
   const STORAGE_KEY = "hotdog-downs-horse-profiles-v1";
 

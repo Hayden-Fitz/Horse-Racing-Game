@@ -75,6 +75,19 @@ async function run() {
     realtime.close();
     await new Promise((resolve) => httpServer.close(resolve));
   }
+  const offline = loadBrowserClient(origin);
+  offline.setIdentity('offline-client');
+  try {
+    await assert.rejects(Promise.race([
+      offline.request('lobbies'),
+      new Promise((_, reject) => {
+        const timer = setTimeout(() => reject(new Error('Connection promise hung')), 1500);
+        timer.unref();
+      }),
+    ]), /Could not reach the multiplayer server/);
+  } finally {
+    offline.disconnect();
+  }
 }
 
 function loadBrowserClient(origin) {

@@ -37,6 +37,26 @@ async function run() {
   HD.world.scene = new THREE.Scene();
   HD.world.camera = new THREE.PerspectiveCamera();
   HD.Stadium.build(HD.world.scene);
+  assert.ok(HD.world.scene.background?.isTexture,
+    'The sky must use an unclipped background, not a finite sphere');
+  for (const staircase of HD.world.staircases) {
+    const data = staircase.userData.staircase;
+    assert.ok(staircase.getObjectByName('Oval-aligned solid stair treads'),
+      'Static batching must preserve the curved tread vertices');
+    staircase.updateWorldMatrix(true, true);
+    for (const segment of data.surfaceProfile) {
+      for (const lateral of [-3, 3]) {
+        const progress = (segment.start + segment.end) / 2;
+        const point = HD.StairLayout.pointAt(data.angle, progress, lateral);
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(point.x, 35, point.z), new THREE.Vector3(0, -1, 0),
+        );
+        const hit = ray.intersectObject(staircase, true)[0];
+        assert.ok(hit && Math.abs(hit.point.y - segment.height) < 0.08,
+          'Every curved tread must have an upward-facing surface at its collision height');
+      }
+    }
+  }
   const concessionDetails = { menus: 0, bins: 0 };
   let checkedBooths = 0;
   HD.world.scene.updateMatrixWorld(true);

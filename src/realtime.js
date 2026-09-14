@@ -131,7 +131,10 @@ HD.Realtime = (() => {
       nextSocket.addEventListener("error", () => {});
       nextSocket.addEventListener("close", () => {
         clearTimeout(timeout);
-        if (socket === nextSocket) socket = null;
+        reject(new Error("Could not reach the multiplayer server at " + httpBase + ". Start the game server or configure its hosted address."));
+        // A retired connection must never clear a newer connection's state.
+        if (socket !== nextSocket) return;
+        socket = null;
         connectPromise = null;
         failPending("The realtime connection was interrupted.");
         for (const subscription of subscriptions) {
@@ -185,6 +188,7 @@ HD.Realtime = (() => {
 
   function closeSocket(stop = true) {
     stopped = stop;
+    failPending("The multiplayer connection was closed.");
     clearTimeout(reconnectTimer);
     reconnectTimer = 0;
     socket?.close();

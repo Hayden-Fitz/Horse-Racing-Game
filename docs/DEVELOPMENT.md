@@ -18,7 +18,7 @@ Practice now has a dedicated setup screen for horse count (4–8), laps (1–8),
 starting bankroll ($100–$1,000), days (1–10), races per day (1–6), and four crowd frequencies. Rules update the
 starting field, odds, lane markings, finish threshold and crowd scheduler.
 Cancelled edits do not affect the game. Online entry restores online defaults;
-host-editable synchronized rules are not implemented yet.
+host-editable rules synchronize through the realtime lobby server.
 
 Run length is days multiplied by races per day. The HUD and final-race checks
 use that total. Existing day-two/day-three allowances remain; later days grant

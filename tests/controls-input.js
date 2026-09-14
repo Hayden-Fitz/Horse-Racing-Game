@@ -181,7 +181,49 @@ async function run() {
       'Stairs must not pull adjacent players sideways');
   }
   state.movement.forward = false;
-  console.log('Input lifecycle, stair-edge isolation, bottom-row falling, phone gravity and jump arc passed.');
+  // Exercise every aisle end-to-end and enter/leave each row from both sides.
+  function walkBetween(start, end, label) {
+    state.playerPosition.copy(start);
+    state.mode = 'look';
+    state.yaw = Math.atan2(start.x - end.x, start.z - end.z);
+    state.movement.forward = true;
+    for (let frame = 0; frame < 650; frame++) {
+      if (Math.hypot(state.playerPosition.x - end.x, state.playerPosition.z - end.z) < 0.16) break;
+      HD.Controls.update(1 / 120);
+    }
+    state.movement.forward = false;
+    assert.ok(Math.hypot(state.playerPosition.x - end.x, state.playerPosition.z - end.z) < 0.16,
+      label + ': player blocked at ' + state.playerPosition.toArray());
+    for (let frame = 0; frame < 120; frame++) HD.Controls.update(1 / 120);
+    assert.ok(Math.abs(state.playerPosition.y - end.y) < 0.12,
+      label + ': incorrect arrival floor ' + state.playerPosition.y);
+  }
+  for (let aisle = 0; aisle < 4; aisle++) {
+    const angle = aisle * Math.PI / 2;
+    const low = HD.StairLayout.pointAt(angle, 0);
+    const high = HD.StairLayout.pointAt(angle, 1);
+    const outward = new THREE.Vector3(high.x - low.x, 0, high.z - low.z).normalize();
+    const start = new THREE.Vector3(low.x, 1.65 + HD.CONFIG.eyeHeight, low.z)
+      .addScaledVector(outward, -0.5);
+    const end = new THREE.Vector3(high.x, 13.5 + HD.CONFIG.eyeHeight, high.z)
+      .addScaledVector(outward, 0.65);
+    walkBetween(start, end, 'Climb aisle ' + aisle);
+    walkBetween(end, start, 'Descend aisle ' + aisle);
+    for (let row = 0; row < 7; row++) {
+      const center = new THREE.Vector3(
+        Math.cos(angle) * (82.1 + row * 3.25),
+        HD.CONFIG.grandstandBaseHeight + row * 1.5 + HD.CONFIG.eyeHeight,
+        Math.sin(angle) * (51.85 + row * 2.75),
+      );
+      const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
+      for (const side of [-1, 1]) {
+        const seat = center.clone().addScaledVector(tangent, side * 5.3);
+        walkBetween(seat, center, 'Enter row ' + row + ' aisle ' + aisle);
+        walkBetween(center, seat, 'Leave row ' + row + ' aisle ' + aisle);
+      }
+    }
+  }
+  console.log('All four stair routes, row crossings, input lifecycle, falling and jumping passed.');
 }
 
 run().catch((error) => {

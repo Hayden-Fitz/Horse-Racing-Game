@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 
 const port = process.argv[2] || '9355';
+const gamePort = process.argv[3] || '8080';
 const endpoint = `http://127.0.0.1:${port}`;
 const page = await fetch(`${endpoint}/json/new?about:blank`, { method: 'PUT' }).then(r => r.json());
 const socket = new WebSocket(page.webSocketDebuggerUrl);
@@ -38,7 +39,7 @@ try {
   await call('Network.enable');
   await call('Network.setCacheDisabled', { cacheDisabled: true });
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
-  await call('Page.navigate', { url: 'http://127.0.0.1:8080/index.html' });
+  await call('Page.navigate', { url: `http://127.0.0.1:${gamePort}/index.html` });
   let ready = false;
   for (let attempt = 0; attempt < 120; attempt++) {
     ready = await evaluate('Boolean(window.HD?.world?.renderer && HD.state.horses.length)');

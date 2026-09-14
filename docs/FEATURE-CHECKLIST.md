@@ -6,6 +6,31 @@ requirements work together. This avoids calling a partially built feature done.
 
 ## Completed migration tasks
 
+### Curved bowl stairs and unclipped sky
+
+- [x] Replace the finite sky sphere with an unclipped scene background so the
+  center circle/desaturated exterior artifact cannot appear.
+- [x] Curve all four public stair tread meshes with the oval bowl and use the
+  same shared footprint for rendering, walking height, and collision.
+- [x] Preserve seats immediately beside every aisle, keep the centered railing
+  collision-free, and extend each rail post down to its actual tread.
+- [x] Fix the stair-to-concourse transition and verify climbs, descents, and
+  entry/exit from both sides of all seven rows on all four staircases.
+- [x] Prevent static arena batching from replacing curved stairs with plain boxes.
+- Checks: focused controls and stadium tests pass; the Chrome arena review reports
+  no blocked movement routes or runtime errors.
+
+### Multiplayer server repair
+
+- [x] Fix failed WebSocket connection promises so an unavailable server produces
+  an actionable error instead of leaving lobby creation stuck indefinitely.
+- [x] Make the Windows launcher test the realtime health endpoint before deciding
+  that the correct local server is already running.
+- [x] Verify the local Node server, browser adapter, lobby permissions, atomic
+  seats/transfers, subscriptions, privacy, and reconnect behavior.
+- [ ] Deploy the prepared Durable Object server and complete a two-device hosted
+  playtest. Cloudflare authentication and the public server URL remain required.
+
 ### Stair footprint and vendor alignment
 
 - [x] Restrict stair support to the visible tread footprint; remove invisible

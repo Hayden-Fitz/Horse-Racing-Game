@@ -9,7 +9,7 @@ if not exist "%NODE_EXE%" (
   exit /b 1
 )
 
-curl.exe --silent --fail http://127.0.0.1:8080/ >nul 2>nul
+curl.exe --silent --fail http://127.0.0.1:8080/api/health >nul 2>nul
 if not errorlevel 1 (
   echo The local game page is already running.
   start "" "http://localhost:8080"

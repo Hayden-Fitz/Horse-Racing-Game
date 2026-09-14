@@ -2953,16 +2953,11 @@ HD.Stadium = (() => {
     context.fillStyle = gradient;
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    const sky = new THREE.Mesh(
-      new THREE.SphereGeometry(1200, 32, 16),
-      new THREE.MeshBasicMaterial({
-        map: new THREE.CanvasTexture(canvas),
-        side: THREE.BackSide,
-        fog: false,
-      }),
-    );
-    sky.rotation.z = 0;
-    scene.add(sky);
+    // An infinite background cannot be clipped into a circle by the camera.
+    const skyTexture = new THREE.CanvasTexture(canvas);
+    skyTexture.colorSpace = THREE.SRGBColorSpace;
+    skyTexture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.background = skyTexture;
 
     createClouds(scene);
   }
@@ -3376,49 +3371,50 @@ HD.Stadium = (() => {
     scene.add(root);
     HD.world.staircases.push(root);
 
-    const lightSteps = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      HD.util.material(0xa7adae),
-      Math.ceil(stepCount / 2),
-    );
-    const darkSteps = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      HD.util.material(0xa7adae),
-      Math.floor(stepCount / 2),
-    );
-    const dummy = new THREE.Object3D();
-    let lightIndex = 0;
-    let darkIndex = 0;
-
-    for (let step = 0; step < stepCount; step++) {
-      const segment = segments[step];
-      const startProgress = segment.start;
-      const progress = segment.end;
-      const distance = (startProgress + progress) * 0.5 * pathLength;
-      const stepDepth = (progress - startProgress) * pathLength + 0.12;
-      const topInset = STAIR_SURFACE_INSET * THREE.MathUtils.smoothstep(
-        progress,
-        0.62,
-        1,
+    const treadPositions = [];
+    const treadNormals = [];
+    for (const segment of segments) {
+      const inset = STAIR_SURFACE_INSET * THREE.MathUtils.smoothstep(
+        segment.end, 0.62, 1,
       );
-      const top = segment.height - topInset;
+      const top = segment.height - inset;
       const foundation = 1.25;
       const height = top - foundation;
-      const centerY = foundation + height / 2;
-      const batch = step % 2 ? darkSteps : lightSteps;
-      const index = step % 2 ? darkIndex++ : lightIndex++;
-      dummy.position.set(0, centerY, distance);
-      dummy.scale.set(stairs.width, height, stepDepth);
-      dummy.updateMatrix();
-      batch.setMatrixAt(index, dummy.matrix);
+      const geometry = new THREE.BoxGeometry(
+        stairs.width + 0.12, height, 1, 8, 1, 1,
+      );
+      const positions = geometry.attributes.position;
+      for (let vertex = 0; vertex < positions.count; vertex++) {
+        const progress = THREE.MathUtils.lerp(
+          segment.start, segment.end, positions.getZ(vertex) + 0.5,
+        );
+        // Local +X points clockwise around the oval; preserve vertex winding.
+        const point = HD.StairLayout.pointAt(angle, progress, -positions.getX(vertex));
+        const dx = point.x - start.x;
+        const dz = point.z - start.z;
+        positions.setXYZ(
+          vertex,
+          dx * Math.cos(root.rotation.y) - dz * Math.sin(root.rotation.y),
+          foundation + height / 2 + positions.getY(vertex),
+          dx * Math.sin(root.rotation.y) + dz * Math.cos(root.rotation.y),
+        );
+      }
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      const flat = geometry.toNonIndexed();
+      treadPositions.push(...flat.attributes.position.array);
+      treadNormals.push(...flat.attributes.normal.array);
+      flat.dispose();
+      geometry.dispose();
     }
-
-    [lightSteps, darkSteps].forEach((batch) => {
-      batch.castShadow = false;
-      batch.receiveShadow = true;
-      batch.instanceMatrix.needsUpdate = true;
-      root.add(batch);
-    });
+    const treadGeometry = new THREE.BufferGeometry();
+    treadGeometry.setAttribute('position', new THREE.Float32BufferAttribute(treadPositions, 3));
+    treadGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(treadNormals, 3));
+    treadGeometry.computeBoundingSphere();
+    const tread = new THREE.Mesh(treadGeometry, HD.util.material(0xa7adae));
+    tread.name = 'Oval-aligned solid stair treads';
+    tread.receiveShadow = true;
+    root.add(tread);
 
     box(
       [stairs.width, 0.28, 0.72],
@@ -3438,13 +3434,15 @@ HD.Stadium = (() => {
     for (let index = 0; index < postCount; index++) {
       const progress = index / (postCount - 1);
       const height = THREE.MathUtils.lerp(bottom, top, progress);
+      const treadHeight = segments.find(segment => progress <= segment.end + 0.0001)?.height ?? top;
+      const postHeight = height + railHeight - treadHeight + 0.06;
       const post = cylinder(
         0.1,
         0.1,
-        railHeight,
+        postHeight,
         ARENA_COLORS.railing,
         root,
-        [0, height + railHeight / 2, span * progress],
+        [0, treadHeight - 0.06 + postHeight / 2, span * progress],
         7,
       );
       post.name = 'Visual-only center stair handrail post';

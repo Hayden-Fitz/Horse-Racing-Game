@@ -498,6 +498,7 @@ HD.Controls = (() => {
     if (staircaseProgress(x, z) !== null) {
       return "stairs";
     }
+    if (onUpperConcourseSurface(x, z)) return 'upper-concourse';
     const row = grandstandRowAt(x, z);
     if (row !== null) return `row-${row}`;
 
@@ -527,6 +528,7 @@ HD.Controls = (() => {
       x, z, S.playerPosition.y - HD.CONFIG.eyeHeight, walkInput,
     );
     if (upper) return upper.y + HD.CONFIG.eyeHeight;
+    if (onUpperConcourseSurface(x, z)) return 13.5 + HD.CONFIG.eyeHeight;
     const grandstandRow = grandstandRowAt(x, z);
     if (grandstandRow !== null) {
       return HD.CONFIG.grandstandBaseHeight +
@@ -602,43 +604,15 @@ HD.Controls = (() => {
   }
 
   function stairCollisionSnap(x, z) {
-    const stairs = HD.CONFIG.stairs;
     for (const angle of stairAngles) {
-      const startX = Math.cos(angle) * stairs.startX;
-      const startZ = Math.sin(angle) * stairs.startZ;
-      const deltaX = Math.cos(angle) * stairs.endX - startX;
-      const deltaZ = Math.sin(angle) * stairs.endZ - startZ;
-      const lengthSquared = deltaX * deltaX + deltaZ * deltaZ;
-      const offsetX = x - startX;
-      const offsetZ = z - startZ;
-      const progress = (offsetX * deltaX + offsetZ * deltaZ) / lengthSquared;
-      const pathLength = Math.sqrt(lengthSquared);
-      const sideX = -deltaZ / pathLength;
-      const sideZ = deltaX / pathLength;
-      const lateral = offsetX * sideX + offsetZ * sideZ;
-      const perpendicular = Math.abs(lateral);
-
-      if (
-        // Only actual tread area supports the player; adjacent seats are rows,
-        // not an invisible extension of the staircase.
-        perpendicular <= stairs.width / 2 &&
-        progress >= 0 &&
-        progress <= 1
-      ) {
-        const clampedProgress = THREE.MathUtils.clamp(progress, 0, 1);
-        const expectedFloor = stairHeightForProgress(clampedProgress, angle);
-        const currentFloor = S.playerPosition.y - HD.CONFIG.eyeHeight;
-        if (Math.abs(expectedFloor - currentFloor) <= 1.25) {
-          return {
-            progress: clampedProgress,
-            height: expectedFloor,
-            x,
-            z,
-          };
-        }
+      const hit = HD.StairLayout.locate(angle, x, z);
+      if (!hit) continue;
+      const expectedFloor = stairHeightForProgress(hit.progress, angle);
+      const currentFloor = S.playerPosition.y - HD.CONFIG.eyeHeight;
+      if (Math.abs(expectedFloor - currentFloor) <= 1.25) {
+        return { progress: hit.progress, height: expectedFloor, x, z };
       }
     }
-
     return null;
   }
 
