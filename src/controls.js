@@ -844,11 +844,18 @@ HD.Controls = (() => {
     HD.UI.menu(false);
     if (!S.matchStarted) {
       S.matchStarted = true;
-      canvas.requestPointerLock?.();
+      safelyRequestPointerLock();
       HD.UI.showDay(1, () => {});
       return;
     }
-    canvas.requestPointerLock?.();
+    safelyRequestPointerLock();
+  }
+
+  function safelyRequestPointerLock() {
+    try {
+      const request = canvas?.requestPointerLock?.();
+      request?.catch?.(() => {});
+    } catch {}
   }
 
   function updateGamepad(dt) {

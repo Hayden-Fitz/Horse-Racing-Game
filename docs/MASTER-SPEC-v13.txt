@@ -41,8 +41,9 @@ Current design decisions that must remain
 
 - [u] Deploy and verify the new WebSocket transport on the selected Cloudflare
   Durable Objects free tier. Local Node transport, browser adapter, Cloudflare
-  target, atomic seats, permissions, privacy and reconnect tests are complete;
-  the hosted endpoint and two-device cloud playtest remain open.
+  target, hosted endpoint, atomic seats, permissions, privacy, reconnect tests,
+  and a two-browser hosted synchronization test are complete. Claiming the
+  preview account and a physical two-device cloud playtest remain open.
 - [u] Make the host authoritative for lobby membership, rules, race state, money,
   items, bets, trades, sabotage, results, replay events and game settings.
 - [x] Synchronize host-owned lobby rules and display them live for every client.

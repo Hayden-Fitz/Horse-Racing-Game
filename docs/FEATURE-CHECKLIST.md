@@ -28,8 +28,14 @@ requirements work together. This avoids calling a partially built feature done.
   that the correct local server is already running.
 - [x] Verify the local Node server, browser adapter, lobby permissions, atomic
   seats/transfers, subscriptions, privacy, and reconnect behavior.
-- [ ] Deploy the prepared Durable Object server and complete a two-device hosted
-  playtest. Cloudflare authentication and the public server URL remain required.
+- [x] Verify two isolated live browser clients can create/join one lobby, identify
+  the host, synchronize host rules and race timing, start together, and replicate
+  avatar movement, held-phone state, and group chat in real time.
+- [x] Deploy the Durable Object server, connect the browser game to its public
+  URL, verify its health endpoint, and pass the two-browser hosted synchronization
+  test through Cloudflare.
+- [ ] Claim the temporary Cloudflare account and complete a physical two-device
+  cloud playtest on separate networks.
 
 ### Stair footprint and vendor alignment
 

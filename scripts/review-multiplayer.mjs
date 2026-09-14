@@ -11,7 +11,14 @@ const errors = [];
 let sequence = 0;
 socket.addEventListener('message', ({ data }) => {
   const message = JSON.parse(data);
-  if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.text);
+  if (message.method === 'Runtime.exceptionThrown') {
+    const detail = message.params.exceptionDetails;
+    errors.push({
+      text: detail.exception?.description || detail.text,
+      url: detail.url,
+      line: detail.lineNumber,
+    });
+  }
   const request = pending.get(message.id);
   if (!request) return;
   pending.delete(message.id);
@@ -39,7 +46,13 @@ async function wait(session, expression) {
     if (await evaluate(session, expression)) return;
     await new Promise(resolve => setTimeout(resolve, 200));
   }
-  throw new Error('Timed out: ' + expression);
+  const diagnostics = await evaluate(session, `({
+    message: document.querySelector('#lobby-message')?.textContent,
+    status: document.querySelector('#network-status')?.textContent,
+    room: document.querySelector('#lobby-room-code')?.textContent,
+    announcement: document.querySelector('#announcement')?.textContent,
+  })`);
+  throw new Error('Timed out: ' + expression + ' ' + JSON.stringify(diagnostics));
 }
 async function page(name) {
   const { browserContextId } = await call('Target.createBrowserContext');
@@ -57,13 +70,13 @@ try {
   const guest = await page('Review Guest');
   await evaluate(host, "document.querySelector('#lobby-create').click()");
   await wait(host, "HD.Network.isConnected()");
-  const code = await evaluate(host, "document.querySelector('#lobby-room-code').textContent");
+  const code = await evaluate(host, "document.querySelector('#lobby-room-code').textContent.match(/[A-HJ-NP-Z2-9]{6}$/)?.[0]");
   await evaluate(guest, `document.querySelector('#lobby-code').value = ${JSON.stringify(code)}; document.querySelector('#lobby-join').click()`);
   await wait(guest, 'HD.Network.isConnected()');
   await wait(host, 'HD.Network.rankingPlayers().length === 2');
   assert.equal(await evaluate(host, 'HD.Network.isHost()'), true);
   assert.equal(await evaluate(guest, 'HD.Network.isHost()'), false);
-  await evaluate(host, "HD.Network.updateMatchRules({ ...HD.MatchSetup.defaults, horseCount: 4, startingMoney: 700 })");
+  await evaluate(host, "HD.Network.updateMatchRules({ ...HD.MatchSetup.defaults, horses: 4, startingMoney: 700 })");
   await wait(guest, 'HD.CONFIG.raceHorseCount === 4 && HD.state.money === 700');
   await evaluate(host, "document.querySelector('#lobby-ready').click()");
   await evaluate(guest, "document.querySelector('#lobby-ready').click()");

@@ -37,6 +37,13 @@ idle compute usage by the number of lobbies.
 6. Test from two different devices/networks before removing the legacy Firebase
    configuration files.
 
+Current preview server:
+https://hotdog-downs-realtime.calm-snowstorm.workers.dev
+
+This preview must be claimed within Cloudflare's displayed claim window to keep
+control of it. After claiming, redeploy from the same Cloudflare account and
+update `src/realtime-config.js` if Cloudflare assigns a different address.
+
 The current free allowance is not unlimited. As of September 2026, Cloudflare
 documents 100,000 Durable Object requests and 13,000 GB-s per day on Workers
 Free. Incoming WebSocket messages are billed at a 20:1 ratio, while outgoing
