@@ -34,7 +34,52 @@ async function run() {
   };
   require("../src/race.js");
 
+  assert.equal(HD.CONFIG.horses.length, 48, "The normal roster must contain 48 horses");
+  for (const profile of HD.CONFIG.horses) {
+    assert.ok(profile.personality && profile.rarity && profile.appearance);
+    assert.equal(profile.discovered, true);
+    assert.deepEqual(Object.keys(profile.history), ["starts", "wins", "podiums", "bestTime"]);
+  }
+
   HD.Race.resetHorses();
+  const boostedHorse = HD.state.horses[0];
+  const boostTarget = boostedHorse.position.clone();
+  boostTarget.y += 2.2;
+  HD.Race.launch(
+    "goldenCarrot",
+    boostTarget,
+    new THREE.Vector3(),
+    { consume: false },
+  );
+  HD.Race.updateProjectiles(0.01);
+  assert.ok(boostedHorse.userData.data.maxSpeedBonus > 0);
+  assert.ok(boostedHorse.userData.data.boost > 0);
+  assert.ok(boostedHorse.userData.data.resistance > 0);
+  assert.ok(boostedHorse.userData.data.intelligenceBoost > 0);
+  HD.state.projectiles.forEach((projectile) => {
+    HD.world.scene.remove(projectile.mesh);
+  });
+  HD.state.projectiles = [];
+  Object.assign(boostedHorse.userData.data, {
+    maxSpeedBonus: 0,
+    boost: 0,
+    resistance: 0,
+    intelligenceBoost: 0,
+  });
+  HD.state.horseSpeedBonuses = {};
+  const personalitySignatures = new Set(HD.state.horses.map((horse) => {
+    const data = horse.userData.data;
+    return [
+      data.startResponse,
+      data.recoveryRate,
+      data.laneCuriosity,
+      data.passingDrive,
+    ].join(":");
+  }));
+  assert.ok(
+    personalitySignatures.size >= 3,
+    "Active horse personalities must produce distinct movement traits",
+  );
   const identities = new Map(HD.CONFIG.horses.map((horse) => [horse.id, horse.number]));
   assert.equal(new Set(identities.values()).size, identities.size, "Horse numbers must be unique");
   for (const horse of HD.CONFIG.horses) {
@@ -349,7 +394,9 @@ async function run() {
   );
   // Put the whole field just before the selected finish threshold.
   HD.state.horses.forEach((horse) => { horse.userData.data.progress = 0.99999; });
-  for (let frame = 0; frame < 20; frame++) HD.Race.update(0.04);
+  // Give traffic-aware runners enough time to fan out rather than requiring
+  // the final horse to overlap a runner who has already crossed the line.
+  for (let frame = 0; frame < 50; frame++) HD.Race.update(0.04);
   assert.equal(HD.state.finishOrder.length, 6, "A one-lap field must finish after lap one");
   HD.Race.restart(); // Also cancels the completed race's delayed next-race callback.
   assert.equal(HD.state.race, 1);

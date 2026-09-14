@@ -34,6 +34,10 @@ HD.Race = (() => {
     const field = S.activeHorseIds.map((horseId) => {
       return C.horses.find((horse) => horse.id === horseId);
     });
+    field.forEach((horse) => {
+      if (horse) horse.discovered = true;
+    });
+    HD.HorseProfiles?.save();
     S.horses = field.map(HD.Models.horse);
     const openingChances = HD.openingHorseChances(field);
     S.horses.forEach((horse, index) => {
@@ -128,7 +132,10 @@ HD.Race = (() => {
       const data = horse.userData.data;
       data.progress = 0;
       data.staging = false;
+      const profile = C.horses.find((entry) => entry.id === data.id);
+      if (profile?.history) profile.history.starts++;
     });
+    HD.HorseProfiles?.save();
     const sabotageReport = resolveSabotage();
     const bettingNotice =
       "Live betting remains open until the leader completes lap one.";
@@ -254,10 +261,12 @@ HD.Race = (() => {
         d.coastSpeed = Math.max(d.baseSpeed * 0.35, (d.coastSpeed || d.baseSpeed) * (1 - dt * 0.22));
         return;
       }
-      d.slow = Math.max(0, d.slow - dt);
-      d.ragdoll = Math.max(0, (d.ragdoll || 0) - dt);
+      const recoveryRate = d.recoveryRate || 1;
+      d.slow = Math.max(0, d.slow - dt * recoveryRate);
+      d.ragdoll = Math.max(0, (d.ragdoll || 0) - dt * recoveryRate);
       d.boost = Math.max(0, (d.boost || 0) - dt);
       d.resistance = Math.max(0, (d.resistance || 0) - dt);
+      d.intelligenceBoost = Math.max(0, (d.intelligenceBoost || 0) - dt);
       d.weave = Math.max(0, (d.weave || 0) - dt);
       d.panic = Math.max(0, (d.panic || 0) - dt);
       if (S.raceTime < d.startDelay) {
@@ -267,7 +276,8 @@ HD.Race = (() => {
         return;
       }
       const raceFraction = THREE.MathUtils.clamp(d.progress / C.raceLaps, 0, 1);
-      const gateAcceleration = 0.72 + Math.min(1, S.raceTime / 3.5) * 0.28;
+      const gateAcceleration =
+        0.72 + Math.min(1, S.raceTime / (3.5 / (d.startResponse || 1))) * 0.28;
       const earlyPace = raceFraction < 0.3 ? d.earlyPace : 1;
       const lateRace = THREE.MathUtils.smoothstep(raceFraction, 0.65, 1);
       const fatiguePenalty = 0.055 - (d.stamina - 1) * 0.35;
@@ -305,7 +315,8 @@ HD.Race = (() => {
         Math.min(1, dt * (accelerating ? 1.8 : 2.8)),
       );
       if (S.raceTime > 2.5) {
-        const laneChangeRate = d.passing ? 0.9 : 0.32;
+        const laneChangeRate =
+          (d.passing ? 0.9 : 0.32) * (d.passingDrive || 1);
         d.lane += (d.targetLane - d.lane) * Math.min(1, dt * laneChangeRate);
       }
       if (d.weave > 0 && Math.sin(S.raceTime * 5 + i) > 0.94) {
@@ -392,7 +403,9 @@ HD.Race = (() => {
         }
         if (data.laneDecisionTime <= 0) {
           chooseRandomLane(horse, runners);
-          data.laneDecisionTime = 2.2 + Math.random() * 3.2;
+          data.laneDecisionTime =
+            (2.2 + Math.random() * 3.2) /
+            ((data.laneCuriosity || 1) * intelligenceDecisionRate(data));
         }
         return;
       }
@@ -425,7 +438,10 @@ HD.Race = (() => {
       if (data.motionSpeed + 0.001 < previousSpeed) data.blockedTime += dt;
       else data.blockedTime = Math.max(0, data.blockedTime - dt * 0.5);
 
-      if (data.blockedTime > 0.35) choosePassingLane(horse, runners);
+      if (data.blockedTime >
+          0.35 / ((data.passingDrive || 1) * intelligenceDecisionRate(data))) {
+        choosePassingLane(horse, runners);
+      }
     });
 
     enforceHorseSeparation(runners);
@@ -565,6 +581,16 @@ HD.Race = (() => {
     }, 0);
   }
 
+  function intelligenceDecisionRate(data) {
+    const rating = THREE.MathUtils.clamp(
+      Number(data.intelligenceRating) || 75,
+      35,
+      100,
+    );
+    const natural = 0.9 + rating / 750;
+    return data.intelligenceBoost > 0 ? natural * 1.55 : natural;
+  }
+
   function finish() {
     S.phase = "finished";
     S.horseFieldRacesRemaining = Math.max(
@@ -573,6 +599,7 @@ HD.Race = (() => {
     );
     const winner = S.finishOrder[0];
     const winnerData = S.horses[winner].userData.data;
+    recordHorseResults();
     HD.AI?.settleRace?.(winner);
     const payout = ticketPayout(winner);
     if (payout) {
@@ -593,6 +620,22 @@ HD.Race = (() => {
       nextRaceTimeout = null;
       next();
     }, 4300);
+  }
+
+  function recordHorseResults() {
+    S.finishOrder.forEach((horseIndex, placeIndex) => {
+      const data = S.horses[horseIndex]?.userData.data;
+      const profile = C.horses.find((entry) => entry.id === data?.id);
+      if (!profile?.history) return;
+      if (placeIndex === 0) profile.history.wins++;
+      if (placeIndex < 3) profile.history.podiums++;
+      const time = Number(data.finishTime);
+      if (Number.isFinite(time) &&
+          (!Number.isFinite(profile.history.bestTime) || time < profile.history.bestTime)) {
+        profile.history.bestTime = time;
+      }
+    });
+    HD.HorseProfiles?.save();
   }
   function next() {
     if (HD.Network?.isConnected() && !HD.Network.isHost()) {
@@ -1175,7 +1218,6 @@ HD.Race = (() => {
       S.horseSpeedBonuses[data.id] = data.maxSpeedBonus;
       const percent = Math.round(data.maxSpeedBonus * 100);
       HD.UI.announce(`${data.name}'s maximum speed permanently rises to +${percent}%!`);
-      return;
     }
 
     if (item.forceLaneChange) {
@@ -1193,6 +1235,13 @@ HD.Race = (() => {
       data.resistance = item.resistanceDuration;
       data.momentum = Math.max(data.momentum, data.baseSpeed * 1.12);
       HD.UI.announce(`${data.name} gets a turbo boost and resistance!`);
+    }
+    if (item.intelligenceBoostDuration) {
+      data.intelligenceBoost = item.intelligenceBoostDuration;
+      data.laneDecisionTime = Math.min(data.laneDecisionTime, 0.35);
+    }
+    if (item.boostDuration && !item.slowDuration &&
+        !item.ragdollDuration && !item.knockbackStrength) {
       return;
     }
 
@@ -1224,6 +1273,13 @@ HD.Race = (() => {
     if (item.ragdollDuration) {
       data.ragdoll = item.ragdollDuration * resistance;
       data.momentum *= 0.28 + (1 - resistance) * 0.35;
+    }
+    if (item.knockbackStrength) {
+      data.progress = Math.max(
+        0,
+        data.progress - item.knockbackStrength * 0.004 * resistance,
+      );
+      data.momentum *= Math.max(0.45, 1 - item.knockbackStrength * 0.16);
     }
 
     const outcome = resistance < 1
@@ -1269,6 +1325,7 @@ HD.Race = (() => {
           ragdoll: data.ragdoll,
           boost: data.boost,
           resistance: data.resistance,
+          intelligenceBoost: data.intelligenceBoost,
           weave: data.weave,
           panic: data.panic,
           sabotagePenalty: data.sabotagePenalty,
@@ -1354,6 +1411,7 @@ HD.Race = (() => {
         "ragdoll",
         "boost",
         "resistance",
+        "intelligenceBoost",
         "weave",
         "panic",
         "sabotagePenalty",

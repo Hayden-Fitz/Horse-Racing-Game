@@ -107,17 +107,29 @@ HD.Settings = (() => {
 
   function bindMenuButtons() {
     const panel = document.querySelector("#settings-panel");
+    const credits = document.querySelector("#credits-panel");
     const card = document.querySelector(".menu-card");
     document.querySelector("#menu-button").addEventListener("click", () => {
       HD.Controls.openMenu();
     });
     document.querySelector("#settings-open").addEventListener("click", () => {
+      credits.hidden = true;
       panel.hidden = false;
       card.classList.add("settings-active");
     });
     document.querySelector("#settings-close").addEventListener("click", () => {
       panel.hidden = true;
       card.classList.remove("settings-active");
+    });
+    document.querySelector("#credits-open").addEventListener("click", () => {
+      panel.hidden = true;
+      card.classList.remove("settings-active");
+      credits.hidden = false;
+      document.querySelector("#credits-close").focus();
+    });
+    document.querySelector("#credits-close").addEventListener("click", () => {
+      credits.hidden = true;
+      document.querySelector("#credits-open").focus();
     });
     document.querySelector("#exit-game").addEventListener("click", async () => {
       const leave = confirm("Quit this match and return to the lobby?");

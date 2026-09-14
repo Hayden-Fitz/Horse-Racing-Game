@@ -168,7 +168,20 @@ async function run() {
     'Jump height follows the analytic 28-unit gravity arc');
   for (let i = 0; i < 100; i++) HD.Controls.update(1 / 120);
   assert.ok(Math.abs(state.playerPosition.y - baseY) < 0.001);
-  console.log('Input lifecycle, bottom-row falling, phone gravity and jump arc passed.');
+  // Walking parallel to the stairs from a seat row must not climb invisible steps.
+  for (const lateral of [-5.2, 5.2]) {
+    state.playerPosition.set(88.6, HD.CONFIG.grandstandBaseHeight + 3 + HD.CONFIG.eyeHeight, lateral);
+    state.yaw = -Math.PI / 2;
+    state.movement.forward = true;
+    const rowHeight = state.playerPosition.y;
+    for (let i = 0; i < 60; i++) HD.Controls.update(1 / 60);
+    assert.ok(state.playerPosition.y <= rowHeight + 0.1,
+      'Walking beside the visible stair must not raise the player');
+    assert.ok(Math.abs(state.playerPosition.z - lateral) < 0.001,
+      'Stairs must not pull adjacent players sideways');
+  }
+  state.movement.forward = false;
+  console.log('Input lifecycle, stair-edge isolation, bottom-row falling, phone gravity and jump arc passed.');
 }
 
 run().catch((error) => {

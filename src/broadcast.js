@@ -36,6 +36,11 @@ HD.Broadcast = (() => {
   let newsReadbackFailures = 0;
   const lastEffects = new Map();
   const NEAR_LEADER_DISTANCE = 18;
+  const sightline = new THREE.Raycaster();
+  const sightDirection = new THREE.Vector3();
+  let cameraStation = null, previousStation = null;
+  let lastCameraCut = -Infinity, lastCameraCheck = -Infinity;
+  let blockedSince = null, cameraCuts = 0;
 
   function currentLeader() {
     return S.horses.reduce((leader, horse) =>
@@ -100,6 +105,9 @@ HD.Broadcast = (() => {
     sampleClock = renderClock = cooldown = 0;
     newsCopyAt = -Infinity;
     shot = -1;
+    cameraStation = previousStation = null;
+    lastCameraCut = lastCameraCheck = -Infinity;
+    blockedSince = null;
   }
 
   function remember(mesh, id = mesh.uuid) {
@@ -255,34 +263,80 @@ HD.Broadcast = (() => {
     projectileCamera.updateProjectionMatrix();
   }
 
+  function isObstructed(from, to) {
+    const obstacles = HD.world.broadcastOccluders || [];
+    if (!obstacles.length) return false;
+    sightDirection.copy(to).sub(from);
+    const distance = sightDirection.length();
+    if (distance < 0.5) return false;
+    sightline.set(from, sightDirection.divideScalar(distance));
+    sightline.near = 0.2;
+    sightline.far = Math.max(0.2, distance - 0.8);
+    return sightline.intersectObjects(obstacles, false).length > 0;
+  }
+
+  function stationPosition(station) {
+    const position = station.camera.position.clone();
+    position.add(station.target.clone().sub(position).setY(0).normalize().multiplyScalar(3.8));
+    position.y += 0.6;
+    if (position.distanceTo(focus) < 24) position.y = Math.max(position.y, focus.y + 24);
+    return position;
+  }
+
   function chooseCamera(subject, dt) {
     focus.copy(subject.position).add(new THREE.Vector3(0, 3.2, 0));
+    subjectId = subject.uuid;
     const stations = HD.world.broadcastCameras || [];
     if (!stations.length) return;
-    const nextShot = Math.floor(time / 5);
-    if (shot !== nextShot || subjectId !== subject.uuid) {
-      const ranked = [...stations].sort((a, b) =>
-        a.camera.position.distanceToSquared(focus) - b.camera.position.distanceToSquared(focus));
-      const station = ranked[nextShot % Math.min(3, ranked.length)];
-      desired.copy(station.camera.position);
-      // Crew geometry is part of the static stadium batch. Put the viewpoint
-      // beyond its lens housing rather than rendering from inside that mesh.
-      desired.add(station.target.clone().sub(station.camera.position)
-        .setY(0).normalize().multiplyScalar(3.8));
-      desired.y += 0.6;
-      shot = nextShot;
-      if (!subjectId) camera.position.copy(desired);
-      subjectId = subject.uuid;
+    // Changing the leading horse changes the target, not automatically the shot.
+    if (!cameraStation || time - lastCameraCheck >= 0.25) {
+      lastCameraCheck = time;
+      const blocked = cameraStation && isObstructed(camera.position, focus);
+      if (blocked) blockedSince ??= time;
+      else blockedSince = null;
+      const held = time - lastCameraCut;
+      const obstructedLongEnough = blockedSince !== null && time - blockedSince >= 0.35;
+      const shouldReview = !cameraStation ||
+        (obstructedLongEnough && held >= 1.2) || held >= 7;
+      if (shouldReview) {
+        const ranked = stations.map(station => {
+          const position = stationPosition(station);
+          return { id: station.id, position, score: position.distanceTo(focus),
+            clear: !isObstructed(position, focus) };
+        }).filter(candidate => candidate.clear &&
+          (!obstructedLongEnough || candidate.id !== cameraStation) &&
+          (candidate.id !== previousStation || held >= 8));
+        ranked.sort((a, b) => a.score - b.score);
+        const best = ranked[0];
+        const currentScore = camera.position.distanceTo(focus);
+        if (best && best.id !== cameraStation &&
+            (!cameraStation || obstructedLongEnough || best.score < currentScore * 0.75)) {
+          previousStation = cameraStation;
+          cameraStation = best.id;
+          desired.copy(best.position);
+          // Cut cleanly between stations; never sweep through scenery.
+          camera.position.copy(desired);
+          lastCameraCut = time;
+          blockedSince = null;
+          cameraCuts++;
+        } else if (!best && (!cameraStation || obstructedLongEnough)) {
+          // Safe in-track aerial fallback if every fixed camera is obstructed.
+          for (const offset of [[12, 30, 10], [-12, 36, -10], [0, 48, 0]]) {
+            const position = focus.clone().add(new THREE.Vector3(...offset));
+            if (isObstructed(position, focus)) continue;
+            previousStation = cameraStation;
+            cameraStation = "clear-aerial";
+            camera.position.copy(position);
+            lastCameraCut = time;
+            blockedSince = null;
+            cameraCuts++;
+            break;
+          }
+        }
+      }
     }
-    const framingPosition = desired.clone();
-    if (framingPosition.distanceTo(focus) < 24) {
-      framingPosition.y = Math.max(framingPosition.y, focus.y + 24);
-    }
-    camera.position.lerp(framingPosition, 1 - Math.exp(-dt * 3));
-    if (camera.position.distanceTo(focus) < 14) camera.position.y = focus.y + 24;
     camera.lookAt(focus);
-    const distance = camera.position.distanceTo(focus);
-    // Maintain a readable horse-sized frame while showing nearby overtakes.
+    const distance = Math.max(1, camera.position.distanceTo(focus));
     const fov = THREE.MathUtils.clamp(
       THREE.MathUtils.radToDeg(2 * Math.atan((replay ? 10 : 15) / distance)), 20, 65,
     );
@@ -431,10 +485,16 @@ HD.Broadcast = (() => {
       if (replay) {
         const replayFrame = frameReplay();
         subject = replayFrame.horse;
-        if (subject && replayFrame.projectile?.visible) {
+        if (replay.chaseStarted && !replayFrame.projectile?.visible) replay.chaseComplete = true;
+        if (subject && replayFrame.projectile?.visible &&
+            !replay.chaseBlocked && !replay.chaseComplete) {
           frameProjectileCamera(replayFrame.projectile, subject);
-          activeCamera = projectileCamera;
-          projectileChase = true;
+          replay.chaseBlocked = isObstructed(projectileCamera.position, replayFrame.projectile.position);
+          if (!replay.chaseBlocked) {
+            activeCamera = projectileCamera;
+            projectileChase = true;
+            replay.chaseStarted = true;
+          }
         }
         S.horses.forEach(hide);
         S.projectiles.forEach(p => hide(p.mesh));
@@ -471,6 +531,8 @@ HD.Broadcast = (() => {
       return { status, samples: history.length, doubles: doubles.size,
         pending: !!pending, replaying: !!replay, subjectId,
         projectileChase,
+        cameraStation, cameraCuts,
+        cameraObstructed: blockedSince !== null,
         newsPreviewFps: Math.min(60, Math.round(1 / smoothedFrameTime)),
         recordedPlayers: history.at(-1)?.players.length || 0,
         newsReadbackFailures,

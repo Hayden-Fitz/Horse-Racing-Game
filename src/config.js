@@ -48,8 +48,21 @@ function makeHorseProfile(profile) {
   return {
     ...profile,
     personality,
-    rarity: profile.rarity || "Common",
+    rarity: profile.rarity || (
+      number % 17 === 0 ? "Legendary" :
+      number % 5 === 0 ? "Rare" :
+      number % 3 === 0 ? "Uncommon" : "Common"
+    ),
     appearance: profile.appearance || "Classic race coat",
+    discovered: profile.discovered !== false,
+    history: {
+      starts: Math.max(0, Math.floor(profile.history?.starts || 0)),
+      wins: Math.max(0, Math.floor(profile.history?.wins || 0)),
+      podiums: Math.max(0, Math.floor(profile.history?.podiums || 0)),
+      bestTime: Number.isFinite(profile.history?.bestTime)
+        ? profile.history.bestTime
+        : null,
+    },
     maximumSpeed,
     defense,
     cornering,
@@ -462,6 +475,114 @@ HD.CONFIG = {
       resistance: 85,
       style: "Stalker",
     }),
+    makeHorseProfile({
+      id: "zephyr", number: 31, name: "Zephyr", color: 0x5aa9e6,
+      coat: 0x8c5a3c, odds: 5, speed: 90, stamina: 78,
+      acceleration: 94, resistance: 64, style: "Front Runner",
+      personality: "Fearless", appearance: "Bay coat with a white blaze",
+    }),
+    makeHorseProfile({
+      id: "marigold", number: 32, name: "Marigold", color: 0xffc857,
+      coat: 0xc48b45, odds: 8, speed: 82, stamina: 88,
+      acceleration: 77, resistance: 83, style: "Balanced",
+      personality: "Steady", appearance: "Golden chestnut coat",
+    }),
+    makeHorseProfile({
+      id: "renegade", number: 33, name: "Renegade", color: 0xe63946,
+      coat: 0x292321, odds: 4, speed: 93, stamina: 81,
+      acceleration: 91, resistance: 70, style: "Front Runner",
+      personality: "Aggressive", appearance: "Black coat with red tack",
+    }),
+    makeHorseProfile({
+      id: "calypso", number: 34, name: "Calypso", color: 0x00b4d8,
+      coat: 0xd8d2c4, odds: 10, speed: 79, stamina: 90,
+      acceleration: 74, resistance: 86, style: "Closer",
+      personality: "Comeback", appearance: "Dapple gray coat",
+    }),
+    makeHorseProfile({
+      id: "pegasus", number: 35, name: "Pegasus", color: 0x9b5de5,
+      coat: 0xf1eee5, odds: 6, speed: 88, stamina: 84,
+      acceleration: 86, resistance: 72, style: "Stalker",
+      personality: "Showboat", appearance: "Bright gray coat",
+    }),
+    makeHorseProfile({
+      id: "bramble", number: 36, name: "Bramble", color: 0x70a288,
+      coat: 0x67412e, odds: 13, speed: 74, stamina: 92,
+      acceleration: 69, resistance: 94, style: "Closer",
+      personality: "Stubborn", appearance: "Dark bay coat",
+    }),
+    makeHorseProfile({
+      id: "avalanche", number: 37, name: "Avalanche", color: 0x90e0ef,
+      coat: 0xe8e5dc, odds: 7, speed: 86, stamina: 85,
+      acceleration: 80, resistance: 90, style: "Balanced",
+      personality: "Powerful", appearance: "Flea-bitten gray coat",
+    }),
+    makeHorseProfile({
+      id: "jubilee", number: 38, name: "Jubilee", color: 0xf15bb5,
+      coat: 0xa45e35, odds: 9, speed: 81, stamina: 82,
+      acceleration: 88, resistance: 69, style: "Stalker",
+      personality: "Playful", appearance: "Copper chestnut coat",
+    }),
+    makeHorseProfile({
+      id: "copper", number: 39, name: "Copper", color: 0xf77f00,
+      coat: 0xb65f2c, odds: 11, speed: 78, stamina: 87,
+      acceleration: 75, resistance: 88, style: "Closer",
+      personality: "Patient", appearance: "Copper coat with dark points",
+    }),
+    makeHorseProfile({
+      id: "moonrise", number: 40, name: "Moonrise", color: 0x577590,
+      coat: 0x302c2c, odds: 3, speed: 94, stamina: 87,
+      acceleration: 90, resistance: 76, style: "Front Runner",
+      personality: "Focused", appearance: "Near-black coat",
+    }),
+    makeHorseProfile({
+      id: "gallant", number: 41, name: "Gallant", color: 0x43aa8b,
+      coat: 0x925c38, odds: 8, speed: 84, stamina: 84,
+      acceleration: 83, resistance: 79, style: "Balanced",
+      personality: "Cautious", appearance: "Warm bay coat",
+    }),
+    makeHorseProfile({
+      id: "solstice", number: 42, name: "Solstice", color: 0xffd166,
+      coat: 0x5f3a2a, odds: 6, speed: 87, stamina: 89,
+      acceleration: 79, resistance: 82, style: "Closer",
+      personality: "Enduring", appearance: "Seal brown coat",
+    }),
+    makeHorseProfile({
+      id: "whisper", number: 43, name: "Whisper", color: 0xa8dadc,
+      coat: 0xc9b9a3, odds: 12, speed: 76, stamina: 86,
+      acceleration: 82, resistance: 73, style: "Stalker",
+      personality: "Sneaky", appearance: "Pale dun coat",
+    }),
+    makeHorseProfile({
+      id: "outlaw", number: 44, name: "Outlaw", color: 0xd00000,
+      coat: 0x3d2922, odds: 5, speed: 91, stamina: 76,
+      acceleration: 95, resistance: 61, style: "Front Runner",
+      personality: "Unpredictable", appearance: "Dark liver chestnut coat",
+    }),
+    makeHorseProfile({
+      id: "firefly", number: 45, name: "Firefly", color: 0x80ed99,
+      coat: 0xd1a15d, odds: 9, speed: 83, stamina: 79,
+      acceleration: 90, resistance: 68, style: "Front Runner",
+      personality: "Eager", appearance: "Light chestnut coat",
+    }),
+    makeHorseProfile({
+      id: "sterling", number: 46, name: "Sterling", color: 0xadb5bd,
+      coat: 0x9fa09d, odds: 7, speed: 85, stamina: 88,
+      acceleration: 78, resistance: 91, style: "Balanced",
+      personality: "Steady", appearance: "Steel gray coat",
+    }),
+    makeHorseProfile({
+      id: "horizon", number: 47, name: "Horizon", color: 0x277da1,
+      coat: 0x74452f, odds: 10, speed: 80, stamina: 91,
+      acceleration: 72, resistance: 87, style: "Closer",
+      personality: "Comeback", appearance: "Mahogany bay coat",
+    }),
+    makeHorseProfile({
+      id: "triumph", number: 48, name: "Triumph", color: 0xff006e,
+      coat: 0x6f3d27, odds: 4, speed: 92, stamina: 86,
+      acceleration: 89, resistance: 78, style: "Stalker",
+      personality: "Fearless", appearance: "Rich chestnut coat",
+    }),
   ],
   playerColors: [0xef476f, 0x3a86ff, 0xffbe0b, 0x9b5de5, 0x22b573, 0xff7b22, 0x42d4d4, 0xf06cad],
   items: {
@@ -705,6 +826,84 @@ HD.CONFIG = {
   eyeHeight: 4.8,
 };
 
+HD.HorseProfiles = (() => {
+  const STORAGE_KEY = "hotdog-downs-horse-profiles-v1";
+
+  function storage() {
+    try {
+      return window.localStorage || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function cleanHistory(value = {}) {
+    const starts = Math.max(0, Math.floor(Number(value.starts) || 0));
+    const wins = Math.min(starts, Math.max(0, Math.floor(Number(value.wins) || 0)));
+    const podiums = Math.min(
+      starts,
+      Math.max(wins, Math.floor(Number(value.podiums) || 0)),
+    );
+    const bestTime = Number(value.bestTime);
+
+    return {
+      starts,
+      wins,
+      podiums,
+      bestTime: Number.isFinite(bestTime) && bestTime > 0 ? bestTime : null,
+    };
+  }
+
+  function load() {
+    const target = storage();
+    if (!target) return;
+
+    try {
+      const saved = JSON.parse(target.getItem(STORAGE_KEY) || "null");
+      if (!saved || saved.version !== 1 || typeof saved.horses !== "object") {
+        return;
+      }
+
+      HD.CONFIG.horses.forEach((profile) => {
+        const entry = saved.horses[profile.id];
+        if (!entry || typeof entry !== "object") return;
+        profile.discovered = entry.discovered === true;
+        profile.history = cleanHistory(entry.history);
+      });
+    } catch (_error) {
+      // A damaged save must never prevent the game from booting.
+    }
+  }
+
+  function save() {
+    const target = storage();
+    if (!target) return false;
+
+    const horses = Object.fromEntries(HD.CONFIG.horses.map((profile) => [
+      profile.id,
+      {
+        discovered: profile.discovered === true,
+        history: cleanHistory(profile.history),
+      },
+    ]));
+
+    try {
+      target.setItem(STORAGE_KEY, JSON.stringify({ version: 1, horses }));
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  load();
+
+  return {
+    STORAGE_KEY,
+    load,
+    save,
+  };
+})();
+
 // Rank the entered profiles, then build groups of two or three contenders.
 // Weighted centering keeps the book at 100% even with uneven group sizes.
 HD.openingHorseChances = (field) => {
@@ -768,6 +967,83 @@ Object.assign(HD.CONFIG.items.chair, {
   slowDuration: 4, ragdollDuration: 3.5, vendorOnly: true,
   description: 'A heavy concourse exclusive with a powerful startle.',
 });
+
+HD.ITEM_EFFECT_TYPES = Object.freeze([
+  "speedBoost",
+  "resistanceGain",
+  "stun",
+  "slow",
+  "knockback",
+  "intelligenceBoost",
+]);
+
+function assignItemEffects(itemId, effects) {
+  const item = HD.CONFIG.items[itemId];
+  if (!item || effects.length > 3) {
+    throw new Error(`Invalid effect configuration for ${itemId}.`);
+  }
+
+  item.effects = effects.map((effect) => {
+    if (!HD.ITEM_EFFECT_TYPES.includes(effect.type) ||
+        !Number.isFinite(effect.strength) || effect.strength <= 0) {
+      throw new Error(`Invalid ${effect.type} effect on ${itemId}.`);
+    }
+    return Object.freeze({ type: effect.type, strength: effect.strength });
+  });
+
+  for (const effect of item.effects) {
+    if (effect.type === "speedBoost") item.boostDuration = effect.strength;
+    if (effect.type === "resistanceGain") {
+      item.resistanceDuration = effect.strength;
+    }
+    if (effect.type === "stun") item.ragdollDuration = effect.strength;
+    if (effect.type === "slow") item.slowDuration = effect.strength;
+    if (effect.type === "knockback") item.knockbackStrength = effect.strength;
+    if (effect.type === "intelligenceBoost") {
+      item.intelligenceBoostDuration = effect.strength;
+    }
+  }
+}
+
+assignItemEffects("hotdog", [
+  { type: "stun", strength: 1.8 },
+]);
+assignItemEffects("goldenHotdog", [
+  { type: "stun", strength: 2.8 },
+  { type: "slow", strength: 2.4 },
+]);
+assignItemEffects("soda", [
+  { type: "slow", strength: 3.6 },
+]);
+assignItemEffects("horseshoe", [
+  { type: "slow", strength: 5 },
+  { type: "stun", strength: 2.4 },
+  { type: "knockback", strength: 0.8 },
+]);
+assignItemEffects("carrot", [
+  { type: "speedBoost", strength: 5 },
+  { type: "resistanceGain", strength: 8 },
+]);
+assignItemEffects("goldenCarrot", [
+  { type: "speedBoost", strength: 8 },
+  { type: "resistanceGain", strength: 12 },
+  { type: "intelligenceBoost", strength: 8 },
+]);
+assignItemEffects("hurdle", [
+  { type: "slow", strength: 1.2 },
+  { type: "knockback", strength: 0.3 },
+]);
+assignItemEffects("waterBottle", [
+  { type: "slow", strength: 1.8 },
+]);
+assignItemEffects("beachBall", [
+  { type: "stun", strength: 1.2 },
+]);
+assignItemEffects("chair", [
+  { type: "slow", strength: 4 },
+  { type: "stun", strength: 3.5 },
+  { type: "knockback", strength: 1.2 },
+]);
 
 HD.createInventory = () =>
   Object.fromEntries(Object.keys(HD.CONFIG.items).map((itemId) => [itemId, 0]));

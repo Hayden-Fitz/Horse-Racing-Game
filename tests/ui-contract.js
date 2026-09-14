@@ -71,7 +71,7 @@ vm.runInContext(read("src/config.js"), sandbox);
 
 assert.equal(Object.keys(sandbox.HD.CONFIG.items).length, 10, "The hotbar requires ten items");
 assert.equal(sandbox.HD.CONFIG.raceLaps, 3, "Races should run for three laps");
-assert.equal(sandbox.HD.CONFIG.horses.length, 30, "The rotating horse pool requires 30 horses");
+assert.equal(sandbox.HD.CONFIG.horses.length, 48, "The rotating horse pool requires 48 horses");
 assert.ok(
   sandbox.HD.CONFIG.horses.every((horse) => {
     return [
@@ -108,6 +108,16 @@ assert.ok(ids.includes("lobby-public"), "The public lobby button is missing");
 assert.ok(ids.includes("lobby-private"), "The private lobby button is missing");
 assert.ok(ids.includes("winner-coins"), "The Winner Coins balance is missing");
 assert.ok(ids.includes("avatar-unlock"), "The cosmetic unlock control is missing");
+assert.ok(
+  ids.includes("credits-open") && ids.includes("credits-panel") &&
+    ids.includes("credits-close"),
+  "The main menu needs an accessible Credits destination",
+);
+assert.ok(
+  html.includes("Three.js") && html.includes("CC0 Community Creators") &&
+    html.includes("Kokoro JS"),
+  "Credits must retain runtime and audio attribution",
+);
 assert.ok(
   sandbox.HD.CONFIG.items.goldenCarrot.maxSpeedBonus === 0.01,
   "Golden Carrot should add one percent maximum speed",

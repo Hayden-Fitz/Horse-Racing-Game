@@ -2,13 +2,14 @@
   "name": "hotdog-downs",
   "version": "0.2.0",
   "private": true,
-  "description": "First-person Firebase multiplayer horse racing party game",
+  "description": "First-person realtime multiplayer horse racing party game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "test": "node tests/run-all.js",
-    "check": "node --check server.js && node --check src/firebase.js && node --check src/network.js",
-    "test:firebase": "node tests/firebase-smoke.js",
+    "check": "node --check server.js && node --check server/realtime-server.js && node --check src/realtime.js && node --check src/network.js",
+    "test:realtime": "node tests/realtime-server.js && node tests/realtime-client.js",
+    "deploy:cloudflare": "npx wrangler@latest deploy --config cloudflare/wrangler.jsonc",
     "test:ui": "node tests/ui-contract.js",
     "test:player": "node tests/player-animation.js",
     "test:stadium": "node tests/stadium-smoke.js",
@@ -17,5 +18,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

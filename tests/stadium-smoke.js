@@ -30,6 +30,7 @@ async function run() {
     }),
   };
   require("../src/models.js");
+  require("../src/plains.js");
   require("../src/stadium.js");
   require("../src/race.js");
 
@@ -37,6 +38,20 @@ async function run() {
   HD.world.camera = new THREE.PerspectiveCamera();
   HD.Stadium.build(HD.world.scene);
   const concessionDetails = { menus: 0, bins: 0 };
+  let checkedBooths = 0;
+  HD.world.scene.updateMatrixWorld(true);
+  HD.world.scene.traverse(object => {
+    const footprint = object.userData.vendorFootprint;
+    if (!footprint) return;
+    checkedBooths++;
+    for (const side of [-1, 1]) for (const end of [-1, 1]) {
+      const corner = object.localToWorld(new THREE.Vector3(
+        side * footprint.halfWidth, 0, end * footprint.halfDepth));
+      assert.ok((corner.x / 119.7) ** 2 + (corner.z / 82.7) ** 2 < 1,
+        object.name + ' must clear every exterior glass panel');
+    }
+  });
+  assert.equal(checkedBooths, 9, 'Check four shops, four betting counters and the fixer');
   HD.world.scene.traverse(object => {
     if (object.name === 'Concession menu board') concessionDetails.menus++;
     if (object.name === 'Concession waste station') concessionDetails.bins++;
@@ -92,8 +107,8 @@ async function run() {
     'Removed upper stair towers returned',
   );
   assert.ok(
-    upperFlights.some(surface => surface.id.includes('main-entrance')),
-    'The retained public entrance route is missing',
+    !upperFlights.some(surface => surface.id.includes('main-entrance')),
+    'Removed exterior entrance must not leave an invisible route',
   );
   assert.equal(terraces.length, 0, 'Removed elevated seating terraces returned');
   assert.equal(HD.world.stairArrivalMarkers.length, 0,
@@ -231,7 +246,7 @@ async function run() {
   [
     "Landscaped infield pond and fountain",
     "Stadium floodlight towers",
-    "Main public entrance plaza",
+    "Open rolling plains",
   ].forEach((name) => {
     assert.ok(HD.world.scene.getObjectByName(name), `Arena landmark missing: ${name}`);
   });
@@ -324,7 +339,10 @@ async function run() {
     }),
     "A public staircase is coplanar with or too far below the upper concourse",
   );
-  assert.equal(HD.world.publicEntrances?.length, 2);
+  assert.equal(HD.world.publicEntrances?.length, 0, 'Exterior gatehouses were removed');
+  assert.ok(HD.world.scene.getObjectByName('Open rolling plains'));
+  assert.equal(HD.world.scene.getObjectByName('Main public entrance plaza'), undefined);
+  assert.ok(HD.world.broadcastOccluders.length > 0, 'Director needs static sightline obstacles');
   assert.ok(HD.world.replayBillboard?.replayReady, 'The replay billboard surface is unavailable');
   assert.equal(HD.world.replayBillboard.canvas.width, 1024);
   assert.equal(HD.world.replayBillboard.canvas.height, 576);
@@ -358,12 +376,16 @@ async function run() {
   );
 
   require("../src/broadcast.js");
+  // Synthetic horses below are moved into the infield for deterministic tests;
+  // test clear sightlines first, then inject an explicit obstruction.
+  HD.world.broadcastOccluders = [];
   let renderTarget = null;
   let renderCount = 0;
   let failRender = false;
   let interpolatedScale = false;
   let replayPlayerVisible = false;
   let centeredProjectile = false;
+  const lastBroadcastPosition = new THREE.Vector3();
   const player = new THREE.Group();
   player.name = 'Recorded test player';
   const hand = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
@@ -377,6 +399,7 @@ async function run() {
     getRenderTarget: () => renderTarget,
     setRenderTarget: value => { renderTarget = value; },
     render(scene, camera) {
+      lastBroadcastPosition.copy(camera.position);
       renderCount++;
       assert.equal(HD.world.replayBillboard.root.visible, false);
       if (HD.Broadcast.diagnostics.replaying) {
@@ -482,7 +505,62 @@ async function run() {
   assert.ok(HD.Broadcast.diagnostics.samples >= 29 &&
     HD.Broadcast.diagnostics.samples <= 31, 'Capture poses at 30 Hz for smooth interpolation');
 
-  console.log("Stadium geometry, ten cameras, live feed and isolated bounded replays passed.");
+  const originalStation = HD.Broadcast.diagnostics.cameraStation;
+  const focusPoint = HD.state.horses[0].position.clone().add(new THREE.Vector3(0, 3.2, 0));
+  const obstruction = new THREE.Mesh(
+    new THREE.BoxGeometry(12, 12, 1),
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+  );
+  obstruction.position.copy(lastBroadcastPosition).lerp(focusPoint, 0.45);
+  obstruction.lookAt(lastBroadcastPosition);
+  obstruction.updateMatrixWorld(true);
+  HD.world.broadcastOccluders = [obstruction];
+  for (let i = 0; i < 22; i++) HD.Broadcast.update(0.1);
+  assert.notEqual(HD.Broadcast.diagnostics.cameraStation, originalStation,
+    'A persistently obstructed station must be replaced by a clear view');
+  HD.world.broadcastOccluders = [];
+  const stableStation = HD.Broadcast.diagnostics.cameraStation;
+  const cuts = HD.Broadcast.diagnostics.cameraCuts;
+  for (let i = 0; i < 20; i++) {
+    nearby.userData.data.progress = i % 2 ? 0.51 : 0.49;
+    HD.Broadcast.update(0.1);
+  }
+  assert.equal(HD.Broadcast.diagnostics.cameraStation, stableStation,
+    'Rapid leader changes must not bounce between camera stations');
+  assert.equal(HD.Broadcast.diagnostics.cameraCuts, cuts,
+    'The new shot must be held instead of switching back half a second later');
+  const fixtures = HD.world.scene.getObjectByName('Recessed underside canopy lights');
+  assert.ok(fixtures && fixtures.count < 24, 'Leave the TV roof opening free of lights');
+  const matrix = new THREE.Matrix4();
+  for (let i = 0; i < fixtures.count; i++) {
+    fixtures.getMatrixAt(i, matrix);
+    const position = new THREE.Vector3().setFromMatrixPosition(matrix);
+    assert.ok(position.y + 0.06 < 26.6, 'Light lenses must stay below the roof');
+  }
+  HD.world.players = [];
+  HD.world.localPlayer = null;
+  HD.world.crowd = [];
+  HD.Stadium.refreshStartingGate();
+  HD.state.phase = 'racing';
+  let gateTime = 1000;
+  HD.Stadium.update(gateTime);
+  for (let i = 0; i < 80; i++) HD.Stadium.update(gateTime += 0.05);
+  assert.equal(HD.world.startingGate.position.x, 0, 'Gate must never slide sideways');
+  assert.equal(HD.world.startingGate.visible, false, 'Gate retracts completely');
+  for (const leaf of HD.world.startingGateCover.children) {
+    assert.ok(Math.abs(leaf.position.z) <= 2.101, 'Dirt shutters close over the gate');
+  }
+  HD.state.phase = 'betting';
+  HD.Stadium.refreshStartingGate();
+  assert.ok(HD.world.startingGate.position.y < -8, 'New countdown preserves underground position');
+  HD.Stadium.update(gateTime);
+  for (let i = 0; i < 40; i++) HD.Stadium.update(gateTime += 0.05);
+  assert.ok(HD.world.startingGate.position.y < -1, 'Gate rises gradually, not instantly');
+  for (let i = 0; i < 100; i++) HD.Stadium.update(gateTime += 0.05);
+  assert.equal(HD.world.startingGate.position.y, 0, 'Gate reaches its original height');
+  assert.ok(HD.world.plains.bushes.count >= 200);
+  assert.ok(HD.world.plains.mountains.children.length > 0);
+  console.log("Stadium, plains, gate lift/shutters, roof lights and stable replay director passed.");
 
   function upperFloorHitsAt(angle, radiusX = 106, radiusZ = 72) {
     HD.world.scene.updateMatrixWorld(true);

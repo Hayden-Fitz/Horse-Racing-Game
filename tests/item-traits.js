@@ -20,7 +20,22 @@ async function run() {
         item.throwingEase >= 1 &&
         item.throwingEase <= 5,
     );
+    assert.ok(Array.isArray(item.effects) && item.effects.length >= 1);
+    assert.ok(item.effects.length <= 3, "Items may have no more than three effects");
+    item.effects.forEach((effect) => {
+      assert.ok(HD.ITEM_EFFECT_TYPES.includes(effect.type));
+      assert.ok(Number.isFinite(effect.strength) && effect.strength > 0);
+    });
   });
+
+  assert.deepEqual(
+    HD.CONFIG.items.goldenCarrot.effects.map((effect) => effect.type),
+    ["speedBoost", "resistanceGain", "intelligenceBoost"],
+  );
+  assert.deepEqual(
+    HD.CONFIG.items.horseshoe.effects.map((effect) => effect.type),
+    ["slow", "stun", "knockback"],
+  );
 
   const hotdog = HD.itemThrowProfile(HD.CONFIG.items.hotdog);
   const inventory = HD.createInventory();
@@ -45,7 +60,9 @@ async function run() {
     { weight: 1, throwingEase: 5, liftMultiplier: 1.04, rangeMultiplier: 1.16 },
   );
 
-  console.log("Item weight/ease data and predictable throw profiles passed.");
+  console.log(
+    "Item traits, standardized effects, and predictable throw profiles passed.",
+  );
 }
 
 run().catch((error) => {

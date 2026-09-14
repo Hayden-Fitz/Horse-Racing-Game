@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/wrangler.json",
+  "name": "hotdog-downs-realtime",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-01",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LOBBIES",
+        "class_name": "LobbyServer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["LobbyServer"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

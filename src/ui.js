@@ -137,7 +137,7 @@ HD.UI = (() => {
           <article class="odds-profile ${active ? "active" : "reserve"}">
             <header>
               <i style="background:#${color}"></i>
-              <span><strong>#${HD.horseNumber(horse)} ${horse.name}</strong><small>${horse.style.toUpperCase()}</small></span>
+              <span><strong>#${HD.horseNumber(horse)} ${horse.name}</strong><small>${horse.rarity.toUpperCase()} · ${horse.personality.toUpperCase()}</small></span>
               <em>${active ? `${odds}:1` : "RESERVE"}</em>
             </header>
             <div>
@@ -149,6 +149,8 @@ HD.UI = (() => {
               <span>ACCEL <b>${horse.acceleration}</b></span>
               <span>RESIST <b>${horse.resistance}</b></span>
               <span>FIELD <b>${active ? horseStatus(active) : "RESERVE"}</b></span>
+              <span>RECORD <b>${horse.history.wins}W / ${horse.history.podiums}P / ${horse.history.starts}S</b></span>
+              <span>BEST <b>${Number.isFinite(horse.history.bestTime) ? horse.history.bestTime.toFixed(2) + "s" : "—"}</b></span>
             </div>
           </article>
         `;
@@ -394,7 +396,7 @@ HD.UI = (() => {
     if (requestButton) requestButton.disabled = !targets.length || !HD.Network.isConnected();
   }
 
-  function sendTransfer() {
+  async function sendTransfer() {
     const target = el.transferPlayer.value;
     const money = Math.max(0, Math.floor(Number(el.transferMoney.value) || 0));
     const itemId = el.transferItem.value;
@@ -409,7 +411,7 @@ HD.UI = (() => {
 
     let sent = false;
     if (HD.Network.isConnected()) {
-      sent = HD.Network.sendTransfer(target, money, itemId);
+      sent = await HD.Network.sendTransfer(target, money, itemId);
     } else {
       sent = HD.AI.receiveTransfer(target, money, itemId);
       if (sent) {
@@ -472,8 +474,9 @@ HD.UI = (() => {
       copy.textContent = request.fromName + ' requested $' + request.amount;
       pay.textContent = 'PAY';
       decline.textContent = 'DECLINE';
-      pay.onclick = () => {
-        if (S.money < request.amount || !HD.Network.sendTransfer(request.from, request.amount, '')) {
+      pay.onclick = async () => {
+        if (S.money < request.amount ||
+            !await HD.Network.sendTransfer(request.from, request.amount, "")) {
           return announce('That request cannot be paid right now.');
         }
         addLedger('Paid ' + request.fromName, -request.amount);
@@ -623,21 +626,33 @@ HD.UI = (() => {
     });
   }
   function productEffectLabel(item) {
-    if (item.ragdollDuration && item.slowDuration) return "Slow + stun";
-    if (item.boostDuration && item.resistanceDuration) return "Speed + protection";
-    if (item.ragdollDuration) return "Stun · " + item.ragdollDuration + "s";
-    if (item.slowDuration) return "Slow · " + item.slowDuration + "s";
-    return "Trackside utility";
+    const names = {
+      speedBoost: "Speed",
+      resistanceGain: "Protection",
+      stun: "Stun",
+      slow: "Slow",
+      knockback: "Knockback",
+      intelligenceBoost: "Smart lanes",
+    };
+    return item.effects?.map((effect) => names[effect.type]).join(" + ") ||
+      "Trackside utility";
   }
 
   function itemEffectSummary(item) {
-    const effects = [];
-    if (item.slowDuration) effects.push(`SLOW 65% · ${item.slowDuration}s`);
-    if (item.ragdollDuration) effects.push(`STUN · ${item.ragdollDuration}s`);
-    if (item.boostDuration) effects.push(`BOOST 45% · ${item.boostDuration}s`);
-    if (item.resistanceDuration) effects.push(`RESIST · ${item.resistanceDuration}s`);
-    if (item.weaveDuration) effects.push(`WEAVE · ${item.weaveDuration}s`);
-    if (item.panicDuration) effects.push(`PANIC · ${item.panicDuration}s`);
+    const effects = (item.effects || []).map((effect) => {
+      const labels = {
+        speedBoost: "SPEED BOOST",
+        resistanceGain: "RESISTANCE",
+        stun: "STUN",
+        slow: "SLOW",
+        knockback: "KNOCKBACK",
+        intelligenceBoost: "INTELLIGENCE",
+      };
+      const duration = ["knockback"].includes(effect.type)
+        ? `POWER ${effect.strength}`
+        : `${effect.strength}s`;
+      return `${labels[effect.type]} · ${duration}`;
+    });
     return effects.length ? `${effects.join(" / ")} — ` : "UTILITY — ";
   }
   function renderDeliveries() {
@@ -797,6 +812,7 @@ HD.UI = (() => {
     el.menuResume.hidden = !pauseMenu;
     if (show) {
       document.querySelector("#settings-panel").hidden = true;
+      document.querySelector("#credits-panel").hidden = true;
       document.querySelector(".menu-card").classList.remove("settings-active");
     }
   }

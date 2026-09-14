@@ -5,12 +5,15 @@ const { spawnSync } = require("child_process");
 
 const testFiles = [
   "match-setup.js",
+  "realtime-server.js",
+  "realtime-client.js",
   "concessions.js",
   "item-traits.js",
   "ui-contract.js",
   "bet-preview.js",
   "player-animation.js",
   "horse-animation.js",
+  "horse-profiles.js",
   "controls-input.js",
   "stadium-smoke.js",
   "race-simulation.js",

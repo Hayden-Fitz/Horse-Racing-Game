@@ -19,7 +19,8 @@ if not errorlevel 1 (
 echo.
 echo HOTDOG DOWNS LOCAL GAME
 echo Open: http://localhost:8080
-echo Firebase provides online multiplayer automatically.
+echo This window runs the local realtime multiplayer server.
+echo Internet play uses the deployed server in src\realtime-config.js.
 echo Keep this window open while using this local address.
 echo Press Ctrl+C to stop the server.
 echo.

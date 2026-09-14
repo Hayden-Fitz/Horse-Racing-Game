@@ -14,6 +14,7 @@ HD.MatchSetup = (() => {
   let practice = { ...defaults, crowd: "lively" };
   let panel;
   let previousFocus;
+  let mode = "single";
 
   function normalize(input = {}) {
     const integer = (value, minimum, maximum, fallback) => {
@@ -57,11 +58,41 @@ HD.MatchSetup = (() => {
       HD.UI.announce("Leave your online lobby before opening Single Player.");
       return;
     }
+    openPanel(practice, "single");
+  }
+
+  function openOnline(rules) {
+    if (!HD.Network?.isConnected() || !HD.Network?.isHost()) {
+      HD.UI.announce("Only the lobby host can edit match rules.");
+      return;
+    }
+    if (HD.Network.isPlaying()) {
+      HD.UI.announce("Match rules lock when the race begins.");
+      return;
+    }
+    openPanel(normalize(rules), "online");
+  }
+
+  function openPanel(values, nextMode) {
+    mode = nextMode;
     panel = document.querySelector("#practice-setup");
     previousFocus = document.activeElement;
-    for (const [key, value] of Object.entries(practice)) {
+    for (const [key, value] of Object.entries(values)) {
       panel.querySelector(`[name="${key}"]`).value = value;
     }
+    const online = mode === "online";
+    panel.querySelector("#practice-kicker").textContent = online
+      ? "HOTDOG DERBY / ONLINE HOST RULES"
+      : "HOTDOG DERBY / SINGLE PLAYER";
+    panel.querySelector("#practice-title").textContent = online
+      ? "Set the room format."
+      : "Your track. Your rules.";
+    panel.querySelector("#practice-description").textContent = online
+      ? "Every player sees these rules live. They lock when the host starts the match."
+      : "Try your throws, test a bet, and learn the field. No AI player opponents.";
+    panel.querySelector("#practice-submit").textContent = online
+      ? "SAVE LOBBY RULES"
+      : "START SINGLE PLAYER →";
     panel.querySelector("form").onsubmit = start;
     panel.querySelector("form").oninput = updateSummary;
     updateSummary();
@@ -73,8 +104,16 @@ HD.MatchSetup = (() => {
 
   function start(event) {
     event.preventDefault();
+    const selected = normalize(
+      Object.fromEntries(new FormData(panel.querySelector("form"))),
+    );
+    if (mode === "online") {
+      if (!HD.Network?.updateMatchRules(selected)) return;
+      panel.close();
+      return;
+    }
     if (HD.Network?.isConnected()) return;
-    practice = apply(Object.fromEntries(new FormData(panel.querySelector("form"))));
+    practice = apply(selected);
     HD.Race.restart();
     // restart initializes the simulation; closeMenu presents the Day 1 screen.
     HD.state.matchStarted = false;
@@ -91,5 +130,5 @@ HD.MatchSetup = (() => {
       `${total} total ${total === 1 ? "race" : "races"}`;
   }
 
-  return { defaults, normalize, apply, resetForOnline, open };
+  return { defaults, normalize, apply, resetForOnline, open, openOnline };
 })();

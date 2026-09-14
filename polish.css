@@ -860,6 +860,105 @@
   grid-template-columns: 1fr;
 }
 
+.credits-panel {
+  position: absolute;
+  z-index: 5;
+  width: min(680px, 92vw);
+  max-height: min(760px, 92vh);
+  overflow: hidden;
+  border: 4px double #e7c66c;
+  border-radius: 8px 24px 8px 24px;
+  background:
+    radial-gradient(circle at 18px 18px, #e6c76a 0 3px, transparent 4px),
+    linear-gradient(155deg, #1a3b2b, #08150f 72%);
+  box-shadow: 0 28px 90px #000d, inset 0 1px #ffffff14;
+  color: #f7f0db;
+}
+
+.credits-panel[hidden] {
+  display: none;
+}
+
+.credits-heading {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #e7c66c55;
+  background: #0d2419f2;
+}
+
+.credits-heading span {
+  display: grid;
+  gap: 3px;
+}
+
+.credits-heading small,
+.credits-scroll article > small {
+  color: #f0d477;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+}
+
+.credits-heading strong {
+  font-family: var(--display-font);
+  font-size: 30px;
+  letter-spacing: 0.06em;
+}
+
+.credits-heading button {
+  padding: 10px 18px;
+  border: 1px solid #f0d477;
+  border-radius: 4px 12px 4px 12px;
+  background: #d95e36;
+  color: white;
+  font-weight: 900;
+}
+
+.credits-scroll {
+  display: grid;
+  max-height: min(620px, 76vh);
+  gap: 12px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.credits-scroll article {
+  padding: 15px 17px;
+  border: 1px dashed #dfc3728c;
+  border-radius: 3px 14px 3px 14px;
+  background: linear-gradient(105deg, #193827, #0d2117);
+}
+
+.credits-scroll h2,
+.credits-scroll h3 {
+  margin: 5px 0 6px;
+  color: #fff0b8;
+  font-family: var(--display-font);
+  letter-spacing: 0.035em;
+}
+
+.credits-scroll p {
+  margin: 0;
+  color: #b9cabe;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.credits-scroll footer {
+  padding: 10px;
+  color: #f0d477;
+  font-family: var(--display-font);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
 .lobby-title,
 .lobby-profile-row {
   display: flex;
@@ -1614,6 +1713,45 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
+}
+
+.lobby-rules-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 7px 0;
+  padding: 9px 10px;
+  border: 1px solid #dfc37266;
+  border-radius: 4px 12px 4px 12px;
+  background: linear-gradient(120deg, #10291d, #173b29);
+  text-align: left;
+}
+
+.lobby-rules-card span,
+.lobby-rules-card small,
+.lobby-rules-card strong {
+  display: block;
+  min-width: 0;
+}
+
+.lobby-rules-card small {
+  color: #d9b963;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.lobby-rules-card strong {
+  margin-top: 3px;
+  color: #f8f1df;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+#lobby-rules {
+  min-height: 34px;
+  padding: 7px 10px;
+  white-space: nowrap;
 }
 
 #lobby-ready.ready {

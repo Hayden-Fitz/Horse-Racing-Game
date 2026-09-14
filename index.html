@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="polish.css" />
     <link rel="stylesheet" href="phone-polish.css" />
+    <link rel="stylesheet" href="photo.css" />
   </head>
   <body>
     <main id="app">
@@ -249,7 +250,7 @@
                 <small>ONLINE CLUBHOUSE</small>
                 <strong>FIND YOUR RACE NIGHT</strong>
               </span>
-              <em>8 PLAYER FIREBASE LOBBIES</em>
+              <em>8 PLAYER REALTIME LOBBIES</em>
             </div>
             <div class="lobby-profile-row">
               <label>
@@ -287,7 +288,7 @@
               <button id="lobby-refresh">REFRESH</button>
             </div>
             <div id="lobby-browser" class="lobby-browser">
-              Connecting to Firebase lobbies...
+              Connecting to online lobbies...
             </div>
             <div id="lobby-room" class="lobby-room" hidden>
               <div class="lobby-room-heading">
@@ -298,6 +299,13 @@
                 <em id="lobby-room-code"></em>
               </div>
               <div id="lobby-members"></div>
+              <div class="lobby-rules-card">
+                <span>
+                  <small>MATCH FORMAT</small>
+                  <strong id="lobby-rules-summary">3 DAYS · 2 RACES · 6 HORSES · 3 LAPS</strong>
+                </span>
+                <button id="lobby-rules" type="button">EDIT RULES</button>
+              </div>
               <div class="lobby-room-actions">
                 <button id="lobby-copy">COPY INVITE</button>
                 <button id="lobby-ready">I'M READY</button>
@@ -312,6 +320,7 @@
           <button id="menu-resume" hidden>RESUME RACE</button>
           <div class="menu-system-actions">
             <button id="settings-open">SETTINGS & ACCESSIBILITY</button>
+            <button id="credits-open">CREDITS</button>
             <button id="exit-game">QUIT GAME</button>
           </div>
           <section id="settings-panel" class="settings-panel" hidden>
@@ -523,6 +532,42 @@
           </div>
         </aside>
         </div>
+        <section id="credits-panel" class="credits-panel" hidden>
+          <div class="credits-heading">
+            <span>
+              <small>HOTDOG DOWNS RACE CLUB</small>
+              <strong>CREDITS</strong>
+            </span>
+            <button id="credits-close" type="button">BACK</button>
+          </div>
+          <div class="credits-scroll">
+            <article>
+              <small>CREATED BY</small>
+              <h2>HAYHAMCOW</h2>
+              <p>Original game concept, creative direction, arena design, and 3D model references.</p>
+            </article>
+            <article>
+              <small>BUILT WITH</small>
+              <h3>Three.js & Web Standards</h3>
+              <p>Realtime rendering, Web Audio, WebSockets, and the Hotdog Downs game systems.</p>
+            </article>
+            <article>
+              <small>AUDIO</small>
+              <h3>CC0 Community Creators</h3>
+              <p>
+                Interface sounds by Kenney; swishes by artisticdude; impacts by
+                Jordan Irwin; horse gallop by congusbongus; music by iamoneabe
+                and skrjablin. Full source links are included with the project.
+              </p>
+            </article>
+            <article>
+              <small>VOICE TECHNOLOGY</small>
+              <h3>Kokoro JS</h3>
+              <p>Apache-2.0 browser speech runtime used for optional race announcements.</p>
+            </article>
+            <footer>THANKS FOR VISITING THE DOWNS</footer>
+          </div>
+        </section>
       </div>
       <div id="round-break" class="round-break" hidden>
         <small>ROUND INTERMISSION</small>
@@ -573,9 +618,9 @@
     <dialog id="practice-setup" class="practice-setup" aria-labelledby="practice-title">
       <form>
         <header>
-          <small>HOTDOG DERBY / SINGLE PLAYER</small>
+          <small id="practice-kicker">HOTDOG DERBY / SINGLE PLAYER</small>
           <h2 id="practice-title">Your track. Your rules.</h2>
-          <p>Try your throws, test a bet, and learn the field. No AI player opponents.</p>
+          <p id="practice-description">Try your throws, test a bet, and learn the field. No AI player opponents.</p>
         </header>
         <div class="practice-rule-grid">
           <label>
@@ -623,10 +668,11 @@
         <p class="practice-note" role="status">3 days · 2 races per day · 6 total races</p>
         <footer>
           <button type="button" data-back>BACK TO LOBBY</button>
-          <button type="submit" class="primary">START SINGLE PLAYER →</button>
+          <button id="practice-submit" type="submit" class="primary">START SINGLE PLAYER →</button>
         </footer>
       </form>
     </dialog>
+    <script src="src/realtime-config.js"></script>
     <script type="module" src="src/boot.js"></script>
   </body>
 </html>

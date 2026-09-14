@@ -6,6 +6,86 @@ requirements work together. This avoids calling a partially built feature done.
 
 ## Completed migration tasks
 
+### Stair footprint and vendor alignment
+
+- [x] Restrict stair support to the visible tread footprint; remove invisible
+  side capture and lateral clamping. Restore seats omitted for deleted upper
+  supports and tighten seat exclusions to actual aisle clearance.
+- [x] Align concessions, betting and fixer booths to the oval's surface normal
+  with a shared setback inside the glass. Betting counters follow the ellipse
+  rather than a straight tangent offset. Fixer collision now matches its box.
+- [x] Keep concourse decorations away from vendor approaches.
+- Checks: movement tests reject climbing beside stairs; stadium tests check all
+  nine vendor footprints against the glass. Player-height stair and concession
+  renders reviewed; further manual traversal of every row remains recommended.
+
+### Plains detail, underground gates and closer photography
+
+- [x] Add instanced trees, shrubs and meadow grass around a finite oval terrain
+  footprint, with a continuous earth edge and distant mountain silhouettes.
+- [x] Replace sideways starting-gate travel with a three-second descent and
+  six-second rise. Dirt-covered shutters open before emergence and close only
+  after the frame is underground; preserve lift position when resetting races.
+- [x] Bring invisible photography cameras closer while retaining their angles.
+  Exported new arena and overhead PNGs at 7680 x 4320 to Desktop/social media.
+- Verification: stadium smoke tests cover gate endpoints, shutter closure and
+  gradual countdown emergence; photo capture verifies renderer state restoration.
+  Close-up arena preview visually reviewed. Further in-game visual checks needed
+  for mountain silhouettes from every seat and multiplayer gate timing.
+
+### Plains exterior and stable camera direction
+
+- [x] Remove parking lots, the exterior road ring and standalone entrance
+  gatehouses/plazas, including their unused collision/walking surfaces.
+- [x] Replace the mountain wall and ring of trees with continuous gently rolling
+  plains, smooth terrain colors, instanced meadow grass and sparse trees.
+  Stadium shops, facilities, facade and floodlight towers remain intact.
+- [x] Recess canopy lights beneath the sloped roof and omit fixtures within
+  the replay-screen opening; add short roof-mounted suspension supports.
+- [x] Build lightweight sightline proxies before architecture batching.
+  Check camera obstruction at bounded intervals, hold normal shots, debounce
+  occlusion changes and avoid immediately returning to the previous station.
+- [x] Keep leader changes from forcing a camera cut; use a clear aerial fallback
+  when fixed stations are blocked. Do not re-enter a finished projectile shot.
+- [x] Replace the previous social-media images with native 7680x4320 PNGs,
+  high model detail, 4096 shadow maps and maximum supported texture anisotropy.
+  Previous six delivered files were moved to the Windows Recycle Bin.
+
+Verification: stadium tests cover removed routes, terrain, roof-light clearance,
+camera obstruction recovery, stable shots during rapidly alternating leaders,
+and replay isolation. Browser capture verifies all viewpoints and restoration of
+renderer state. Long-session multiplayer/director performance review remains open.
+
+### Horse, phone, replay and aerial-photo follow-up
+
+- [x] Shorten horse legs by 14%, thicken limbs/hooves and retain articulated gaits.
+- [x] Lower the projectile replay camera and keep the prop centered until it
+  leaves the replay frame; record local/remote player poses and equipment.
+- [x] Render the broadcast up to 60 fps with 30 Hz pose interpolation, and reuse
+  its video in DerbyNews with the same color mapping instead of blocking readback.
+- [x] Allow falling off the bottom row onto the walkway; faster analytic gravity
+  continues while using the phone. Preserve the fence separating players and track.
+- [x] Simplify Concessions cards, refresh DerbyPay, and add a simple hills wallpaper.
+- [x] Add four invisible aerial photo cameras with F8 photo controls and PNG
+  export up to 7680x4320, limited by the device's supported render dimensions.
+  Captures restore gameplay resolution, shadows, fog and first-person visibility.
+- [x] Export actual-game panorama and overhead images to Desktop/social media.
+
+Verification: horse, controls, stadium/replay, race and UI regression checks;
+browser photo capture checks (four presets, image dimensions, restored renderer).
+Prior phone browser checks covered home navigation, 720p layout and video pixels.
+
+- [ ] Investigate the intermittent performanceOats geometry fingerprint mismatch
+  seen in an earlier run; the latest full suite passes without changing that asset.
+- [ ] Verify real two-client player/equipment replays and payment requests.
+- [ ] Benchmark sustained trailer recording on the powerful PC; a 60 fps target
+  is not a guarantee of hardware throughput.
+
+Photo controls: press F8, choose a viewpoint, preview, then Save 8K PNG.
+Browser downloads go to the user's configured download destination. The automated
+capture tool is scripts/capture-arena.mjs; it writes artifacts by default and
+only writes elsewhere when given an explicit output directory.
+
 ### Latest model direction: original GLBs, screenshot-based materials
 
 - [x] Restore supplied active-item GLBs instead of screenshot-built replacement shapes.
@@ -62,7 +142,12 @@ held hotdog and throwing checks: `node scripts/review-models.mjs 9338`.
 - [x] Add configurable Practice days (1–10) and races per day (1–6), live run
   summary, and dynamic HUD totals. Test short and long run progression, final
   results, and the existing day allowances. Full v13 reward choices remain pending.
-- [ ] Add host-owned lobby rules with synchronized client display and live two-client tests.
+- [x] Add host-owned lobby rules with synchronized client display. The shared
+  lobby card and reused clubhouse setup dialog now cover days, races/day,
+  horses, laps, starting money and crowd frequency; the server normalizes every
+  write and rejects guest edits after an automated multi-client authority test.
+- [ ] Visually verify live rule updates and match start from two physical browser
+  clients; automated protocol/UI checks do not replace this release gate.
 - [ ] Connect remaining v13 settings only as their underlying systems become functional.
 - [x] Audit day-screen callbacks and online victory callbacks for stale-run cancellation.
   Deterministic callback tests cover restart, leaving play and disconnected clients;
@@ -112,6 +197,11 @@ remain pending: this is the first working subset, not the complete settings syst
   reach without replacing each item's existing unique flight physics.
 - [x] Show Weight and Throwing Ease in the phone shop and concourse vendor.
 - [x] Validate every active item trait and the light-vs-heavy throw profile.
+- [x] Standardize the ten active items onto Speed Boost, Resistance Gain, Stun,
+  Slow, Knockback and Intelligence Boost records with a tested three-effect
+  maximum. Golden Carrot now applies its advertised temporary boosts as well as
+  its capped permanent bonus; intelligence changes lane-response timing and
+  knockback changes progress/momentum in synchronized race snapshots.
 - [x] Correct Foam Horseshoe to the spec's Weight 3 / Throwing Ease 3.
 - [x] Apply ease only to horizontal velocity and weight to vertical velocity,
   including the upward component of player aim.
@@ -205,7 +295,7 @@ full browser startup/Practice/throw tests, and `artifacts/player-customization.p
 
 ## Permanent horse identity and reserve-odds slice (sections 95–96)
 
-- [x] Assign explicit permanent numbers to all 30 currently implemented horses;
+- [x] Assign explicit permanent numbers to all 48 implemented horses;
   keep these values separate from lane slots and finishing positions.
 - [x] Show matching identities above horses, on the stadium standings board,
   betting cards, tickets, wager tracker, ledger, fixer messages and winner notices.
@@ -216,8 +306,17 @@ full browser startup/Practice/throw tests, and `artifacts/player-customization.p
 - [x] Label base odds tendency separately from active-field odds.
 - [x] Test number uniqueness and preservation across reordered fields and
   4–8 horse counts; browser-check identity cards and reserve probabilities.
-- [ ] Expand the full normal roster to 48 with the complete specified stats,
-  appearance, personality behavior, rarity and discovery system.
+- [x] Expand the full normal roster from 30 to 48 permanent identities. Every
+  profile now has complete derived stats, appearance, rarity, personality,
+  discovery state and starts/wins/podiums/best-time history, with race-history
+  mutation and Horse Stats presentation covered by simulation/UI tests.
+- [x] Make personalities affect start pace, late kick, recovery, overtaking and
+  lane-change frequency. Persist sanitized discovery state and race history in a
+  versioned local save; damaged saves fall back safely instead of blocking boot.
+- [x] Add the missing clubhouse-styled Credits destination to the main menu with
+  accurate runtime/audio attribution and keyboard focus restoration. Play,
+  Settings, Credits and Quit are now all present; final controller focus and
+  platform-specific Quit behavior remain part of the release review.
 - [ ] Verify these identities between two live multiplayer clients.
 
 Verification: `npm.cmd test`, `npm.cmd run check`, and
@@ -286,10 +385,15 @@ Maximum-size/narrow-screen combinations remain a separate pending check above.
 
 ### Section 0: requested migration away from Firebase
 
-- [ ] Implement and test a replacement realtime lobby/game transport locally.
-- [ ] Add two-client reconnect, membership and host-permission checks.
-- [ ] Select hosting after checking its actual free-tier limits; do not assume
-  a free server provides unlimited simultaneous players.
+- [x] Implement and test a replacement realtime lobby/game transport locally.
+  The Node WebSocket server now passes a three-client integration test and the
+  browser loads `src/realtime.js` instead of the Firebase adapter.
+- [x] Add reconnect, atomic seat, membership and host-permission checks.
+  Automated coverage includes simultaneous seat claims, private room filtering,
+  subscriptions, a same-player reconnect, and rejected non-host race changes.
+- [x] Select hosting after checking its actual free-tier limits; Cloudflare
+  Durable Objects are the deployment target. `docs/MULTIPLAYER-SERVER.md` records
+  the September 2026 free limits and an estimated full-room hourly budget.
 - [ ] Deploy and verify the replacement before removing the working transport.
 
 ## Whole specification section completion gates
@@ -621,8 +725,10 @@ on port 8080 and a debugging browser on the supplied port.
 - [x] Ten-item hotbar and exact active catalog enforced by regression tests.
   Further check: first-person grip and ground contact for both golden props.
 - [x] DerbyPay send/request/pay/decline flow implemented with unread notices.
-  Further check: two live Firebase clients, simultaneous payments, reconnects,
-  and server-authoritative balance validation.
+  Direct forged transfer events are rejected; idempotent server records prevent
+  duplicate delivery and failed writes restore the sender's optimistic debit.
+  Further check: two live hosted WebSocket clients, simultaneous payments,
+  reconnects, and server-authoritative balance validation for the full economy.
 - [x] Controller foundation implemented and dead-zone math covered in tests.
   Further check: Xbox/PlayStation/Switch-style hardware, complete focus traversal,
   reconnect behavior, remapping, and controller-specific button glyphs.
@@ -645,7 +751,7 @@ on port 8080 and a debugging browser on the supplied port.
 
 - [x] Correct opening-book flattening by incorporating permanent base-odds
   profiles alongside ability, then normalizing against the entered field.
-  Test 30 deterministic six-horse fields for distinct quotes, probability totals,
+  Test 48 deterministic six-horse fields for distinct quotes, probability totals,
   meaningful chance spread and invariance under lane reordering.
   Verification: npm test and npm run check pass; live first-lap cutoff covered.
 - [x] Fix flattened opening odds (six horses all at 5:1) and review ticket payouts.
@@ -657,11 +763,11 @@ on port 8080 and a debugging browser on the supplied port.
   Gaps depend on the strength contrast of the actual entrants, replacing the
   earlier fixed 7.5-point layout. Preserve individual stats, stable grouping
   under lane reorder, locked ticket quotes and live-book updates.
-  Verification: npm test, including group sizes/gaps for 4-8 horses and 30
+  Verification: npm test, including group sizes/gaps for 4-8 horses and 48
   deterministic six-horse fields; config.js and race.js syntax checks.
   Actual win-frequency calibration remains pending below: these are estimates.
 - [x] Verify that different opponent fields produce different probabilities and
-  displayed quotes, using 30 deterministic matchups.
+  displayed quotes, using 48 deterministic matchups.
 - [x] Verify 40 seeded random draws, full-roster eligibility, no duplicate horses,
   varied fields, no flat opening book, and retention for the scheduled second race.
 - [ ] Calibrate quoted chances against repeated simulated races; verify locked

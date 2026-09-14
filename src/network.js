@@ -12,6 +12,7 @@ HD.Network = (() => {
   const $ = (selector) => document.querySelector(selector);
   const members = new Map();
   const processedEvents = new Set();
+  const processedTransfers = new Set();
   const chatMessages = [];
   const remoteStateSequences = new Map();
   const elements = {};
@@ -34,6 +35,7 @@ HD.Network = (() => {
   let playerWritePending = false;
   let raceWritePending = false;
   let rosterSignature = "";
+  let rulesSignature = "";
   let lobbyVisibility = "public";
 
   function init() {
@@ -53,6 +55,8 @@ HD.Network = (() => {
       roomCode: $("#lobby-room-code"),
       memberList: $("#lobby-members"),
       copy: $("#lobby-copy"),
+      rules: $("#lobby-rules"),
+      rulesSummary: $("#lobby-rules-summary"),
       start: $("#lobby-start"),
       ready: $("#lobby-ready"),
       leave: $("#lobby-leave"),
@@ -61,13 +65,14 @@ HD.Network = (() => {
     });
 
     restorePlayerName();
+    HD.Realtime.setIdentity(selfId);
     bindLobbyControls();
     readInviteCode();
-    setStatus("connecting", "CONNECTING TO FIREBASE...");
+    setStatus("connecting", "CONNECTING TO SERVER...");
 
     requestLobbies()
       .then(() => {
-        setStatus("online", "FIREBASE ONLINE");
+        setStatus("online", "SERVER ONLINE");
         if (pendingLobbyCode) joinLobby(pendingLobbyCode);
       })
       .catch(showConnectionError);
@@ -82,6 +87,7 @@ HD.Network = (() => {
     elements.join.addEventListener("click", joinLobbyFromInput);
     elements.refresh.addEventListener("click", requestLobbies);
     elements.copy.addEventListener("click", copyInviteLink);
+    elements.rules.addEventListener("click", openMatchRules);
     elements.start.addEventListener("click", startOnlineMatch);
     elements.ready.addEventListener("click", toggleReady);
     elements.leave.addEventListener("click", leaveOnlineSession);
@@ -108,12 +114,12 @@ HD.Network = (() => {
 
     pendingLobbyCode = sanitizeLobbyCode(inviteCode);
     elements.lobbyCode.value = pendingLobbyCode;
-    setMessage(`Invite ${pendingLobbyCode} found. Connecting through Firebase...`);
+    setMessage(`Invite ${pendingLobbyCode} found. Connecting to the game server...`);
   }
 
   async function createLobby() {
     savePlayerName();
-    setMessage("Creating your Firebase lobby...");
+    setMessage("Creating your online lobby...");
 
     try {
       if (lobby) await leaveOnlineSession();
@@ -135,6 +141,7 @@ HD.Network = (() => {
           started: false,
           createdAt: now,
           updatedAt: now,
+          rules: { ...HD.MatchSetup.defaults },
         },
         players: {
           [selfId]: player,
@@ -144,7 +151,7 @@ HD.Network = (() => {
         },
       };
 
-      await firebaseRequest(`lobbies/${code}`, {
+      await realtimeRequest(`lobbies/${code}`, {
         method: "PUT",
         body: data,
       });
@@ -155,7 +162,7 @@ HD.Network = (() => {
           : "Public lobby created. Share the invite link with up to seven friends.",
       );
     } catch (error) {
-      showFirebaseError(error, "The lobby could not be created.");
+      showNetworkError(error, "The lobby could not be created.");
     }
   }
 
@@ -173,7 +180,7 @@ HD.Network = (() => {
   async function joinLobby(code) {
     const safeCode = sanitizeLobbyCode(code);
     pendingLobbyCode = null;
-    setMessage(`Joining ${safeCode} through Firebase...`);
+    setMessage(`Joining ${safeCode} through the game server...`);
 
     try {
       if (lobby) await leaveOnlineSession();
@@ -182,7 +189,7 @@ HD.Network = (() => {
       HD.Race.restart();
       S.matchStarted = false;
 
-      const data = await firebaseRequest(`lobbies/${safeCode}`);
+      const data = await realtimeRequest(`lobbies/${safeCode}`);
       if (!data?.meta) throw new Error("That lobby does not exist.");
 
       const activePlayers = activePlayerEntries(data.players);
@@ -193,17 +200,17 @@ HD.Network = (() => {
       const player = playerRecord(seatIndex, now);
 
       try {
-        await firebaseRequest(`lobbies/${safeCode}/players/${selfId}`, {
+        await realtimeRequest(`lobbies/${safeCode}/players/${selfId}`, {
           method: "PUT",
           body: player,
         });
       } catch (error) {
-        await firebaseRequest(`lobbies/${safeCode}/seats/${seatIndex}`, {
+        await realtimeRequest(`lobbies/${safeCode}/seats/${seatIndex}`, {
           method: "DELETE",
         }).catch(() => {});
         throw error;
       }
-      await firebaseRequest(`lobbies/${safeCode}/meta/updatedAt`, {
+      await realtimeRequest(`lobbies/${safeCode}/meta/updatedAt`, {
         method: "PUT",
         body: now,
       });
@@ -213,7 +220,7 @@ HD.Network = (() => {
       enterLobby(safeCode, data, seatIndex);
       setMessage("Joined the online lobby. Mark yourself ready when you are set.");
     } catch (error) {
-      showFirebaseError(error, "The lobby could not be joined.");
+      showNetworkError(error, "The lobby could not be joined.");
     }
   }
 
@@ -223,6 +230,7 @@ HD.Network = (() => {
     removePlaceholderPlayers();
     members.clear();
     processedEvents.clear();
+    processedTransfers.clear();
     chatMessages.length = 0;
     remoteStateSequences.clear();
 
@@ -232,26 +240,27 @@ HD.Network = (() => {
     playing = Boolean(data.meta.started);
     lobby = lobbySummary(code, data);
     rosterSignature = "";
+    rulesSignature = "";
 
     HD.Stadium.assignLocalSeat(seatIndex);
     syncLobbyCache(true);
     openLobbyStream(code);
-    setStatus("online", `FIREBASE LOBBY ${code}`);
+    setStatus("online", `ONLINE LOBBY ${code}`);
 
     if (playing) beginOnlinePlay();
   }
 
   function openLobbyStream(code) {
     closeStream();
-    stream = HD.Firebase.subscribe(`lobbies/${code}`, {
+    stream = HD.Realtime.subscribe(`lobbies/${code}`, {
       open() {
-        setStatus("online", `FIREBASE LOBBY ${code}`);
+        setStatus("online", `ONLINE LOBBY ${code}`);
       },
       update: applyStreamEvent,
       cancel: streamCancelled,
       error() {
         if (!lobby) return;
-        setStatus("connecting", "FIREBASE RECONNECTING...");
+        setStatus("connecting", "SERVER RECONNECTING...");
       },
     });
   }
@@ -264,14 +273,14 @@ HD.Network = (() => {
       applyCacheUpdate(update.path, update.data, event.type === "patch");
       syncLobbyCache(false);
     } catch (error) {
-      console.warn("Ignored an invalid Firebase update.", error);
+      console.warn("Ignored an invalid realtime update.", error);
     }
   }
 
   function applyCacheUpdate(path, data, patch) {
     const keys = path.split("/").filter(Boolean);
     if (!keys.length) {
-      if (patch) lobbyCache = mergeFirebasePatch(lobbyCache || {}, data);
+      if (patch) lobbyCache = mergeRealtimePatch(lobbyCache || {}, data);
       else lobbyCache = data || {};
       return;
     }
@@ -285,7 +294,7 @@ HD.Network = (() => {
 
     const leaf = keys.at(-1);
     if (patch) {
-      parent[leaf] = mergeFirebasePatch(parent[leaf] || {}, data);
+      parent[leaf] = mergeRealtimePatch(parent[leaf] || {}, data);
     } else if (data === null) {
       delete parent[leaf];
     } else {
@@ -293,7 +302,7 @@ HD.Network = (() => {
     }
   }
 
-  function mergeFirebasePatch(target, patch) {
+  function mergeRealtimePatch(target, patch) {
     if (!patch || typeof patch !== "object") return patch;
 
     const merged = { ...target };
@@ -305,19 +314,53 @@ HD.Network = (() => {
   }
 
   function syncLobbyCache(initial) {
-    if (!lobbyCache?.meta || !lobby) return;
+    if (!lobby) return;
+    if (!lobbyCache?.meta) {
+      handleLobbyUnavailable();
+      return;
+    }
 
     hostId = lobbyCache.meta.hostId;
     lobby.name = lobbyCache.meta.name || lobby.name;
     lobby.started = Boolean(lobbyCache.meta.started);
     lobby.visibility = lobbyCache.meta.visibility || "public";
 
+    syncMatchRules();
     syncMembers(initial);
     syncRaceState();
     syncEvents();
+    syncTransfers();
     claimMissingHost();
 
     if (lobby.started && !playing) beginOnlinePlay();
+  }
+
+  function handleLobbyUnavailable() {
+    const code = lobby?.id;
+    closeStream();
+    resetLobbyState();
+    HD.UI.updateLeaderboardAvailability?.();
+    setStatus("online", "SERVER ONLINE");
+    setMessage(
+      code
+        ? `Lobby ${code} no longer exists. Create a new room or rejoin by code.`
+        : "That lobby is no longer available.",
+    );
+    HD.UI.announce("The online lobby closed. You are back at the clubhouse.");
+  }
+
+  function syncMatchRules() {
+    const rules = HD.MatchSetup.normalize(lobbyCache.meta.rules);
+    const signature = JSON.stringify(rules);
+    if (signature !== rulesSignature) {
+      rulesSignature = signature;
+      HD.MatchSetup.apply(rules);
+      if (!playing) S.money = rules.startingMoney;
+      HD.UI.render?.();
+    }
+    if (elements.rulesSummary) {
+      elements.rulesSummary.textContent = matchRulesSummary(rules);
+    }
   }
 
   function syncMembers(initial) {
@@ -379,7 +422,7 @@ HD.Network = (() => {
     avatar.userData.targetYaw = state.yaw;
     avatar.userData.targetHeadTurn = Number(state.headTurn) || 0;
     avatar.userData.targetHeadPitch = Number(state.pitch) || 0;
-    // Seating was removed from gameplay. Ignore legacy Firebase presence
+    // Seating was removed from gameplay. Ignore legacy network presence
     // records so returning players cannot appear seated to newer clients.
     HD.Models.setPlayerStanding(avatar, true);
     avatar.userData.activity = state.mode === "throw"
@@ -432,15 +475,28 @@ HD.Network = (() => {
       if (event.type === "sabotage" && event.payload && isHost()) {
         HD.Race.addNetworkSabotage(event.payload);
       }
-      if (event.type === "transfer" && event.payload?.to === selfId) {
-        const money = Math.max(0, Math.floor(Number(event.payload.money) || 0));
-        const itemId = event.payload.itemId;
-        S.money += money;
-        if (itemId && S.inventory[itemId] !== undefined) S.inventory[itemId]++;
-        HD.UI.announce(`${event.payload.fromName || "A player"} sent you ${money ? `$${money}` : HD.CONFIG.items[itemId]?.name || "an item"}.`);
-        HD.Audio?.cue?.("moneyGain");
-        HD.UI.render();
-      }
+    });
+  }
+
+  function syncTransfers() {
+    Object.entries(lobbyCache.transfers || {}).forEach(([transferId, transfer]) => {
+      if (processedTransfers.has(transferId)) return;
+      processedTransfers.add(transferId);
+      if (!transfer || transfer.createdAt < joinedAt - 1_000 ||
+          transfer.from === selfId || transfer.to !== selfId) return;
+
+      const money = Math.max(0, Math.floor(Number(transfer.money) || 0));
+      const itemId = transfer.itemId;
+      S.money += money;
+      if (itemId && S.inventory[itemId] !== undefined) S.inventory[itemId]++;
+
+      const contents = [
+        money ? `$${money}` : "",
+        itemId ? HD.CONFIG.items[itemId]?.name || "an item" : "",
+      ].filter(Boolean).join(" and ");
+      HD.UI.announce(`${transfer.fromName || "A player"} sent you ${contents}.`);
+      HD.Audio?.cue?.("moneyGain");
+      HD.UI.render();
     });
   }
 
@@ -452,7 +508,7 @@ HD.Network = (() => {
     if (successor?.id !== selfId) return;
 
     hostId = selfId;
-    firebaseRequest(`lobbies/${lobby.id}/meta`, {
+    realtimeRequest(`lobbies/${lobby.id}/meta`, {
       method: "PATCH",
       body: { hostId: selfId, updatedAt: Date.now() },
     }).catch(() => {});
@@ -492,7 +548,7 @@ HD.Network = (() => {
     if (playerWritePending || !lobby) return;
 
     playerWritePending = true;
-    firebaseRequest(`lobbies/${lobby.id}/players/${selfId}`, {
+    realtimeRequest(`lobbies/${lobby.id}/players/${selfId}`, {
       method: "PATCH",
       body: {
         lastSeen: Date.now(),
@@ -509,7 +565,7 @@ HD.Network = (() => {
     if (raceWritePending || !lobby) return;
 
     raceWritePending = true;
-    firebaseRequest(`lobbies/${lobby.id}/race`, {
+    realtimeRequest(`lobbies/${lobby.id}/race`, {
       method: "PUT",
       body: {
         sequence: ++raceSequence,
@@ -529,29 +585,29 @@ HD.Network = (() => {
     const now = Date.now();
     Object.entries(lobbyCache.players || {}).forEach(([playerId, player]) => {
       if (playerId === selfId || isPlayerActive(player, now)) return;
-      firebaseRequest(`lobbies/${lobby.id}/players/${playerId}`, {
+      realtimeRequest(`lobbies/${lobby.id}/players/${playerId}`, {
         method: "DELETE",
       }).catch(() => {});
-      firebaseRequest(`lobbies/${lobby.id}/seats/${player.seatIndex}`, {
+      realtimeRequest(`lobbies/${lobby.id}/seats/${player.seatIndex}`, {
         method: "DELETE",
       }).catch(() => {});
     });
 
     Object.entries(lobbyCache.seats || {}).forEach(([seatIndex, playerId]) => {
       if (isPlayerActive(lobbyCache.players?.[playerId], now)) return;
-      firebaseRequest(`lobbies/${lobby.id}/seats/${seatIndex}`, {
+      realtimeRequest(`lobbies/${lobby.id}/seats/${seatIndex}`, {
         method: "DELETE",
       }).catch(() => {});
     });
 
     Object.entries(lobbyCache.events || {}).forEach(([eventId, event]) => {
       if (now - Number(event?.createdAt || 0) <= EVENT_LIFETIME_MS) return;
-      firebaseRequest(`lobbies/${lobby.id}/events/${eventId}`, {
+      realtimeRequest(`lobbies/${lobby.id}/events/${eventId}`, {
         method: "DELETE",
       }).catch(() => {});
     });
 
-    firebaseRequest(`lobbies/${lobby.id}/meta/updatedAt`, {
+    realtimeRequest(`lobbies/${lobby.id}/meta/updatedAt`, {
       method: "PUT",
       body: now,
     }).catch(() => {});
@@ -712,7 +768,7 @@ HD.Network = (() => {
       .map((player) => ({ id: player.id, name: player.name }));
   }
 
-  function sendTransfer(to, money, itemId) {
+  async function sendTransfer(to, money, itemId) {
     if (!lobby || !members.has(to) || to === selfId) return false;
     const amount = Math.max(0, Math.floor(Number(money) || 0));
     if (amount > S.money) return false;
@@ -720,13 +776,36 @@ HD.Network = (() => {
     if (!amount && !itemId) return false;
     S.money -= amount;
     if (itemId) S.inventory[itemId]--;
-    postLobbyEvent("transfer", {
-      to,
-      money: amount,
-      itemId: itemId || "",
-      fromName: members.get(selfId)?.name || "A player",
-    });
-    return true;
+
+    const transferId = createTransferId();
+    try {
+      await realtimeRequest(`lobbies/${lobby.id}/transfers/${transferId}`, {
+        method: "PUT",
+        body: {
+          from: selfId,
+          to,
+          money: amount,
+          itemId: itemId || "",
+          fromName: members.get(selfId)?.name || "A player",
+          createdAt: Date.now(),
+        },
+      });
+      processedTransfers.add(transferId);
+      return true;
+    } catch (error) {
+      S.money += amount;
+      if (itemId) S.inventory[itemId]++;
+      HD.UI.render?.();
+      showNetworkError(error, "The DerbyPay transfer was rejected.");
+      return false;
+    }
+  }
+
+  function createTransferId() {
+    const random = crypto.randomUUID
+      ? crypto.randomUUID().replaceAll("-", "")
+      : createClientId().slice(0, 20);
+    return `${Date.now().toString(36)}_${random}`.slice(0, 64);
   }
 
   function requestMoney(to, money) {
@@ -743,14 +822,14 @@ HD.Network = (() => {
 
   function updateAvatar(avatar) {
     if (!lobby) return;
-    firebaseRequest(`lobbies/${lobby.id}/players/${selfId}/avatar`, {
+    realtimeRequest(`lobbies/${lobby.id}/players/${selfId}/avatar`, {
       method: "PUT",
       body: avatar,
-    }).catch((error) => showFirebaseError(error, "Your outfit was not synchronized."));
+    }).catch((error) => showNetworkError(error, "Your outfit was not synchronized."));
   }
 
   function postLobbyEvent(type, payload) {
-    firebaseRequest(`lobbies/${lobby.id}/events`, {
+    realtimeRequest(`lobbies/${lobby.id}/events`, {
       method: "POST",
       body: {
         type,
@@ -759,7 +838,7 @@ HD.Network = (() => {
         payload,
       },
       silent: false,
-    }).catch((error) => showFirebaseError(error, `The ${type} event was not sent.`));
+    }).catch((error) => showNetworkError(error, `The ${type} event was not sent.`));
   }
 
   function createRemotePlayer(player) {
@@ -843,7 +922,7 @@ HD.Network = (() => {
   }
 
   async function requestLobbies() {
-    const data = await firebaseRequest("lobbies");
+    const data = await realtimeRequest("lobbies");
     const now = Date.now();
     cleanupAbandonedLobbies(data, now);
     const list = Object.entries(data || {})
@@ -852,7 +931,7 @@ HD.Network = (() => {
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     renderLobbyBrowser(list);
-    if (!lobby) setStatus("online", "FIREBASE ONLINE");
+    if (!lobby) setStatus("online", "SERVER ONLINE");
     return list;
   }
 
@@ -915,6 +994,8 @@ HD.Network = (() => {
       [...members.values()].every((player) => player.ready);
     elements.ready.classList.toggle("ready", Boolean(self?.ready));
     elements.ready.textContent = self?.ready ? "READY \u2713" : "I'M READY";
+    elements.rules.disabled = !isHost() || playing;
+    elements.rules.textContent = isHost() ? "EDIT RULES" : "HOST CONTROLS";
     elements.start.disabled = !isHost() || !everyoneReady;
     elements.start.textContent = isHost()
       ? everyoneReady
@@ -973,10 +1054,37 @@ HD.Network = (() => {
     const player = members.get(selfId);
     if (!player || playing || !lobby) return;
 
-    firebaseRequest(`lobbies/${lobby.id}/players/${selfId}/ready`, {
+    realtimeRequest(`lobbies/${lobby.id}/players/${selfId}/ready`, {
       method: "PUT",
       body: !player.ready,
-    }).catch((error) => showFirebaseError(error, "Ready status was not saved."));
+    }).catch((error) => showNetworkError(error, "Ready status was not saved."));
+  }
+
+  function openMatchRules() {
+    if (!lobby || !isHost() || playing) return;
+    HD.MatchSetup.openOnline(lobbyCache?.meta?.rules);
+  }
+
+  function updateMatchRules(input) {
+    if (!lobby || !isHost() || playing) return false;
+    const rules = HD.MatchSetup.normalize(input);
+    realtimeRequest(`lobbies/${lobby.id}/meta`, {
+      method: "PATCH",
+      body: { rules, updatedAt: Date.now() },
+    }).catch((error) => showNetworkError(error, "Match rules were not saved."));
+    return true;
+  }
+
+  function matchRulesSummary(rules) {
+    const crowd = {
+      off: "NO CROWD THROWS",
+      relaxed: "RELAXED CROWD",
+      normal: "NORMAL CROWD",
+      lively: "LIVELY CROWD",
+    }[rules.crowd];
+    return `${rules.days} DAYS · ${rules.racesPerDay} RACES/DAY · ` +
+      `${rules.horses} HORSES · ${rules.laps} LAPS · ` +
+      `$${rules.startingMoney} START · ${crowd}`;
   }
 
   function startOnlineMatch() {
@@ -984,10 +1092,10 @@ HD.Network = (() => {
     if (!isHost() || !lobby || !everyoneReady) return;
 
     const matchId = Date.now();
-    firebaseRequest(`lobbies/${lobby.id}/meta`, {
+    realtimeRequest(`lobbies/${lobby.id}/meta`, {
       method: "PATCH",
       body: { started: true, matchId, updatedAt: matchId },
-    }).catch((error) => showFirebaseError(error, "The match could not start."));
+    }).catch((error) => showNetworkError(error, "The match could not start."));
   }
 
   function beginOnlinePlay() {
@@ -1013,23 +1121,23 @@ HD.Network = (() => {
     if (!oldLobby) return;
 
     try {
-      await firebaseRequest(`lobbies/${oldLobby.id}/players/${selfId}`, {
+      await realtimeRequest(`lobbies/${oldLobby.id}/players/${selfId}`, {
         method: "DELETE",
       });
       if (Number.isInteger(oldSeatIndex)) {
-        await firebaseRequest(`lobbies/${oldLobby.id}/seats/${oldSeatIndex}`, {
+        await realtimeRequest(`lobbies/${oldLobby.id}/seats/${oldSeatIndex}`, {
           method: "DELETE",
         });
       }
 
       if (wasHost && successors.length) {
-        await firebaseRequest(`lobbies/${oldLobby.id}/meta`, {
+        await realtimeRequest(`lobbies/${oldLobby.id}/meta`, {
           method: "PATCH",
           body: { hostId: successors[0].id, updatedAt: Date.now() },
         });
       }
       if (!successors.length) {
-        await firebaseRequest(`lobbies/${oldLobby.id}`, { method: "DELETE" });
+        await realtimeRequest(`lobbies/${oldLobby.id}`, { method: "DELETE" });
       }
     } catch {
       setMessage("The lobby will remove this player after its presence timeout.");
@@ -1051,21 +1159,23 @@ HD.Network = (() => {
     lobbyCache = null;
     hostId = null;
     playing = false;
+    rulesSignature = "";
     members.clear();
     processedEvents.clear();
+    processedTransfers.clear();
     chatMessages.length = 0;
     clearRemotePlayers();
     elements.room.hidden = true;
-    setStatus("online", "FIREBASE ONLINE");
+    setStatus("online", "SERVER ONLINE");
   }
 
   function leaveBeacon() {
     if (!lobby) return;
     const seatIndex = members.get(selfId)?.seatIndex;
-    HD.Firebase.removeOnPageHide(`lobbies/${lobby.id}/players/${selfId}`)
+    HD.Realtime.removeOnPageHide(`lobbies/${lobby.id}/players/${selfId}`)
       .catch(() => {});
     if (Number.isInteger(seatIndex)) {
-      HD.Firebase.removeOnPageHide(`lobbies/${lobby.id}/seats/${seatIndex}`)
+      HD.Realtime.removeOnPageHide(`lobbies/${lobby.id}/seats/${seatIndex}`)
         .catch(() => {});
     }
   }
@@ -1076,8 +1186,8 @@ HD.Network = (() => {
   }
 
   function streamCancelled() {
-    setStatus("offline", "FIREBASE ACCESS DENIED");
-    setMessage("Firebase cancelled this lobby stream. Check the database rules.");
+    setStatus("offline", "SERVER ACCESS DENIED");
+    setMessage("The game server ended this lobby connection.");
   }
 
   async function copyInviteLink() {
@@ -1096,7 +1206,7 @@ HD.Network = (() => {
   async function unusedLobbyCode() {
     for (let attempt = 0; attempt < 12; attempt++) {
       const code = randomLobbyCode();
-      const existing = await firebaseRequest(`lobbies/${code}`);
+      const existing = await realtimeRequest(`lobbies/${code}`);
       if (!existing) return code;
     }
     throw new Error("Could not reserve a unique lobby code. Try again.");
@@ -1114,7 +1224,7 @@ HD.Network = (() => {
     const occupied = new Set(playerEntries.map(([, player]) => player.seatIndex));
     for (let seat = 0; seat < 8; seat++) {
       if (occupied.has(seat)) continue;
-      const reserved = await HD.Firebase.reserve(`lobbies/${code}/seats/${seat}`, selfId);
+      const reserved = await HD.Realtime.reserve(`lobbies/${code}/seats/${seat}`, selfId);
       if (reserved) return seat;
     }
     throw new Error("That lobby filled up while you were joining.");
@@ -1125,7 +1235,7 @@ HD.Network = (() => {
       if (!entry?.meta || activePlayerEntries(entry.players, false, now).length) return;
       if (now - Number(entry.meta.updatedAt || 0) < 60_000) return;
 
-      firebaseRequest(`lobbies/${code}`, { method: "DELETE" }).catch(() => {});
+      realtimeRequest(`lobbies/${code}`, { method: "DELETE" }).catch(() => {});
     });
   }
 
@@ -1181,17 +1291,17 @@ HD.Network = (() => {
     return [...random].map((value) => value.toString(16)).join("");
   }
 
-  function firebaseRequest(path, options) {
-    return HD.Firebase.request(path, options);
+  function realtimeRequest(path, options) {
+    return HD.Realtime.request(path, options);
   }
 
   function showConnectionError(error) {
-    console.warn("Firebase multiplayer unavailable.", error);
-    setStatus("offline", "FIREBASE OFFLINE");
-    setMessage("Firebase is unavailable. Single player still works normally.");
+    console.warn("Realtime multiplayer unavailable.", error);
+    setStatus("offline", "SERVER OFFLINE");
+    setMessage("The multiplayer server is unavailable. Single player still works normally.");
   }
 
-  function showFirebaseError(error, fallback) {
+  function showNetworkError(error, fallback) {
     console.warn(fallback, error);
     const message = String(error?.message || "").replace(/^"|"$/g, "");
     setMessage(message && message.length < 120 ? message : fallback);
@@ -1303,6 +1413,7 @@ HD.Network = (() => {
     sendSabotage,
     sendTransfer,
     requestMoney,
+    updateMatchRules,
     transferTargets,
     updateAvatar,
     isConnected,

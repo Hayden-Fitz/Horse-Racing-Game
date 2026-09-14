@@ -1049,6 +1049,7 @@ HD.Models = (() => {
     const staminaRating = data.stamina || 75;
     const accelerationRating = data.acceleration || 75;
     const resistanceRating = data.resistance || 75;
+    const personality = horsePersonalityTraits(data.personality);
     root.add(body);
     root.userData.body = body;
     const rig = buildHorseVisual(body, data, Math.max(0, poolIndex));
@@ -1077,16 +1078,19 @@ HD.Models = (() => {
         momentum: 0,
         baseSpeed:
           (0.0412 + speedRating * 0.00004) *
-          (0.992 + Math.random() * 0.016),
+          (0.992 + Math.random() * 0.016) * personality.pace,
         speedRating,
         staminaRating,
         accelerationRating,
         resistanceRating,
+        intelligenceRating: data.intelligence || 75,
         lane: index,
         targetLane: index,
-        earlyPace: 0.94 + accelerationRating * 0.0012,
+        earlyPace: (0.94 + accelerationRating * 0.0012) * personality.early,
         stamina: 0.95 + staminaRating * 0.001,
-        finishKick: Math.max(0.012, (accelerationRating - 62) * 0.0015),
+        finishKick:
+          Math.max(0.012, (accelerationRating - 62) * 0.0015) *
+          personality.finish,
         acceleration: 0.9 + accelerationRating * 0.006,
         deceleration: 1 + resistanceRating * 0.003,
         slow: 0,
@@ -1097,6 +1101,7 @@ HD.Models = (() => {
         ragdoll: 0,
         boost: 0,
         resistance: 0,
+        intelligenceBoost: 0,
         weave: 0,
         panic: 0,
         sabotagePenalty: 0,
@@ -1106,11 +1111,93 @@ HD.Models = (() => {
         passing: false,
         clearTime: 0,
         laneDecisionTime: 0.8 + Math.random() * 1.4,
+        startResponse: personality.start,
+        recoveryRate: personality.recovery,
+        laneCuriosity: personality.lanes,
+        passingDrive: personality.passing,
         motionSpeed: 0,
       },
     };
     animateHorse(root, 0, false);
     return root;
+  }
+
+  function horsePersonalityTraits(name) {
+    const traits = {
+      "Front-runner": {
+        pace: 1.006, early: 1.035, finish: 0.86, start: 1.16,
+        recovery: 0.96, lanes: 0.86, passing: 1.08,
+      },
+      Comeback: {
+        pace: 0.997, early: 0.96, finish: 1.42, start: 0.91,
+        recovery: 1.09, lanes: 1.02, passing: 1.18,
+      },
+      Cautious: {
+        pace: 1, early: 0.99, finish: 1.04, start: 0.98,
+        recovery: 1.13, lanes: 0.72, passing: 0.78,
+      },
+      Unpredictable: {
+        pace: 1.001, early: 1.01, finish: 1.08, start: 1.01,
+        recovery: 0.98, lanes: 1.55, passing: 1.12,
+      },
+      Fearless: {
+        pace: 1.004, early: 1.02, finish: 1.03, start: 1.09,
+        recovery: 0.95, lanes: 1.18, passing: 1.36,
+      },
+      Steady: {
+        pace: 1.001, early: 1, finish: 1.05, start: 1.01,
+        recovery: 1.12, lanes: 0.86, passing: 0.94,
+      },
+      Aggressive: {
+        pace: 1.006, early: 1.025, finish: 0.96, start: 1.1,
+        recovery: 0.91, lanes: 1.3, passing: 1.5,
+      },
+      Showboat: {
+        pace: 1.002, early: 1.015, finish: 1.12, start: 1.06,
+        recovery: 0.94, lanes: 1.38, passing: 1.2,
+      },
+      Stubborn: {
+        pace: 0.999, early: 0.985, finish: 1.08, start: 0.94,
+        recovery: 1.2, lanes: 0.58, passing: 0.7,
+      },
+      Powerful: {
+        pace: 1.008, early: 0.99, finish: 1.18, start: 0.96,
+        recovery: 1.07, lanes: 0.82, passing: 1.24,
+      },
+      Playful: {
+        pace: 1, early: 1.01, finish: 1.02, start: 1.03,
+        recovery: 1, lanes: 1.48, passing: 1.08,
+      },
+      Patient: {
+        pace: 0.998, early: 0.97, finish: 1.3, start: 0.93,
+        recovery: 1.14, lanes: 0.76, passing: 1.02,
+      },
+      Focused: {
+        pace: 1.006, early: 1.015, finish: 1.14, start: 1.08,
+        recovery: 1.08, lanes: 0.68, passing: 1.08,
+      },
+      Enduring: {
+        pace: 1.002, early: 0.975, finish: 1.34, start: 0.94,
+        recovery: 1.18, lanes: 0.8, passing: 1.04,
+      },
+      Sneaky: {
+        pace: 1.001, early: 0.99, finish: 1.2, start: 1,
+        recovery: 1.03, lanes: 1.18, passing: 1.34,
+      },
+      Eager: {
+        pace: 1.003, early: 1.03, finish: 0.96, start: 1.14,
+        recovery: 0.97, lanes: 1.2, passing: 1.16,
+      },
+    };
+    return traits[name] || {
+      pace: 1,
+      early: 1,
+      finish: 1,
+      start: 1,
+      recovery: 1,
+      lanes: 1,
+      passing: 1,
+    };
   }
 
   function disposeHorse(horse) {

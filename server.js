@@ -3,6 +3,7 @@
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
+const { createRealtimeServer } = require("./server/realtime-server");
 
 const PORT = Number(process.env.PORT) || 8080;
 const ROOT = path.resolve(__dirname);
@@ -24,6 +25,13 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((request, response) => {
+  const requestUrl = new URL(request.url, "http://localhost");
+  if (requestUrl.pathname.startsWith("/api/")) {
+    realtime.handleHttp(request, response, requestUrl).then((handled) => {
+      if (!handled) sendText(response, 404, "API route not found");
+    }).catch(() => sendText(response, 500, "Realtime server error"));
+    return;
+  }
   if (request.method !== "GET" && request.method !== "HEAD") {
     sendText(response, 405, "Method not allowed");
     return;
@@ -58,9 +66,11 @@ const server = http.createServer((request, response) => {
   });
 });
 
+const realtime = createRealtimeServer(server);
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Hotdog Downs is ready at http://localhost:${PORT}`);
-  console.log("Online lobbies connect directly to Firebase.");
+  console.log("Realtime multiplayer is served locally over WebSockets.");
 });
 
 function requestedFile(rawUrl = "/") {

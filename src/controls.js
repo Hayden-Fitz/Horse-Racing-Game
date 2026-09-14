@@ -619,28 +619,21 @@ HD.Controls = (() => {
       const perpendicular = Math.abs(lateral);
 
       if (
-        // The visible aisle is eight units wide. A generous invisible capture
-        // strip lets players enter it sideways from any seating row without
-        // having to line their feet up with the concrete edge pixel-perfectly.
-        perpendicular <= stairs.width / 2 + 2.6 &&
-        progress >= -0.2 &&
-        progress <= 1.18
+        // Only actual tread area supports the player; adjacent seats are rows,
+        // not an invisible extension of the staircase.
+        perpendicular <= stairs.width / 2 &&
+        progress >= 0 &&
+        progress <= 1
       ) {
         const clampedProgress = THREE.MathUtils.clamp(progress, 0, 1);
         const expectedFloor = stairHeightForProgress(clampedProgress, angle);
         const currentFloor = S.playerPosition.y - HD.CONFIG.eyeHeight;
         if (Math.abs(expectedFloor - currentFloor) <= 1.25) {
-          const usableHalfWidth = stairs.width / 2 - 0.45;
-          const safeLateral = THREE.MathUtils.clamp(
-            lateral,
-            -usableHalfWidth,
-            usableHalfWidth,
-          );
           return {
             progress: clampedProgress,
             height: expectedFloor,
-            x: startX + deltaX * progress + sideX * safeLateral,
-            z: startZ + deltaZ * progress + sideZ * safeLateral,
+            x,
+            z,
           };
         }
       }
