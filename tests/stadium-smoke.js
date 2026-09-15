@@ -289,6 +289,30 @@ async function run() {
       object.geometry.userData.seatCushion,
     );
   assert.equal(seatBatches.length, 8, "The lower bowl should cull seating in separate sectors");
+  HD.world.camera.position.set(0, 4, 0);
+  HD.world.camera.lookAt(100, 4, 0);
+  HD.world.camera.updateMatrixWorld(true);
+  HD.Stadium.updateViewCulling(HD.world.camera);
+  const visibleSeatSectors = seatBatches.filter((batch) => batch.visible).length;
+  assert.ok(
+    visibleSeatSectors > 0 && visibleSeatSectors < seatBatches.length,
+    'The player render must retain nearby 120-degree seating sectors and hide rear sectors: ' +
+      JSON.stringify(seatBatches.map((batch) => ({
+        visible: batch.visible,
+        center: batch.boundingSphere?.center.toArray(),
+        radius: batch.boundingSphere?.radius,
+      }))),
+  );
+  const culledArchitecture = [];
+  HD.world.scene.traverse((object) => {
+    if (object.userData.arenaViewCulled && !object.visible) culledArchitecture.push(object);
+  });
+  assert.ok(culledArchitecture.length > 0, 'Rear arena detail must leave the player render budget');
+  HD.Stadium.showAllViewCulled();
+  assert.ok(
+    seatBatches.every((batch) => batch.visible),
+    'Replay and photo passes must be able to restore every arena sector',
+  );
   const seatMatrix = new THREE.Matrix4();
   const columns = seatBatches[0].userData.seatingSector.columns;
   const formerBoothColumn = Math.round((Math.PI * 2 - 0.18) / (Math.PI * 2) * columns) % columns;

@@ -77,6 +77,7 @@ HD.Photo = (() => {
       light.shadow.mapSize.set(4096, 4096);
     });
     try {
+      HD.Stadium.showAllViewCulled();
       // Ground-level fog distances would wash out a camera hundreds of units up.
       if (originalFog?.isFog) {
         world.scene.fog = originalFog.clone();
@@ -110,6 +111,7 @@ HD.Photo = (() => {
       }
       renderer.shadowMap.enabled = shadows;
       renderer.shadowMap.autoUpdate = updateShadows;
+      HD.Stadium.updateViewCulling(world.camera);
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(size.x, size.y, false);
       renderer.setRenderTarget(target);

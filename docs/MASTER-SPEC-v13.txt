@@ -89,7 +89,9 @@ Current design decisions that must remain
 - [u] Preserve the existing Single Player setup bounds while adding usable sandbox
   support for the configured systems above. Solo has no player leaderboard or
   simulated player opponents.
-- [u] Recheck phone/setup bounds at 150% UI scale on a narrow display.
+- [x] Recheck phone/setup bounds at 150% UI scale on a narrow display. The
+  browser review now exercises both panels at 540 × 820 and verifies their
+  transformed bounds and horizontal overflow.
 
 
 4. Items, concessions, auctions and inventory
@@ -164,8 +166,10 @@ Current design decisions that must remain
   groups; never allow a six-horse all-5:1 book again.
 - [u] Complete AI for momentum, lane changes, overtaking, avoidance of stopped horses,
   effects, obstacles, stamina, cornering, intelligence and personality.
-- Keep 4–8 lane/gate layouts correct in every horse count and ensure camera
-  framing, numbers, odds and payouts update with the field.
+- [x] Keep 4–8 lane/gate layouts correct in every horse count and ensure camera
+  framing, numbers, odds and payouts update with the field. Focused race and
+  stadium tests verify field size, dirt containment, starting lanes, identity,
+  odds, lane markings, gate motion and replay-camera tracking for this layout.
 
 
 8. Arena, locations, sound and performance
@@ -183,6 +187,11 @@ Current design decisions that must remain
 - [u] Profile the game on integrated graphics and on the powerful PC. Investigate the
   intermittent performanceOats fingerprint mismatch and full asset rebuild
   fingerprint failure before release.
+- [x] Limit expensive lower-bowl seating and outer static architecture to a
+  120-degree player-view budget with sector-boundary padding. Replay-TV and
+  photo-camera passes restore the complete arena before rendering. The cached
+  culling list avoids a full scene traversal and per-frame vector allocations;
+  the live spawn view retains 96 of 127 sector batches with no runtime errors.
 - [u] Benchmark sustained 60-fps trailer capture on the powerful PC.
 
 

@@ -106,6 +106,13 @@ Verification: horse, controls, stadium/replay, race and UI regression checks;
 browser photo capture checks (four presets, image dimensions, restored renderer).
 Prior phone browser checks covered home navigation, 720p layout and video pixels.
 
+- [x] Add a 120-degree player-view render budget for sectorized lower-bowl seats,
+  spectators and outer static architecture. Use actual instanced-mesh bounds so
+  sectors touching the view remain visible, and cache the 127 cullable batches
+  to avoid traversing the scene every frame. Replay and photography restore all
+  sectors before their render passes. The live spawn view retains 96 batches and
+  hides 31 rear-side batches; stadium tests and the browser arena review pass.
+
 - [ ] Investigate the intermittent performanceOats geometry fingerprint mismatch
   seen in an earlier run; the latest full suite passes without changing that asset.
 - [ ] Verify real two-client player/equipment replays and payment requests.
@@ -142,6 +149,10 @@ held hotdog and throwing checks: `node scripts/review-models.mjs 9338`.
 - [x] Remove simulated player opponents and fake transfer recipients.
 - [x] Preserve reserved seats for actual online humans.
 - [x] Put 4–8 starting lanes within the dirt, ordered inside to outside.
+- [x] Re-verify the complete 4–8 horse layout dependency: field size, unique
+  horse numbers, separated opening odds, dirt containment, lane markings,
+  underground starting gate and replay-camera tracking. Focused race, stadium
+  and UI contract tests pass together on 2026-09-14.
 - [x] Normalize opening probabilities against the actual active field.
 - [x] Include opening odds and live probability in host race snapshots.
 - [x] Import and optimize all 18 supplied Tinkercad GLBs.
@@ -403,7 +414,8 @@ system remain separate unfinished tasks.
 - [x] Include Practice setup in accessibility UI scaling.
 - [x] Validate a complete requested asset batch before replacing its working files;
   allow focused rebuilds of individual assets while retaining the full manifest.
-- [ ] Recheck the final scaled phone/setup bounds at 150% on a narrow screen.
+- [x] Recheck the final scaled phone/setup bounds at 150% on a 540 × 820 screen.
+  Both transformed panels stay inside the viewport without horizontal overflow.
 - [ ] Finish imported elbow/knee deformation and check hands against held props;
   hierarchy tests alone do not establish natural-looking animation.
 - [ ] Investigate the intermittent full-batch asset rebuild fingerprint failure;

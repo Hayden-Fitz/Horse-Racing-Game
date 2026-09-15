@@ -200,6 +200,19 @@ try {
   })()`);
   console.log('Movement route failures:', JSON.stringify(routes));
   if (routes.length) process.exitCode = 1;
+  const culling = await evaluate(`(() => {
+    HD.world.camera.position.copy(HD.CONFIG.seat);
+    HD.world.camera.lookAt(0, HD.CONFIG.eyeHeight, 0);
+    HD.world.camera.updateMatrixWorld(true);
+    HD.Stadium.updateViewCulling(HD.world.camera);
+    const result = { ...HD.world.viewCullingStats };
+    HD.Stadium.showAllViewCulled();
+    return result;
+  })()`);
+  console.log('Player-view arena sectors:', culling);
+  if (!(culling.visible > 0 && culling.visible < culling.total)) {
+    throw new Error('Player-view sector culling did not reduce the arena render set');
+  }
   const stairViews = await evaluate(`(() => {
     return HD.world.staircases.slice(0, 3).map((staircase, index) => {
       const info = staircase.userData.staircase;

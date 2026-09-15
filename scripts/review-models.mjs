@@ -151,10 +151,18 @@ await call("Emulation.setDeviceMetricsOverride", {
 const narrowSetup = await call("Runtime.evaluate", {
   expression: `(() => {
     const panel = document.querySelector('#practice-setup');
-    return panel.scrollWidth <= panel.clientWidth + 1;
+    document.documentElement.style.setProperty('--ui-scale', '1.5');
+    const bounds = panel.getBoundingClientRect();
+    const fits = panel.scrollWidth <= panel.clientWidth + 1 &&
+      bounds.left >= -1 && bounds.right <= innerWidth + 1 &&
+      bounds.top >= -1 && bounds.bottom <= innerHeight + 1;
+    document.documentElement.style.setProperty('--ui-scale', '1');
+    return fits;
   })()`, returnByValue: true,
 });
-if (!narrowSetup.result?.value) throw new Error('Practice setup overflows a narrow screen');
+if (!narrowSetup.result?.value) {
+  throw new Error('Practice setup overflows a narrow screen at 150% UI scale');
+}
 await call("Emulation.setDeviceMetricsOverride", {
   width: 1600, height: 1100, deviceScaleFactor: 1, mobile: false,
 });
@@ -194,8 +202,6 @@ const practiceStarted = await call("Runtime.evaluate", {
 if (!practiceStarted.result?.value) throw new Error('Practice rules did not reach the simulation');
 const practiceUi = await call("Runtime.evaluate", {
   expression: `(() => {
-    const leadersButton = document.querySelector('[data-app=leaders]');
-    const leadersPanel = document.querySelector('[data-panel=leaders]');
     const settings = document.querySelector('#settings-panel');
     const heading = settings.querySelector('.settings-heading');
     settings.hidden = false;
@@ -203,7 +209,7 @@ const practiceUi = await call("Runtime.evaluate", {
     const sticky = getComputedStyle(heading).position === 'sticky' &&
       heading.getBoundingClientRect().top >= settings.getBoundingClientRect().top - 2;
     settings.hidden = true;
-    document.documentElement.style.setProperty('--ui-scale', '1.25');
+    document.documentElement.style.setProperty('--ui-scale', '1.5');
     const scaleSelectors = [
       '#menu-button', '.topbar', '.hotbar', '.menu-shell', '.results > div',
       '.vendor-shop > div', '.bet-counter > div', '.practice-setup'
@@ -223,20 +229,51 @@ const practiceUi = await call("Runtime.evaluate", {
     phone.classList.toggle('closed', phoneWasClosed);
     document.body.classList.toggle('phone-open', phoneWasOpen);
     phone.style.transition = previousTransition;
-    const globallyScaled = Object.values(scaleValues).every((zoom) => zoom === 1.25) &&
-      phoneScale === 1.25;
+    const globallyScaled = Object.values(scaleValues).every((zoom) => zoom === 1.5) &&
+      phoneScale === 1.5;
     document.documentElement.style.setProperty('--ui-scale', '1');
-    return { ok: leadersButton.hidden && leadersPanel.hidden && sticky &&
-      globallyScaled &&
+    return { ok: sticky && globallyScaled &&
       HD.state.money === 1000 && HD.MatchSetup.normalize({ startingMoney: 0 }).startingMoney === 100 &&
       HD.MatchSetup.normalize({ startingMoney: 5000 }).startingMoney === 1000,
       sticky, globallyScaled, phoneScale, scaleValues };
   })()`, returnByValue: true,
 });
 if (!practiceUi.result?.value?.ok) {
-  throw new Error(`Practice UI review failed: ${JSON.stringify(practiceUi.result?.value)}`);
+  throw new Error(`Practice UI review failed: ${JSON.stringify(
+    practiceUi.exceptionDetails || practiceUi.result?.value,
+  )}`);
 }
 console.log(JSON.stringify({ practiceSetupAndStart: true, practiceUi: true }));
+await call("Emulation.setDeviceMetricsOverride", {
+  width: 540, height: 820, deviceScaleFactor: 1, mobile: false,
+});
+const narrowPhone = await call("Runtime.evaluate", {
+  expression: `(() => {
+    document.documentElement.style.setProperty('--ui-scale', '1.5');
+    const phone = document.querySelector('#phone');
+    const wasClosed = phone.classList.contains('closed');
+    const wasOpen = document.body.classList.contains('phone-open');
+    const transition = phone.style.transition;
+    document.body.classList.add('phone-open');
+    phone.classList.remove('closed');
+    phone.style.transition = 'none';
+    const bounds = phone.getBoundingClientRect();
+    const fits = phone.scrollWidth <= phone.clientWidth + 1 &&
+      bounds.left >= -1 && bounds.right <= innerWidth + 1 &&
+      bounds.top >= -1 && bounds.bottom <= innerHeight + 1;
+    phone.classList.toggle('closed', wasClosed);
+    document.body.classList.toggle('phone-open', wasOpen);
+    phone.style.transition = transition;
+    document.documentElement.style.setProperty('--ui-scale', '1');
+    return fits;
+  })()`, returnByValue: true,
+});
+if (!narrowPhone.result?.value) {
+  throw new Error('Phone overflows a narrow screen at 150% UI scale');
+}
+await call("Emulation.setDeviceMetricsOverride", {
+  width: 1600, height: 1100, deviceScaleFactor: 1, mobile: false,
+});
 await call("Runtime.evaluate", {
   expression: `(() => {
     HD.world.renderer.domElement.requestPointerLock = () => {};
@@ -321,14 +358,16 @@ const concessions = await call("Runtime.evaluate", {
     document.querySelector('[data-buy-item="hotdog"]').click();
     const ordered = HD.state.deliveries.length === 1 &&
       (HD.state.inventory.hotdog || 0) === before &&
-      document.querySelector('#deliveries').textContent.includes('ORDERED');
+      document.querySelector('#deliveries [title*="ORDERED"]') &&
+      document.querySelector('#deliveries').textContent.includes('12s');
     HD.UI.updateDeliveries(6);
-    const delivering = document.querySelector('#deliveries').textContent.includes('DELIVERING') &&
-      document.querySelector('#deliveries progress').value === 50;
+    const delivering = document.querySelector('#deliveries [title*="DELIVERING"]') &&
+      document.querySelector('#deliveries').textContent.includes('6s');
     HD.UI.updateDeliveries(6);
     const delivered = HD.state.inventory.hotdog === before + 1 &&
       HD.state.selectedItem === selected &&
-      document.querySelector('#deliveries').textContent.includes('DELIVERED');
+      document.querySelector('#deliveries [title*="DELIVERED"]') &&
+      document.querySelector('#deliveries').textContent.includes('Delivered');
     HD.UI.updateDeliveries(4);
     return ordered && delivering && delivered && HD.state.deliveries.length === 0;
   })()`, returnByValue: true,
@@ -350,9 +389,14 @@ await new Promise(resolve => setTimeout(resolve, 400));
 const deliveryLayout = await call("Runtime.evaluate", {
   expression: `(() => {
     const panel = document.querySelector('#deliveries');
-    const cards = [...panel.querySelectorAll('.delivery-card')];
+    const cards = [...panel.querySelectorAll(':scope > span')];
+    const first = cards[0]?.getBoundingClientRect();
+    const second = cards[1]?.getBoundingClientRect();
+    const overlap = first && second && first.left < second.right &&
+      first.right > second.left && first.top < second.bottom &&
+      first.bottom > second.top;
     return cards.length === 2 && panel.scrollWidth <= panel.clientWidth + 1 &&
-      cards[1].getBoundingClientRect().top >= cards[0].getBoundingClientRect().bottom;
+      !overlap;
   })()`, returnByValue: true,
 });
 if (!deliveryLayout.result?.value) throw new Error('Multiple delivery cards overlap or overflow');

@@ -50,12 +50,16 @@ HD.Stadium = (() => {
     { row: 5, column: 26, activity: "watch" },
     { row: 5, column: 25, activity: "throw" },
   ];
+  const viewCullForward = new THREE.Vector3();
+  const viewCullCenter = new THREE.Vector3();
+  const viewCullDirection = new THREE.Vector3();
 
   // ---------------------------------------------------------------------------
   // Track and stadium shell
   // ---------------------------------------------------------------------------
 
   function build(scene) {
+    HD.world.viewCulledObjects = [];
     HD.world.structuralBarriers = [];
     HD.world.projectileBarriers = [];
     HD.world.commentatorBox = undefined;
@@ -161,10 +165,11 @@ HD.Stadium = (() => {
       if (object.isSkinnedMesh) return;
       const geometryKey = object.geometry.type === 'BoxGeometry' ? 'unit-box' :
         object.geometry.type + ':' + (object.geometry.parameters ? JSON.stringify(object.geometry.parameters) : object.geometry.uuid);
+      const sector = staticBatchSector(object);
       const key = [material.color.getHex(), material.emissive.getHex(),
         material.emissiveIntensity, material.roughness, material.metalness,
         material.side, material.vertexColors, material.flatShading,
-        object.castShadow, object.receiveShadow, geometryKey].join(':');
+        object.castShadow, object.receiveShadow, geometryKey, sector].join(':');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(object);
     });
@@ -186,11 +191,27 @@ HD.Stadium = (() => {
         batch.setMatrixAt(index, transform);
       });
       batch.computeBoundingSphere();
+      if (staticBatchSector(objects[0]) !== 'core') markViewCulled(batch);
       scene.add(batch);
       objects.forEach(object => object.removeFromParent());
       replaced += objects.length - 1;
     }
     HD.world.arenaBatchSavings = replaced;
+  }
+
+  function staticBatchSector(object) {
+    const position = new THREE.Vector3().setFromMatrixPosition(object.matrixWorld);
+    const radius = Math.hypot(position.x, position.z);
+    if (radius < 72) return 'core';
+    const angle = (Math.atan2(position.z, position.x) + Math.PI * 2) % (Math.PI * 2);
+    return Math.floor(angle / (Math.PI * 2) * 12);
+  }
+
+  function markViewCulled(object) {
+    object.computeBoundingSphere?.();
+    object.geometry.computeBoundingSphere();
+    object.userData.arenaViewCulled = true;
+    HD.world.viewCulledObjects.push(object);
   }
 
   function oval(rx, rz, t) {
@@ -504,6 +525,7 @@ HD.Stadium = (() => {
         }
       }
       batch.computeBoundingSphere();
+      markViewCulled(batch);
       root.add(batch);
     }
     source.removeFromParent();
@@ -4912,6 +4934,41 @@ HD.Stadium = (() => {
       drawReplayBillboard();
     }
   }
+
+  function updateViewCulling(camera = HD.world.camera) {
+    if (!camera) return;
+    const forward = camera.getWorldDirection(viewCullForward);
+    forward.y = 0;
+    if (forward.lengthSq() < 0.001) return;
+    forward.normalize();
+    const center = viewCullCenter;
+    const direction = viewCullDirection;
+    let visible = 0;
+    const objects = HD.world.viewCulledObjects || [];
+    objects.forEach((object) => {
+      const sphere = object.boundingSphere || object.geometry?.boundingSphere;
+      if (!sphere) return;
+      center.copy(sphere.center).applyMatrix4(object.matrixWorld);
+      direction.copy(center).sub(camera.position);
+      const distance = Math.hypot(direction.x, direction.z);
+      if (distance <= sphere.radius) {
+        object.visible = true;
+        visible++;
+        return;
+      }
+      direction.y = 0;
+      direction.normalize();
+      const sectorPadding = Math.asin(Math.min(0.95, sphere.radius / distance));
+      object.visible = Math.acos(THREE.MathUtils.clamp(forward.dot(direction), -1, 1)) <=
+        Math.PI / 3 + sectorPadding;
+      if (object.visible) visible++;
+    });
+    HD.world.viewCullingStats = { visible, total: objects.length };
+  }
+
+  function showAllViewCulled() {
+    (HD.world.viewCulledObjects || []).forEach((object) => { object.visible = true; });
+  }
   return {
     build,
     refreshTrackLayout,
@@ -4924,6 +4981,8 @@ HD.Stadium = (() => {
     refreshReplayBillboard: drawReplayBillboard,
     refreshBettingDisplays: drawBettingDisplays,
     refreshStartingGate,
+    updateViewCulling,
+    showAllViewCulled,
     upperWalkSurfaceAt,
   };
 })();

@@ -98,7 +98,9 @@ HD.Game = (() => {
     const menuOpen = !document.querySelector("#game-menu").classList.contains("closed");
     if (menuOpen && !onlineSimulation) return;
     updateRenderScale(realDt);
+    HD.Stadium.showAllViewCulled();
     HD.Broadcast.update(simulationActive ? dt : 0);
+    HD.Stadium.updateViewCulling(HD.world.camera);
     HD.world.renderer.render(HD.world.scene, HD.world.camera);
   }
 
