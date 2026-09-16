@@ -80,6 +80,7 @@ HD.Audio = (() => {
   let pendingSpeechToken = 0;
   let lastHoveredControl = null;
   let lastHoverSoundAt = 0;
+  let mixerUpdateClock = 0;
 
   function init() {
     if (initialized) return;
@@ -265,10 +266,14 @@ HD.Audio = (() => {
 
   function update(dt) {
     if (!context || !unlocked) return;
-
+    updateCommentary(dt);
+    mixerUpdateClock -= dt;
+    if (mixerUpdateClock > 0) return;
+    mixerUpdateClock = 0.1;
+    // Gain targets and gallop pitch do not need sixty new automation events
+    // per second. Ten updates per second remain perceptually smooth.
     updateGallopLoop();
     updateMusic();
-    updateCommentary(dt);
   }
 
   function updateGallopLoop() {

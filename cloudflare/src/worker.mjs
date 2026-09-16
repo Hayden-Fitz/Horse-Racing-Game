@@ -32,12 +32,25 @@ export class LobbyServer {
     this.ctx = ctx;
     this.state = { lobbies: {} };
     this.clients = new Map();
+    // Durable Objects can hibernate between requests. Keep lobby state in
+    // SQLite-backed storage so a warm-instance reset never drops a room.
+    this.ready = ctx.storage.get("state").then((saved) => {
+      if (saved && typeof saved === "object" && saved.lobbies) {
+        this.state = saved;
+      }
+    }).catch(() => {
+      // A fresh Durable Object starts with an empty state if storage is empty
+      // or temporarily unavailable; subsequent writes restore the snapshot.
+    });
   }
 
   async fetch(request) {
+    await this.ready;
     const url = new URL(request.url);
     if (url.pathname === "/api/socket") return this.openSocket(url);
     if (url.pathname === "/api/health") {
+      this.maintainState();
+      await this.persist();
       return jsonResponse({
         ok: true,
         transport: "hotdog-realtime-cloudflare",
@@ -63,6 +76,7 @@ export class LobbyServer {
         body,
         cleanClientId(request.headers.get("X-Hotdog-Client")),
       );
+      await this.persist();
       return jsonResponse(result.data, result.status);
     } catch (error) {
       return jsonResponse({ error: error.message }, error.status || 400);
@@ -92,6 +106,10 @@ export class LobbyServer {
   }
 
   receiveSocketMessage(socket, raw) {
+    this.ready.then(() => this.receiveSocketMessageReady(socket, raw));
+  }
+
+  async receiveSocketMessageReady(socket, raw) {
     const client = this.clients.get(socket);
     if (!client || !this.withinRateLimit(client)) return;
 
@@ -101,6 +119,7 @@ export class LobbyServer {
       if (text.length > MAX_MESSAGE_BYTES) throw httpError(413, "Message is too large.");
       message = JSON.parse(text);
       this.maintainState();
+      await this.persist();
 
       if (message.type === "subscribe") {
         const path = normalizePath(message.path);
@@ -126,6 +145,7 @@ export class LobbyServer {
         message.body,
         client.clientId,
       );
+      await this.persist();
       this.send(socket, {
         type: "response",
         id: message.id,
@@ -341,6 +361,10 @@ export class LobbyServer {
         }
       }
     }
+  }
+
+  async persist() {
+    await this.ctx.storage.put("state", this.state);
   }
 
   getAt(path) {

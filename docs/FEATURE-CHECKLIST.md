@@ -22,6 +22,10 @@ requirements work together. This avoids calling a partially built feature done.
 
 ### Multiplayer server repair
 
+- [x] Persist Cloudflare Durable Object lobby state in its SQLite-backed storage
+  across hibernation and instance reconstruction; local authority and reconnect
+  regression tests remain green. `tests/cloudflare-worker.js` reconstructs a
+  Durable Object against a shared storage adapter and verifies the lobby survives.
 - [x] Fix failed WebSocket connection promises so an unavailable server produces
   an actionable error instead of leaving lobby creation stuck indefinitely.
 - [x] Make the Windows launcher test the realtime health endpoint before deciding
@@ -89,6 +93,10 @@ renderer state. Long-session multiplayer/director performance review remains ope
 
 ### Horse, phone, replay and aerial-photo follow-up
 
+- [x] Expand Horse Stats cards to show the full derived profile used by the
+  odds/race systems: maximum speed, defense, recovery, lane switching,
+  overtaking, start, finish, consistency, interference resistance and
+  intelligence alongside the four core stats.
 - [x] Shorten horse legs by 14%, thicken limbs/hooves and retain articulated gaits.
 - [x] Lower the projectile replay camera and keep the prop centered until it
   leaves the replay frame; record local/remote player poses and equipment.
@@ -705,6 +713,21 @@ are no longer part of the active arena layout.
 
 ### Live broadcast and highlights
 
+- [x] Reduce broadcast cost without pausing it: Stadium Vision now adapts from
+  30 to 15/10 fps under frame pressure, DerbyNews copies at 15/8/4 fps only
+  while its panel is open, and the off-screen camera uses the same 120-degree
+  arena-sector budget as the player view. Replay pose capture remains 30 Hz.
+- [x] Throttle the secondary Stadium Vision render to 4 fps while both the board
+  and DerbyNews are outside the player's view, and to 6 fps outside active races.
+  It immediately restores the adaptive live cadence as the player turns back.
+- [x] Pool expired 12-second replay pose buffers by hierarchy size so long races
+  stop allocating new typed arrays every capture frame and avoid recurring
+  garbage-collection hitches.
+- [x] Stop rebuilding hidden Betting and 30-horse Stats DOM every live-odds tick;
+  both apps now update while visible and force one fresh render when opened.
+- [x] Throttle redundant gallop/music Web Audio parameter scheduling to 10 Hz
+  while retaining per-frame commentary timing and smooth gain interpolation.
+
 - [x] Interpolate replay scale alongside position/rotation without changing live
   horse transforms; regression-test intermediate sample values during playback.
 - [x] Reuse pose scratch vectors/quaternions and index next-frame records once,
@@ -733,12 +756,16 @@ are no longer part of the active arena layout.
   leader coverage, normal replays, projectile-camera cuts, status and captions.
   Reuse the existing render target at 5 fps only while the app is open instead
   of rendering the 3D scene a second time.
-- [x] Add adaptive DerbyNews preview cadence: 20 fps normally to match Stadium
-  Vision, 10 fps under moderate frame pressure, and 5 fps under heavy pressure.
+- [x] Add adaptive DerbyNews preview cadence: 15 fps normally, 8 fps under
+  moderate frame pressure, and 4 fps under heavy pressure.
   Contain GPU readback
   failures and expose preview/failure diagnostics instead of crashing gameplay.
-- [ ] Profile DerbyNews GPU readback on integrated graphics and lower its preview
-  thresholds if sustained frame time still exceeds the performance target.
+- [x] Profile DerbyNews on Intel UHD 600 integrated graphics. The initial
+  five-second live-phone pass averaged 10.5 fps, so pressure budgets were lowered
+  to 10 fps for Stadium Vision and 4 fps for the phone copy, with 15/8 fps at
+  moderate pressure. The shared target now uses 8-bit color instead of half-float
+  bandwidth. The repeated five-second pass reached 16.6 fps (about 58% faster);
+  video pixels, colors and failure recovery remain browser-verified.
 - [ ] Synchronize replay cuts and DerbyNews captions from the match host so every
   multiplayer client watches the same program at the same moment.
 - [ ] Add a compact post-race highlight index after replay synchronization exists.

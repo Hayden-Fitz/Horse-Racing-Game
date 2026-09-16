@@ -83,6 +83,11 @@ HD.UI = (() => {
   const moneyRequests = [];
   const rankingRowHeight = 44;
 
+  function phonePanelActive(name) {
+    if (el.phone.classList.contains('closed')) return false;
+    return document.querySelector('[data-panel=' + name + ']')?.classList.contains('active');
+  }
+
   // ---------------------------------------------------------------------------
   // Primary HUD and phone applications
   // ---------------------------------------------------------------------------
@@ -115,7 +120,10 @@ HD.UI = (() => {
     renderChat();
   }
 
-  function renderOddsWatch() {
+  function renderOddsWatch(force = false) {
+    // Thirty horse cards are expensive to rebuild. Keep their data live while
+    // visible and refresh once on app entry instead of mutating hidden DOM.
+    if (!force && !phonePanelActive('horses')) return;
     const runningById = new Map(
       S.horses.map((horse) => [horse.userData.data.id, horse.userData.data]),
     );
@@ -145,9 +153,19 @@ HD.UI = (() => {
               <span>BASE TENDENCY <b>${horse.odds}:1</b></span>
               <span>OVERALL <b>${rating}</b></span>
               <span>SPEED <b>${horse.speed}</b></span>
+              <span>MAX SPEED <b>${horse.maximumSpeed}</b></span>
               <span>STAMINA <b>${horse.stamina}</b></span>
               <span>ACCEL <b>${horse.acceleration}</b></span>
               <span>RESIST <b>${horse.resistance}</b></span>
+              <span>DEFENSE <b>${horse.defense}</b></span>
+              <span>RECOVERY <b>${horse.recovery}</b></span>
+              <span>LANE CHANGE <b>${horse.laneSwitching}</b></span>
+              <span>OVERTAKE <b>${horse.overtaking}</b></span>
+              <span>START <b>${horse.startPerformance}</b></span>
+              <span>FINISH <b>${horse.finalStretch}</b></span>
+              <span>CONSISTENCY <b>${horse.consistency}</b></span>
+              <span>INTERFERENCE RESIST <b>${horse.interferenceResistance}</b></span>
+              <span>INTELLIGENCE <b>${horse.intelligence}</b></span>
               <span>FIELD <b>${active ? horseStatus(active) : "RESERVE"}</b></span>
               <span>RECORD <b>${horse.history.wins}W / ${horse.history.podiums}P / ${horse.history.starts}S</b></span>
               <span>BEST <b>${Number.isFinite(horse.history.bestTime) ? horse.history.bestTime.toFixed(2) + "s" : "—"}</b></span>
@@ -695,7 +713,8 @@ HD.UI = (() => {
       </div>
     `;
   }
-  function renderCards() {
+  function renderCards(force = false) {
+    if (!force && !phonePanelActive('bet')) return;
     renderBetQuotes();
     const order = [...S.horses].sort((a, b) => b.userData.data.progress - a.userData.data.progress);
     el.list.innerHTML = S.horses
@@ -854,6 +873,8 @@ HD.UI = (() => {
   }
 
   function openPhoneApp(button) {
+    if (button.dataset.app === 'bet') renderCards(true);
+    if (button.dataset.app === 'horses') renderOddsWatch(true);
     if (button.dataset.app === 'transfer') {
       button.classList.remove('has-notification');
       renderMoneyRequests();

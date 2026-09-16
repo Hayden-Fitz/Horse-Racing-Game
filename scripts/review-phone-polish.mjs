@@ -87,12 +87,28 @@ try {
   assert.ok(panels.every(panel => panel.scrollWidth <= panel.width + 1), 'No horizontal panel overflow');
   assert.ok(panels.every(panel => Math.abs(panel.phoneWidth - panels[0].phoneWidth) < 1),
     'Phone size must stay constant between apps');
+  const runtime = await evaluate(`new Promise(resolve => {
+    HD.state.paused = false;
+    let frames = 0;
+    const started = performance.now();
+    function measure(now) {
+      frames++;
+      if (now - started < 5000) return requestAnimationFrame(measure);
+      HD.state.paused = true;
+      resolve({frames, seconds:(now-started)/1000, fps:frames/((now-started)/1000)});
+    }
+    requestAnimationFrame(measure);
+  })`);
   const news = await evaluate(`(() => {
     const canvas = document.querySelector('#news-live-canvas');
     const pixels = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+    const gl = HD.world.renderer.getContext();
+    const debug = gl.getExtension('WEBGL_debug_renderer_info');
     let visiblePixels=0;
     for(let i=0;i<pixels.length;i+=4) if(pixels[i]+pixels[i+1]+pixels[i+2]>20) visiblePixels++;
-    return {visiblePixels, ...HD.Broadcast.diagnostics};
+    return {visiblePixels, runtime:${JSON.stringify(runtime)},
+      gpu:debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+      ...HD.Broadcast.diagnostics};
   })()`);
   assert.ok(news.visiblePixels > 10000, 'Phone must contain real video pixels');
   assert.equal(news.newsReadbackFailures, 0);

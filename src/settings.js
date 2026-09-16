@@ -67,7 +67,7 @@ HD.Settings = (() => {
       avatar: {
         skin: "f1c7a5",
         hat: "none",
-        expression: "none",
+        expression: "smile",
         outfit: "plain",
         trousers: "252525",
         shoes: "sneakers",
@@ -82,11 +82,15 @@ HD.Settings = (() => {
       const savedBindings = { ...DEFAULT_BINDINGS, ...(saved.bindings || {}) };
       delete savedBindings.rankings;
       if (savedBindings.phone === "KeyP") savedBindings.phone = "ShiftLeft";
+      const avatar = { ...defaults.avatar, ...(saved.avatar || {}) };
+      if (!avatar.expression || avatar.expression === "none") {
+        avatar.expression = "smile";
+      }
       return {
         ...defaults,
         ...saved,
         bindings: savedBindings,
-        avatar: { ...defaults.avatar, ...(saved.avatar || {}) },
+        avatar,
         cosmeticUnlocks: Array.isArray(saved.cosmeticUnlocks)
           ? saved.cosmeticUnlocks
           : [],

@@ -113,11 +113,8 @@ HD.Models = (() => {
       faceParts.push(brow);
     });
     faceParts.push(
-      ...createPlayerExpression(bodyRig, options.expression || "none", faceMaterial),
+      ...createPlayerExpression(bodyRig, options.expression || "smile", faceMaterial),
     );
-    if (!options.expression || options.expression === "none") {
-      faceParts.forEach((part) => { part.visible = false; });
-    }
 
     const hair = mesh(
       new THREE.SphereGeometry(0.65, 14, 8, 0, Math.PI * 2, 0, 1.25),
@@ -330,18 +327,18 @@ HD.Models = (() => {
       });
     }
 
-    if (options.hat === "cap" || options.hat === "beanie") {
+    if (["cap", "beanie", "sunhat", "helmet"].includes(options.hat)) {
       const [crown, brimOrBand] = data.hatParts;
       if (crown) {
-        crown.position.y += 0.13;
-        crown.scale.x *= 1.18;
-        crown.scale.z *= 1.18;
+        crown.position.y += 0.05;
+        crown.scale.x *= 1.08;
+        crown.scale.z *= 1.08;
       }
       if (brimOrBand) {
-        brimOrBand.position.y += 0.1;
-        if (options.hat === "cap") brimOrBand.position.z = -0.73;
-        brimOrBand.scale.x *= 1.24;
-        brimOrBand.scale.z *= 1.15;
+        brimOrBand.position.y += 0.04;
+        if (options.hat === "cap") brimOrBand.position.z = -0.68;
+        brimOrBand.scale.x *= 1.08;
+        brimOrBand.scale.z *= 1.06;
       }
     } else if (["fedora", "cowboy", "crown"].includes(options.hat)) {
       data.hatParts.forEach((part) => {
@@ -351,12 +348,7 @@ HD.Models = (() => {
       });
     }
 
-    data.outfitParts.forEach((part) => {
-      if (part.position.z < -0.3) {
-        part.position.z = -0.94;
-        part.scale.x *= 1.18;
-      }
-    });
+    // Outfit trim is fitted to the torso instead of floating in front of it.
   }
 
   function addImportedFootwear(feet, style, color) {
@@ -391,19 +383,40 @@ HD.Models = (() => {
   }
 
   function addPlayerOutfit(parent, outfit, color) {
+    const addNeckTrim = (trimColor) => {
+      const collar = mesh(
+        new THREE.TorusGeometry(0.42, 0.065, 8, 20),
+        trimColor,
+        parent,
+        [0, 2.39, 0],
+      );
+      collar.rotation.x = Math.PI / 2;
+      return collar;
+    };
+
+    const addButtons = (buttonColor, count = 3) => {
+      for (let index = 0; index < count; index++) {
+        const button = sphere(
+          0.045,
+          buttonColor,
+          parent,
+          [0, 2.08 - index * 0.3, -0.7],
+        );
+        button.scale.z = 0.45;
+      }
+    };
+
     if (outfit === "varsity") {
-      box([0.32, 1.18, 0.06], 0xf2eee4, parent, [-0.3, 1.67, -0.56]);
-      box([0.32, 1.18, 0.06], 0xf2eee4, parent, [0.3, 1.67, -0.56]);
-      cylinder(0.5, 0.5, 0.08, 0xf2eee4, parent, [0, 2.35, 0], 14);
+      addNeckTrim(0xf2eee4);
+      cylinder(0.69, 0.71, 0.12, 0xf2eee4, parent, [0, 0.75, 0], 20);
+      addButtons(0xf2eee4, 4);
       return;
     }
 
     if (outfit === "blazer") {
-      const left = box([0.48, 1.18, 0.07], 0x202a3a, parent, [-0.24, 1.66, -0.57]);
-      const right = box([0.48, 1.18, 0.07], 0x202a3a, parent, [0.24, 1.66, -0.57]);
-      left.rotation.z = -0.08;
-      right.rotation.z = 0.08;
-      box([0.07, 0.07, 0.05], 0xe8c04e, parent, [0, 1.6, -0.63]);
+      addNeckTrim(0x202a3a);
+      cylinder(0.67, 0.7, 0.16, 0x202a3a, parent, [0, 0.79, 0], 20);
+      addButtons(0xe8c04e, 3);
       return;
     }
 
@@ -415,13 +428,23 @@ HD.Models = (() => {
         [0, 2.37, 0.06],
       );
       hood.rotation.x = Math.PI / 2;
-      cylinder(0.025, 0.025, 0.58, 0xf2eee4, parent, [-0.12, 2.12, -0.58], 6);
-      cylinder(0.025, 0.025, 0.58, 0xf2eee4, parent, [0.12, 2.12, -0.58], 6);
+      cylinder(0.025, 0.025, 0.42, 0xf2eee4, parent, [-0.12, 2.14, -0.66], 6);
+      cylinder(0.025, 0.025, 0.42, 0xf2eee4, parent, [0.12, 2.14, -0.66], 6);
       return;
     }
 
-    box([1.02, 0.13, 0.08], 0xf2eee4, parent, [0, 2.22, -0.55]);
-    box([0.09, 0.92, 0.06], 0xf2eee4, parent, [0, 1.68, -0.58]);
+    if (outfit === "western") {
+      addNeckTrim(0xf4d06f);
+      cylinder(0.66, 0.69, 0.1, 0xf4d06f, parent, [0, 1.45, 0], 20);
+      addButtons(0xf4d06f, 4);
+      return;
+    }
+
+    if (outfit === "raceday") {
+      addNeckTrim(0xf2eee4);
+      cylinder(0.56, 0.61, 0.09, 0xf2eee4, parent, [0, 2.18, 0], 20);
+      addButtons(0xf2eee4, 3);
+    }
   }
 
   function createPlayerExpression(root, expression, material) {
@@ -436,6 +459,16 @@ HD.Models = (() => {
     center.position.set(0, 3.06, -0.628);
     root.add(center);
     if (expression === "neutral") return [center];
+
+    if (expression === "grin") {
+      center.scale.x = 1.35;
+    }
+
+    if (expression === "determined") {
+      center.rotation.z = -0.12;
+      center.scale.x = 1.15;
+      return [center];
+    }
 
     const parts = [center];
     [-1, 1].forEach((side) => {
@@ -469,7 +502,7 @@ HD.Models = (() => {
     }
 
     if (style === "fedora" || style === "cowboy") {
-      const crown = cylinder(0.48, 0.58, 0.55, color, root, [0, 3.86, 0], 14);
+      const crown = cylinder(0.54, 0.66, 0.58, color, root, [0, 3.87, 0], 18);
       const brim = cylinder(
         style === "cowboy" ? 0.92 : 0.78,
         style === "cowboy" ? 0.92 : 0.78,
@@ -485,17 +518,44 @@ HD.Models = (() => {
       return parts;
     }
 
+    if (style === "helmet") {
+      const shell = mesh(
+        new THREE.SphereGeometry(0.72, 18, 10, 0, Math.PI * 2, 0, 1.9),
+        0x243449,
+        root,
+        [0, 3.64, 0],
+      );
+      shell.scale.set(1.03, 0.92, 1.06);
+      const rim = cylinder(0.72, 0.72, 0.11, 0x172130, root, [0, 3.48, 0], 20);
+      parts.push(shell, rim);
+      return parts;
+    }
+
+    if (style === "sunhat") {
+      const crown = mesh(
+        new THREE.SphereGeometry(0.7, 18, 10, 0, Math.PI * 2, 0, 1.88),
+        color,
+        root,
+        [0, 3.63, 0],
+      );
+      crown.scale.set(1.02, 0.82, 1.02);
+      const brim = cylinder(0.98, 0.98, 0.085, color, root, [0, 3.49, 0], 22);
+      brim.scale.z = 0.82;
+      parts.push(crown, brim);
+      return parts;
+    }
+
     const crown = mesh(
-      new THREE.SphereGeometry(0.66, 14, 8, 0, Math.PI * 2, 0, 1.62),
+      new THREE.SphereGeometry(0.71, 18, 10, 0, Math.PI * 2, 0, 1.9),
       color,
       root,
     );
-    crown.position.y = style === "beanie" ? 3.64 : 3.62;
-    crown.scale.set(1, style === "beanie" ? 0.82 : 0.68, 1);
+    crown.position.y = style === "beanie" ? 3.65 : 3.62;
+    crown.scale.set(1.02, style === "beanie" ? 0.9 : 0.82, 1.02);
     parts.push(crown);
     if (style === "cap") {
-      const brim = sphere(0.5, color, root, [0, 3.5, -0.42]);
-      brim.scale.set(0.9, 0.12, 0.58);
+      const brim = sphere(0.52, color, root, [0, 3.52, -0.51]);
+      brim.scale.set(0.96, 0.11, 0.62);
       parts.push(brim);
     } else {
       parts.push(cylinder(0.64, 0.64, 0.12, color, root, [0, 3.5, 0], 14));
@@ -505,17 +565,25 @@ HD.Models = (() => {
 
   function createPlayerAccessory(root, style, color) {
     const parts = [];
-    if (style === "glasses") {
+    if (style === "glasses" || style === "sunglasses") {
       [-1, 1].forEach((side) => {
-        const lens = mesh(
-          new THREE.TorusGeometry(0.18, 0.025, 7, 14),
-          0x171717,
-          root,
-          [side * 0.22, 3.33, -0.61],
-        );
+        const geometry = style === "sunglasses"
+          ? new THREE.CircleGeometry(0.17, 14)
+          : new THREE.TorusGeometry(0.18, 0.025, 7, 14);
+        const lens = mesh(geometry, 0x171717, root, [side * 0.22, 3.33, -0.61]);
         parts.push(lens);
       });
       parts.push(box([0.12, 0.025, 0.025], 0x171717, root, [0, 3.33, -0.63]));
+    } else if (style === "bandana") {
+      const bandana = mesh(
+        new THREE.TorusGeometry(0.47, 0.09, 8, 20),
+        color,
+        root,
+        [0, 2.73, 0],
+      );
+      bandana.rotation.x = Math.PI / 2;
+      bandana.scale.z = 0.86;
+      parts.push(bandana);
     } else if (style === "headphones") {
       const band = mesh(
         new THREE.TorusGeometry(0.68, 0.07, 8, 20, Math.PI),
@@ -727,10 +795,10 @@ HD.Models = (() => {
       horseRod(torso, [0.58, 0.17, side * 0.48], [1.05, 0.24, side * 0.38], 0.085, silkColor);
       hands.push(horsePart(torso, boot, [1.05, 0.24, side * 0.38], [0.12, 0.095, 0.095]));
       // Knees forward, heels back: both legs straddle the horse and saddle.
-      horseRod(root, [-0.12, 0.03, side * 0.34], [0.38, -0.42, side * 0.83], 0.17, white);
-      horsePart(root, white, [0.38, -0.42, side * 0.83], [0.16, 0.16, 0.16]);
-      horseRod(root, [0.38, -0.42, side * 0.83], [-0.2, -0.94, side * 0.9], 0.12, boot);
-      horsePart(root, boot, [-0.07, -1.0, side * 0.91], [0.26, 0.13, 0.14]);
+      horseRod(root, [-0.12, 0.03, side * 0.36], [0.38, -0.52, side * 0.9], 0.15, white);
+      horsePart(root, white, [0.38, -0.52, side * 0.9], [0.15, 0.15, 0.15]);
+      horseRod(root, [0.38, -0.52, side * 0.9], [-0.2, -1.36, side * 0.94], 0.12, boot);
+      horsePart(root, boot, [-0.07, -1.43, side * 0.94], [0.26, 0.13, 0.14]);
     });
     root.userData = { torso, head, hands };
     return root;
@@ -891,7 +959,9 @@ HD.Models = (() => {
     });
     horsePart(body, 0x38271f, [-0.28, 3.22, 0], [0.65, 0.17, 0.49]);
     const jockey = jockeyCharacter(data.color);
-    jockey.position.set(-0.2, 3.32, 0);
+    // The breeches clear the saddle crown; knees and boots wrap outside
+    // the barrel. Keep this root on the body so their contact survives bobbing.
+    jockey.position.set(-0.2, 3.62, 0);
     body.add(jockey);
     const reins = [-1, 1].map(() =>
       horseRod(body, [0, 0, 0], [1, 0, 0], 0.022, 0x453023));

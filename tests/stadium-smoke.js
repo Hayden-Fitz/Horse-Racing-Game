@@ -534,6 +534,8 @@ async function run() {
   failRender = false;
   for (let i = 0; i < 200; i++) HD.Broadcast.update(0.1);
   assert.ok(!HD.Broadcast.diagnostics.replaying, "Replay must return to live coverage");
+  assert.ok(HD.Broadcast.diagnostics.reusedPoseBuffers > 0,
+    'Long replay sessions must reuse expired pose buffers instead of allocating forever');
   assert.ok(interpolatedScale, 'Playback must interpolate recorded scales between samples');
   assert.equal(nearby.scale.x, 1.109, 'Replay must not change live horse scale');
   assert.equal(HD.Broadcast.diagnostics.subjectId, horse.uuid, 'Playback must return to the current leader');
@@ -543,11 +545,14 @@ async function run() {
   assert.equal(HD.Broadcast.diagnostics.samples, 0, "New race clears old footage");
   HD.state.phase = 'racing';
   const beforeSmoothPlayback = renderCount;
-  for (let i = 0; i < 60; i++) HD.Broadcast.update(1 / 60);
-  assert.equal(renderCount - beforeSmoothPlayback, 60,
-    'TV should render every frame at 60 fps instead of the old 20 fps cap');
-  assert.ok(HD.Broadcast.diagnostics.samples >= 29 &&
-    HD.Broadcast.diagnostics.samples <= 31, 'Capture poses at 30 Hz for smooth interpolation');
+  for (let i = 0; i < 180; i++) HD.Broadcast.update(1 / 60);
+  const smoothRenderCount = renderCount - beforeSmoothPlayback;
+  assert.ok(smoothRenderCount > 0 && smoothRenderCount < 180,
+  'TV should skip secondary frames while recovering from pressure: ' + smoothRenderCount);
+  assert.equal(HD.Broadcast.diagnostics.feedFps, 30,
+    'Healthy gameplay should expose the 30 fps Stadium Vision budget');
+  assert.ok(HD.Broadcast.diagnostics.samples >= 89 &&
+    HD.Broadcast.diagnostics.samples <= 91, 'Capture poses at 30 Hz for smooth interpolation');
 
   const originalStation = HD.Broadcast.diagnostics.cameraStation;
   const focusPoint = HD.state.horses[0].position.clone().add(new THREE.Vector3(0, 3.2, 0));

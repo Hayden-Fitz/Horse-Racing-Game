@@ -6,6 +6,7 @@ HD.Broadcast = (() => {
   const S = HD.state;
   const history = [];
   const doubles = new Map();
+  const posePools = new Map();
   const camera = new THREE.PerspectiveCamera(48, 23.8 / 12.5, 0.2, 500);
   const projectileCamera = new THREE.PerspectiveCamera(
     52,
@@ -17,6 +18,9 @@ HD.Broadcast = (() => {
   const desired = new THREE.Vector3();
   const chaseDirection = new THREE.Vector3();
   const chaseTarget = new THREE.Vector3();
+  const displayDirection = new THREE.Vector3();
+  const playerForward = new THREE.Vector3();
+  const displayPosition = new THREE.Vector3();
   const posePosition = new THREE.Vector3();
   const poseRotation = new THREE.Quaternion();
   const poseScale = new THREE.Vector3();
@@ -34,6 +38,8 @@ HD.Broadcast = (() => {
   let newsCopyAt = -Infinity;
   let smoothedFrameTime = 1 / 60;
   let newsReadbackFailures = 0;
+  let allocatedPoseBuffers = 0;
+  let reusedPoseBuffers = 0;
   const lastEffects = new Map();
   const NEAR_LEADER_DISTANCE = 18;
   const sightline = new THREE.Raycaster();
@@ -41,6 +47,46 @@ HD.Broadcast = (() => {
   let cameraStation = null, previousStation = null;
   let lastCameraCut = -Infinity, lastCameraCheck = -Infinity;
   let blockedSince = null, cameraCuts = 0;
+  let activeFeedFps = 30;
+  let displayVisible = true;
+  let displayVisibilityCheckedAt = -Infinity;
+
+  function isOutputVisible() {
+    if (typeof document === 'undefined') return true;
+    const newsPanel = document.querySelector?.('[data-panel=news]');
+    if (newsPanel?.classList.contains('active')) return true;
+    if (time - displayVisibilityCheckedAt < 0.25) return displayVisible;
+    displayVisibilityCheckedAt = time;
+    const playerCamera = HD.world.camera;
+    const screen = HD.world.replayBillboard?.screen;
+    const renderer = HD.world.renderer;
+    if (!playerCamera || !screen || !renderer?.domElement) return true;
+    screen.getWorldPosition(displayPosition);
+    displayDirection.copy(displayPosition).sub(playerCamera.position);
+    if (displayDirection.lengthSq() < 400) return (displayVisible = true);
+    displayDirection.normalize();
+    playerCamera.getWorldDirection(playerForward);
+    // A little wider than the 120-degree arena budget prevents visible pop-in
+    // while turning toward the large board.
+    displayVisible = playerForward.dot(displayDirection) > Math.cos(THREE.MathUtils.degToRad(80));
+    return displayVisible;
+  }
+
+  function feedFrameRate() {
+    // Stadium Vision is a secondary view. Keep it fluid on fast machines but
+    // give the main first-person render breathing room as frame time rises.
+    if (!isOutputVisible()) return 4;
+    if (S.phase !== 'racing' && !replay && !pending) return 6;
+    if (smoothedFrameTime >= 1 / 30) return 10;
+    if (smoothedFrameTime >= 1 / 50) return 15;
+    return 30;
+  }
+
+  function newsPreviewFrameRate() {
+    if (smoothedFrameTime >= 1 / 30) return 4;
+    if (smoothedFrameTime >= 1 / 50) return 8;
+    return 15;
+  }
 
   function currentLeader() {
     return S.horses.reduce((leader, horse) =>
@@ -66,10 +112,11 @@ HD.Broadcast = (() => {
     const board = HD.world.replayBillboard;
     if (!board || !HD.world.renderer) return false;
     target = new THREE.WebGLRenderTarget(768, 404, {
-      type: THREE.HalfFloatType,
+      type: THREE.UnsignedByteType,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       generateMipmaps: false,
+      stencilBuffer: false,
     });
     // Unlit white video surface: stadium lighting must not tint the broadcast.
     board.screen.material = new THREE.MeshBasicMaterial({ map: target.texture });
@@ -94,7 +141,7 @@ HD.Broadcast = (() => {
   }
 
   function reset() {
-    history.length = 0;
+    while (history.length) recycleFrame(history.pop());
     for (const entry of doubles.values()) HD.world.scene.remove(entry.mesh);
     // Geometry/materials belong to the game; do not dispose shared resources.
     doubles.clear();
@@ -108,6 +155,30 @@ HD.Broadcast = (() => {
     cameraStation = previousStation = null;
     lastCameraCut = lastCameraCheck = -Infinity;
     blockedSince = null;
+  }
+
+  function takePoseBuffer(length) {
+    const pool = posePools.get(length);
+    if (pool?.length) {
+      reusedPoseBuffers++;
+      return pool.pop();
+    }
+    allocatedPoseBuffers++;
+    return new Float32Array(length);
+  }
+
+  function recyclePoseBuffer(pose) {
+    if (!pose) return;
+    let pool = posePools.get(pose.length);
+    if (!pool) posePools.set(pose.length, (pool = []));
+    if (pool.length < 96) pool.push(pose);
+  }
+
+  function recycleFrame(frame) {
+    if (!frame) return;
+    for (const key of ['horses', 'items', 'players']) {
+      for (const record of frame[key] || []) recyclePoseBuffer(record.pose);
+    }
   }
 
   function remember(mesh, id = mesh.uuid) {
@@ -127,7 +198,7 @@ HD.Broadcast = (() => {
       HD.world.scene.add(clone);
     }
     entry.lastSeen = time;
-    const pose = new Float32Array(entry.nodes.length * 11);
+    const pose = takePoseBuffer(entry.nodes.length * 11);
     let offset = 0;
     mesh.traverse(node => {
       node.position.toArray(pose, offset);
@@ -176,7 +247,9 @@ HD.Broadcast = (() => {
       .slice(0, 24).map(p => remember(p.mesh));
     const players = playerActors().filter(mesh => mesh.visible).map(rememberActor);
     history.push({ time, horses, items, players });
-    while (history.length && history[0].time < time - 12) history.shift();
+    while (history.length && history[0].time < time - 12) {
+      recycleFrame(history.shift());
+    }
     for (const [id, entry] of doubles) {
       if (time - entry.lastSeen > 13) {
         HD.world.scene.remove(entry.mesh);
@@ -378,6 +451,7 @@ HD.Broadcast = (() => {
     const panel = canvas?.closest?.('[data-panel="news"]');
     if (!canvas || !panel?.classList.contains('active')) return;
     if (!renderer.domElement || !renderer.getViewport) return;
+    if (time - newsCopyAt + 1e-6 < 1 / newsPreviewFrameRate()) return;
 
     const width = target.width;
     const height = target.height;
@@ -466,9 +540,11 @@ HD.Broadcast = (() => {
       }
     }
     renderClock += dt;
-    if (renderClock + 1e-6 < 1 / 60) return;
+    const feedFps = feedFrameRate();
+    activeFeedFps = feedFps;
+    if (renderClock + 1e-6 < 1 / feedFps) return;
     const renderDt = renderClock;
-    renderClock %= 1 / 60;
+    renderClock %= 1 / feedFps;
     const world = HD.world, renderer = world.renderer;
     const hidden = [];
     const previousTarget = renderer.getRenderTarget();
@@ -514,6 +590,9 @@ HD.Broadcast = (() => {
       hide(world.camera); // First-person hands/phone must never appear in the feed.
       renderer.shadowMap.autoUpdate = false;
       renderer.setRenderTarget(target);
+      // Apply the same bounded arena visibility pass from the broadcast camera
+      // instead of drawing every rear-side stadium sector a second time.
+      HD.Stadium?.updateViewCulling?.(activeCamera);
       renderer.render(world.scene, activeCamera);
       copyFeedToDerbyNews(renderer);
     } finally {
@@ -521,6 +600,7 @@ HD.Broadcast = (() => {
       renderer.shadowMap.autoUpdate = shadows;
       hidden.forEach(([object, visible]) => { object.visible = visible; });
       doubles.forEach(entry => { entry.mesh.visible = false; });
+      HD.Stadium?.showAllViewCulled?.();
     }
   }
 
@@ -532,8 +612,11 @@ HD.Broadcast = (() => {
         pending: !!pending, replaying: !!replay, subjectId,
         projectileChase,
         cameraStation, cameraCuts,
+        allocatedPoseBuffers,
+        reusedPoseBuffers,
         cameraObstructed: blockedSince !== null,
-        newsPreviewFps: Math.min(60, Math.round(1 / smoothedFrameTime)),
+        feedFps: activeFeedFps,
+        newsPreviewFps: newsPreviewFrameRate(),
         recordedPlayers: history.at(-1)?.players.length || 0,
         newsReadbackFailures,
         cameras: HD.world.broadcastCameras?.length || 0 };

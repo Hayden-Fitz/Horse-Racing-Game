@@ -8,7 +8,7 @@
     "start": "node server.js",
     "test": "node tests/run-all.js",
     "check": "node --check server.js && node --check server/realtime-server.js && node --check src/realtime.js && node --check src/network.js",
-    "test:realtime": "node tests/realtime-server.js && node tests/realtime-client.js",
+    "test:realtime": "node tests/realtime-server.js && node tests/realtime-client.js && node tests/cloudflare-worker.js",
     "deploy:cloudflare": "npx wrangler@latest deploy --config cloudflare/wrangler.jsonc",
     "test:ui": "node tests/ui-contract.js",
     "test:player": "node tests/player-animation.js",

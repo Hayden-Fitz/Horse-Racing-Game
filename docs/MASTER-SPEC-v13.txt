@@ -44,6 +44,9 @@ Current design decisions that must remain
   target, hosted endpoint, atomic seats, permissions, privacy, reconnect tests,
   and a two-browser hosted synchronization test are complete. Claiming the
   preview account and a physical two-device cloud playtest remain open.
+- [x] Persist Cloudflare Durable Object lobby state in SQLite-backed storage so
+  rooms survive hibernation and isolate reconstruction; the reconstruction
+  regression test passes in the full suite.
 - [u] Make the host authoritative for lobby membership, rules, race state, money,
   items, bets, trades, sabotage, results, replay events and game settings.
 - [x] Synchronize host-owned lobby rules and display them live for every client.
@@ -123,6 +126,9 @@ Current design decisions that must remain
   / TRIFECTA flows, ticket previews, locked payouts and live status.
 - [u] Finish Horse Stats: current field, all discovered horses, and Personal Horse
   tabs with correct unavailable states.
+- [x] Expose the complete derived horse profile in Horse Stats, including
+  maximum speed, defense, recovery, lane switching, overtaking, start, finish,
+  consistency, interference resistance and intelligence.
 - [u] Complete DerbyPay send/request money, send/request item and atomic trades with
   explicit confirmation by both parties. Verify this with real clients.
 - [u] Complete dynamic DerbyNews: leaders, odds, hits, stuns, overtakes, payouts,

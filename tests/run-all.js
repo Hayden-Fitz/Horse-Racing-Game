@@ -7,6 +7,7 @@ const testFiles = [
   "match-setup.js",
   "realtime-server.js",
   "realtime-client.js",
+  "cloudflare-worker.js",
   "concessions.js",
   "item-traits.js",
   "ui-contract.js",
