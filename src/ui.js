@@ -38,9 +38,12 @@ HD.UI = (() => {
     dayTransition: $("#day-transition"),
     dayTitle: $("#day-title"),
     daySubtitle: $("#day-subtitle"),
+    dayResults: $("#day-results"),
+    dayStats: $("#day-stats"),
     dayRankings: $("#day-rankings"),
     vendorShop: $("#vendor-shop"),
     vendorItems: $("#vendor-items"),
+    legendaryOffer: $("#legendary-offer"),
     vendorClose: $("#vendor-close"),
     betCounter: $("#bet-counter"),
     counterHorses: $("#counter-horses"),
@@ -50,6 +53,7 @@ HD.UI = (() => {
     sabotageTargets: $("#sabotage-targets"),
     sabotageOptions: $("#sabotage-options"),
     sabotageStatus: $("#sabotage-status"),
+    sabotageHistory: $("#sabotage-history"),
     transferPlayer: $("#transfer-player"),
     transferMoney: $("#transfer-money"),
     transferItem: $("#transfer-item"),
@@ -80,6 +84,8 @@ HD.UI = (() => {
   let deliveryRenderTimer = 0;
   let dayTimeout;
   let dayGeneration = 0;
+  let horseDirectoryMode = "field";
+  let shopCategory = "all";
   const moneyRequests = [];
   const rankingRowHeight = 44;
 
@@ -127,7 +133,8 @@ HD.UI = (() => {
     const runningById = new Map(
       S.horses.map((horse) => [horse.userData.data.id, horse.userData.data]),
     );
-    el.oddsWatch.innerHTML = C.horses
+    const visibleHorses = HD.PhoneData.horses(C.horses, S.activeHorseIds, horseDirectoryMode);
+    el.oddsWatch.innerHTML = visibleHorses.length ? visibleHorses
       .map((horse) => {
         const active = runningById.get(horse.id);
         const odds = active?.odds || horse.odds;
@@ -173,7 +180,8 @@ HD.UI = (() => {
           </article>
         `;
       })
-      .join("");
+      .join("") : `<p class="horse-empty">${horseDirectoryMode === "field"
+        ? "The current field is loading." : "No horses discovered yet. Watch a race to add them."}</p>`;
   }
 
   function renderLeaderboard() {
@@ -286,10 +294,11 @@ HD.UI = (() => {
       (S.phase === 'racing' ? ' sets the pace' : ' heads the race card') +
       '</strong><span>' + (S.horses.length || C.defaultHorseCount) + ' entrants and ' +
       S.bets.length + ' active tickets.</span>';
-    const stories = S.ledger.slice(0, 4).map((entry) =>
-      '<article><strong>' + escapeMarkup(entry.label) + '</strong><span>' +
-      (entry.amount >= 0 ? '+' : '') + '$' + entry.amount + '</span></article>');
-    feed.innerHTML = stories.length ? stories.join('') : '<p>No breaking stories yet.</p>';
+    const stories = HD.PhoneData.headlines(S);
+    feed.innerHTML = stories.length ? stories.map((story) =>
+      '<article><small>' + escapeMarkup(story.label) + '</small><strong>' +
+      escapeMarkup(story.title) + '</strong><span>' + escapeMarkup(story.detail) +
+      '</span></article>').join('') : '<p>No breaking stories yet.</p>';
   }
 
   function renderBank() {
@@ -361,6 +370,7 @@ HD.UI = (() => {
           <button data-sabotage-option="${id}" ${disabled}>
             <strong>${option.name} · $${price}</strong>
             <small>${option.description}</small>
+            <small>33% failure risk; failed jobs may be intercepted</small>
           </button>
         `;
       })
@@ -369,13 +379,33 @@ HD.UI = (() => {
     const plan = playerPlan;
     if (!plan) el.sabotageStatus.textContent = "No fixer hired for this race.";
     else if (!plan.resolved) {
-      el.sabotageStatus.textContent =
-        `Fixer hired for #${HD.horseNumber(plan.horse)}. Outcome sealed until race start.`;
+      el.sabotageStatus.textContent = S.phase === "betting"
+        ? `Fixer hired for #${HD.horseNumber(plan.horse)}. Outcome sealed until race start.`
+        : "Fixer result is in the track report.";
     } else {
       el.sabotageStatus.textContent = plan.failed
         ? `Attempt against #${HD.horseNumber(plan.horse)}: FAILED.`
         : `Attempt against #${HD.horseNumber(plan.horse)}: SUCCESSFUL.`;
     }
+    const history = S.sabotageHistory || [];
+    const currentHistory = history.find((entry) => entry.historyId === plan?.historyId);
+    if (currentHistory?.resolved) {
+      el.sabotageStatus.textContent = currentHistory.detected
+        ? "Officials intercepted your Fixer attempt."
+        : currentHistory.failed ? "Your Fixer attempt failed."
+          : "Your Fixer attempt succeeded.";
+    }
+    el.sabotageHistory.innerHTML = history.length ? history.map((entry) => {
+      const option = C.sabotageOptions[entry.optionId];
+      const outcome = entry.resolved ? (entry.detected ? "DETECTED / FAILED" :
+        entry.failed ? "FAILED" : "SUCCESS")
+        : (S.round > entry.round || S.race > entry.race || S.phase === "racing" ||
+           S.phase === "finished" ? "RESULT ON TRACK REPORT" : "SEALED UNTIL START");
+      return "<article><strong>Race " + entry.race + " / " +
+        escapeMarkup(option?.name || "Fixer job") + "</strong><span>" +
+        escapeMarkup(entry.horseName) + " / $" + entry.price +
+        "</span><em>" + outcome + "</em></article>";
+    }).join("") : "<p>No fixer jobs this run.</p>";
     el.sabotageTargets.querySelectorAll("[data-sabotage-horse]").forEach((button) => {
       button.onclick = () => {
         S.selected = Number(button.dataset.sabotageHorse);
@@ -609,9 +639,9 @@ HD.UI = (() => {
   }
 
   function renderShop() {
-    el.shop.innerHTML = Object.entries(C.items)
-      .filter(([id]) => HD.Concessions.phoneCatalog().includes(id))
-      .map(([id, item]) => {
+    el.shop.innerHTML = HD.Concessions.phoneMenu(shopCategory)
+      .map((id) => {
+        const item = C.items[id];
         const selected = S.selectedItem === id ? "selected" : "";
         const disabled = S.money < item.price ? "disabled" : "";
         const thumbnail = HD.itemThumbnails?.[id];
@@ -675,21 +705,25 @@ HD.UI = (() => {
   }
   function renderDeliveries() {
     const markup = S.deliveries.length
-      ? S.deliveries
-          .map((delivery) => {
-            const seconds = Math.max(0, Math.ceil(delivery.remaining));
-            const duration = delivery.duration || C.phoneDeliveryDuration;
-            const status = delivery.complete ? "DELIVERED" :
-              seconds === duration ? "ORDERED" : "DELIVERING";
-            return `<span title="${C.items[delivery.id].name}: ${status}">
-              ${C.items[delivery.id].icon} ${delivery.complete ? 'Delivered' : `${seconds}s`}
-            </span>`;
-          })
-          .join("")
+      ? S.deliveries.map((delivery) => {
+        const item = C.items[delivery.id];
+        if (!item) return "";
+        const duration = Math.max(1, Number(delivery.duration) || C.phoneDeliveryDuration);
+        const remaining = Math.max(0, Number(delivery.remaining) || 0);
+        const seconds = Math.ceil(remaining);
+        const progress = delivery.complete ? 100 : Math.round((1 - remaining / duration) * 100);
+        const status = delivery.complete ? "DELIVERED" :
+          seconds >= duration ? "ORDERED" : "ON THE WAY";
+        return `<span class="delivery-chip ${delivery.complete ? "is-delivered" : ""}"
+          role="status" aria-label="${escapeMarkup(item.name)}: ${status}">
+          <strong>${escapeMarkup(item.name)}</strong>
+          <em>${delivery.complete ? "DELIVERED" : seconds >= duration ? "ORDERED" : seconds + "s LEFT"}</em>
+          <i style="width:${Math.max(0, Math.min(100, progress))}%"></i>
+        </span>`;
+      }).join("")
       : "No active deliveries.";
     if (el.deliveries.innerHTML !== markup) el.deliveries.innerHTML = markup;
   }
-
   function ticketMarkup(bet) {
     const horseName = S.horses[bet.horse]?.userData.data.name || "Unknown horse";
     const source = bet.source === "counter" ? "COUNTER" : "ONLINE";
@@ -788,6 +822,9 @@ HD.UI = (() => {
     if (d.finished) return announce("That horse has already finished.");
     S.money -= amount + fee;
     S.bets.push({ horse: S.selected, amount, odds: d.odds, fee, source });
+    S.dayStats.tickets++;
+    S.dayStats.wagered += amount;
+    S.dayStats.fees += fee;
     addLedger(`Bet: #${HD.horseNumber(S.selected)}`, -amount);
     if (fee) addLedger("RaceBet service fee", -fee);
     const feeMessage = fee ? ` plus a $${fee} online fee` : " with no counter fee";
@@ -993,6 +1030,39 @@ HD.UI = (() => {
       ? "PLAYERS AT THE TRACK"
       : "CURRENT BANKROLL STANDINGS";
     el.dayRankings.hidden = !online;
+    el.dayResults.replaceChildren();
+    el.dayStats.replaceChildren();
+    if (day > 1) {
+      const stats = S.dayStats || { tickets: 0, wagered: 0, fees: 0, returned: 0 };
+      const net = stats.returned - stats.wagered - stats.fees;
+      for (const [label, value] of [
+        ["TICKETS", String(stats.tickets)],
+        ["WAGERED", "$" + stats.wagered],
+        ["RETURNS", "$" + Math.round(stats.returned)],
+        ["BETTING NET", (net >= 0 ? "+" : "-") + "$" + Math.abs(Math.round(net))],
+      ]) {
+        const cell = document.createElement("div");
+        const caption = document.createElement("span");
+        const number = document.createElement("strong");
+        caption.textContent = label;
+        number.textContent = value;
+        cell.append(caption, number);
+        el.dayStats.append(cell);
+      }
+      const heading = document.createElement("strong");
+      heading.textContent = "DAY " + (day - 1) + " RESULTS | BANKROLL $" + Math.round(S.money);
+      el.dayResults.append(heading);
+      for (const result of S.dayResults || []) {
+        const row = document.createElement("div");
+        const time = Number.isFinite(result.time) ? ` | ${result.time.toFixed(2)}s` : "";
+        const podium = Array.isArray(result.podium) && result.podium.length
+          ? result.podium.join(" / ") : result.winner;
+        row.textContent = `RACE ${result.race} | ${podium}${time}`;
+        el.dayResults.append(row);
+      }
+    }
+    el.dayResults.hidden = day === 1 || !(S.dayResults || []).length;
+    el.dayStats.hidden = day === 1;
     if (online) renderAnimatedRankings(el.dayRankings, rankingEntries());
     el.dayTransition.hidden = false;
     requestAnimationFrame(() => {
@@ -1004,7 +1074,7 @@ HD.UI = (() => {
         el.dayTransition.hidden = true;
         onComplete();
       }, 500);
-    }, day === 1 ? 4200 : 3800);
+    }, day === 1 ? 4200 : 6200);
   }
 
   function cancelDayTransition() {
@@ -1065,6 +1135,7 @@ HD.UI = (() => {
   }
   function renderVendor() {
     el.vendorItems.innerHTML = Object.entries(C.items)
+      .filter(([, item]) => !item.legendary)
       .map(([id, item]) => {
         const { price } = HD.Concessions.quote(id, "vendor");
         const disabled = S.money < price ? "disabled" : "";
@@ -1084,6 +1155,49 @@ HD.UI = (() => {
     el.vendorItems.querySelectorAll("[data-vendor-buy]").forEach((button) => {
       button.onclick = () => buyFromVendor(button.dataset.vendorBuy);
     });
+    renderLegendary();
+  }
+  function renderLegendary() {
+    const offer = HD.Legendary.currentOffer();
+    if (!offer) {
+      el.legendaryOffer.textContent = "No legendary offer is available.";
+      return;
+    }
+    const quote = HD.Legendary.quote(offer.id);
+    const card = document.createElement("article");
+    card.className = "shop-item";
+    const icon = document.createElement("span");
+    icon.className = "item-icon";
+    icon.textContent = offer.item.icon;
+    const details = document.createElement("span");
+    const name = document.createElement("strong");
+    name.textContent = offer.item.name;
+    const description = document.createElement("small");
+    description.textContent = offer.item.description;
+    const status = document.createElement("small");
+    status.textContent = quote.error || "Ready for instant pickup.";
+    details.append(name, description, status);
+    const button = document.createElement("button");
+    button.className = "item-buy";
+    button.textContent = "BUY $" + offer.price;
+    button.disabled = Boolean(quote.error);
+    button.onclick = () => buyLegendary(offer.id);
+    card.append(icon, details, button);
+    el.legendaryOffer.replaceChildren(card);
+  }
+  function buyLegendary(id) {
+    const { item, price, error } = HD.Legendary.purchase(id);
+    if (error) {
+      HD.Audio?.cue?.("error");
+      return announce(error);
+    }
+    HD.Controls.selectItem(id);
+    addLedger("Legendary counter: " + item.name, -price);
+    announce(item.name + " claimed from today's legendary offer.");
+    HD.Audio?.cue?.("purchase");
+    HD.Audio?.cue?.("moneySpend");
+    render();
+    renderVendor();
   }
   function buyFromVendor(id) {
     const { item, price, error } = HD.Concessions.purchase(id, "vendor");
@@ -1130,6 +1244,14 @@ HD.UI = (() => {
   document.querySelectorAll("[data-app]").forEach((button) => {
     button.onclick = () => openPhoneApp(button);
   });
+  document.querySelectorAll("[data-shop-category]").forEach((button) => {
+    button.onclick = () => {
+      shopCategory = button.dataset.shopCategory;
+      document.querySelectorAll("[data-shop-category]").forEach((candidate) =>
+        candidate.classList.toggle("active", candidate === button));
+      renderShop();
+    };
+  });
   el.phoneHome.onclick = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1141,9 +1263,13 @@ HD.UI = (() => {
       document.querySelectorAll('[data-horse-tab]').forEach((candidate) => {
         candidate.classList.toggle('active', candidate === button);
       });
+      if (selectedTab !== "personal") horseDirectoryMode = selectedTab;
       document.querySelectorAll('[data-horse-view]').forEach((panel) => {
-        panel.hidden = panel.dataset.horseView !== selectedTab;
+        panel.hidden = selectedTab === "personal"
+          ? panel.dataset.horseView !== "personal"
+          : panel.dataset.horseView !== "field";
       });
+      if (selectedTab !== "personal") renderOddsWatch(true);
     };
   });
   el.messageThread.onchange = renderChat;

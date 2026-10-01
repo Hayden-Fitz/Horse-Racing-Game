@@ -60,7 +60,6 @@ HD.Settings = (() => {
       musicVolume: 52,
       crowdVolume: 62,
       effectsVolume: 82,
-      commentatorVolume: 84,
       muteAudio: false,
       showControlHelp: true,
       showPerformance: true,
@@ -169,13 +168,6 @@ HD.Settings = (() => {
     bindRange("#music-volume", "#music-volume-value", "musicVolume", percent, applyAudio);
     bindRange("#crowd-volume", "#crowd-volume-value", "crowdVolume", percent, applyAudio);
     bindRange("#effects-volume", "#effects-volume-value", "effectsVolume", percent, applyAudio);
-    bindRange(
-      "#commentator-volume",
-      "#commentator-volume-value",
-      "commentatorVolume",
-      percent,
-      applyAudio,
-    );
 
     const mute = document.querySelector("#mute-audio");
     mute.checked = values.muteAudio;
@@ -491,7 +483,6 @@ HD.Settings = (() => {
       music: values.musicVolume / 100,
       crowd: values.crowdVolume / 100,
       effects: values.effectsVolume / 100,
-      commentator: values.commentatorVolume / 100,
     };
   }
 

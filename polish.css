@@ -2154,8 +2154,9 @@
   z-index: 40;
   inset: 0;
   display: grid;
-  place-content: center;
+  place-content: safe center;
   padding: 28px 18px;
+  overflow-y: auto;
   background: #030706;
   opacity: 0;
   text-align: center;
@@ -2189,6 +2190,42 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.day-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  width: min(560px, 86vw);
+  margin: 0 auto 10px;
+}
+
+.day-stats[hidden] { display: none; }
+.day-stats > div {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid #e7c65c66;
+  border-radius: 10px;
+  background: #0b1913;
+}
+.day-stats span { color: var(--yellow); font-size: 10px; letter-spacing: .08em; }
+.day-stats strong { font-size: 17px; }
+
+.day-results {
+  width: min(560px, 86vw);
+  max-height: min(180px, 26vh);
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  overflow: auto;
+  border: 1px solid #e7c65c66;
+  border-radius: 12px;
+  background: #0b1913;
+  text-align: left;
+}
+
+.day-results[hidden] { display: none; }
+.day-results strong { display: block; color: var(--yellow); margin-bottom: 6px; }
+.day-results div { padding: 3px 0; font-size: 13px; }
 
 .day-transition .animated-rankings {
   width: min(560px, 86vw);
@@ -2281,6 +2318,18 @@
   grid-template-columns: 50px 1fr 90px;
   align-items: center;
 }
+
+.legendary-counter {
+  margin-top: 18px;
+  padding: 16px;
+  border: 2px solid #e9b948;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #3b2c14, #1b2118);
+}
+.legendary-counter > small { color: #ffe28b; letter-spacing: .14em; }
+.legendary-counter h3 { margin: 5px 0; color: #ffe28b; }
+.legendary-counter .shop-item { margin-top: 12px; }
+.legendary-counter .shop-item small { display: block; margin-top: 4px; }
 
 #vendor-close,
 #counter-close {
@@ -3641,7 +3690,7 @@
 .app-panel[data-panel="horses"] .odds-profile > div b { color: #eaf6ff; }
 .horse-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   margin-bottom: 10px;
   padding: 4px;
@@ -3713,3 +3762,67 @@
   background: #0c1310;
   color: #f2f6f3;
 }
+
+
+.loading-screen {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  background: radial-gradient(circle at center, #234a35 0%, #07150e 70%);
+  color: #fff4ca;
+  text-align: center;
+}
+.loading-screen[hidden] { display: none; }
+.loading-screen small {
+  color: #f2c65b;
+  font-weight: 900;
+  letter-spacing: .3em;
+}
+.loading-screen strong {
+  max-width: 680px;
+  font-family: var(--display-font);
+  font-size: clamp(28px, 6vw, 60px);
+  line-height: 1;
+}
+.loading-screen p { max-width: 600px; margin: 0; color: #d5e3d4; }
+.loading-progress {
+  width: min(520px, 85vw);
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid #f2c65b;
+  border-radius: 99px;
+  background: #07150e;
+}
+.loading-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #d17d31, #ffe28b);
+  transition: width .25s ease;
+}
+.horse-empty { padding: 18px; color: #526775; text-align: center; }
+.fixer-history { display: grid; gap: 8px; margin-top: 8px; }
+.fixer-history article { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid #6c5479; border-radius: 10px; background: #282133; color: #f4e9f8; }
+.fixer-history article span { color: #cdbad3; font-size: 12px; }
+.fixer-history article em { color: #f3cf7c; font-size: 11px; font-style: normal; font-weight: 800; }
+.fixer-history p { color: #cdbad3; }
+.news-feed article small { display: block; color: #f1b56d; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+
+.app-panel[data-panel="news"] .news-feed article { display: grid; justify-content: stretch; gap: 4px; }
+.app-panel[data-panel="news"] .news-feed article span { color: #6f5546; font-size: 11px; }
+
+.concession-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 10px 0 2px; }
+.concession-filters button { padding: 7px 2px; border: 1px solid #e0bd8d; border-radius: 9px; background: #fff; color: #7a3329; font-size: 9px; font-weight: 900; }
+.concession-filters button.active { border-color: #a92c28; background: #c92128; color: #fff; }
+
+#deliveries .delivery-chip { box-sizing: border-box; position: relative; display: flex; align-items: center; gap: 6px; min-width: 120px; max-width: 185px; height: 28px; overflow: hidden; border: 1px solid #dfb57a; border-radius: 9px; background: #fff7df; color: #5d3022; }
+#deliveries .delivery-chip strong { max-width: 118px; overflow: hidden; text-overflow: ellipsis; font-size: 9px; }
+#deliveries .delivery-chip em { margin-left: auto; font-size: 9px; font-style: normal; font-weight: 900; }
+#deliveries .delivery-chip i { position: absolute; bottom: 0; left: 0; height: 3px; background: #c92128; transition: width .2s linear; }
+#deliveries .delivery-chip.is-delivered { border-color: #55a577; background: #e7f7e8; color: #215639; }
+#deliveries .delivery-chip.is-delivered i { background: #55a577; }

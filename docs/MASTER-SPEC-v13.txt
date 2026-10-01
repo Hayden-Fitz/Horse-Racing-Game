@@ -50,6 +50,7 @@ Current design decisions that must remain
 - [u] Make the host authoritative for lobby membership, rules, race state, money,
   items, bets, trades, sabotage, results, replay events and game settings.
 - [x] Synchronize host-owned lobby rules and display them live for every client.
+- [u] Show boot and pre-match loading screens. Block the host from starting until every current player has acknowledged the same loading ID; close admission during loading. Automated eight-client/WebSocket and Cloudflare barrier tests pass. Verify the complete flow with eight live browsers/devices.
 - [u] Add reconnect handling, host permission checks, membership checks, graceful
   network failure states, anti-duplication / anti-double-spend safeguards, and
   server-authoritative auction/trade transactions.
@@ -66,7 +67,9 @@ Current design decisions that must remain
   auctions, legendary opportunities, trading, then next race/day.
 - [u] At each eligible day change, show standings, money, race results and major
   statistics. It must be a polished event screen, not a fabricated solo
-  leaderboard.
+  leaderboard. The transition now shows each race podium and winning time,
+  current bankroll, personal ticket count, wagers, returns and betting net. It
+  follows the host phase; a manual two-client visual review remains open.
 - [u] Offer one positive choice from each category: Money, Item and Upgrade. The
   player picks one. Upgrades are only earned from that choice; never add an
   Upgrade shop, inventory tab, equipment slots or drops.
@@ -103,7 +106,10 @@ Current design decisions that must remain
 - [u] Integrate the ten active item assets with their final effects, physics,
   quantities, shops and network state. Review first-person grips for every item.
 - [u] Golden Hotdog and Golden Carrot belong to the legendary economy, not normal
-  concessions. Design the legendary shop and its availability/economy.
+  concessions. A separate counter now rotates one active golden item per day,
+  with high prices and one local purchase per intermission. Ordinary stands
+  cannot sell them. Online purchase is gated until server-authoritative
+  settlement and shared availability are implemented.
 - [u] Implement the Concessions app Auction tab: three listings, image/name/category
   /description, starting/current bid, bidder, 15-second timer and atomic winner
   settlement.
@@ -120,12 +126,14 @@ Current design decisions that must remain
 --------------------------------
 
 - [u] Finish a consistent, polished phone home screen, icons and unique app layouts.
+- [x] Group phone Concessions into All, Food, Drinks and Track Gear menus without changing its 12-second delivery, receipts or instant stand pickup.
+- [x] Keep Concessions delivery status visible as Ordered, On the Way with countdown/progress, and Delivered in a fixed-height strip, without moving menu buy buttons.
 - [u] Concessions must resemble a real food-ordering app and retain 12-second phone
   delivery. Physical stands remain instant pickup with valid shared pricing.
 - [u] Finish Betting with a distinct racing identity and WIN / PLACE / SHOW / EXACTA
   / TRIFECTA flows, ticket previews, locked payouts and live status.
-- [u] Finish Horse Stats: current field, all discovered horses, and Personal Horse
-  tabs with correct unavailable states.
+- [x] Finish the current Horse Stats views: Current Field, saved Discovered horses,
+  and a clearly unavailable Personal Horse tab until ownership is implemented.
 - [x] Expose the complete derived horse profile in Horse Stats, including
   maximum speed, defense, recovery, lane switching, overtaking, start, finish,
   consistency, interference resistance and intelligence.
@@ -133,6 +141,12 @@ Current design decisions that must remain
   explicit confirmation by both parties. Verify this with real clients.
 - [u] Complete dynamic DerbyNews: leaders, odds, hits, stuns, overtakes, payouts,
   sabotage, rare events, auctions and player-race news.
+- [x] Current Field in Horse Stats shows only this race's entrants in lane order, with live chance, odds and profile data.
+- [x] Discovered in Horse Stats shows only encountered horses and their saved records. A new save starts undiscovered; race entry reveals horses.
+- [x] The Fixer app keeps each purchased job for the run, showing target, option, cost and resolved outcome. Guests receive the host's outcome after race start.
+- [x] DerbyNews shows live leader, meaningful odds movement, latest result, revealed Fixer report and account headline cards.
+- [x] Add host-synchronized DerbyNews incidents for item hits, knockdowns and lead changes, plus personal payout headlines. Bound and deduplicate the incident history.
+- [x] Resolve official interception as a visible subset of the existing one-in-three Fixer failures, and send detected outcomes from the host to guests. The app shows per-option risk and per-run result feedback.
 - [u] Complete the Sabotage app with costs, targets, risk, detection, active history
   and result feedback. Supported options must remain legible and balanced.
 - [x] Keep Messages input safe: typing must never trigger gameplay shortcuts.
@@ -189,7 +203,7 @@ Current design decisions that must remain
   vendors, posters, flags, plants, signs, cameras and reserved seating.
 - [u] Complete three location themes while retaining recognizable stadium structure:
   Classic, Mountain and Desert. Use clean, layered horizons—not placeholder
-  mountains—and give gameplay music a matching identity.
+  mountains. Keep music in the lobby only.
 - [u] Profile the game on integrated graphics and on the powerful PC. Investigate the
   intermittent performanceOats fingerprint mismatch and full asset rebuild
   fingerprint failure before release.
@@ -239,3 +253,19 @@ Implementation rules
 - [u] Treat real two-client/manual visual testing as required where automated tests
   cannot prove behavior.
 - [u] Update FEATURE-CHECKLIST.md as tasks become complete or need further checks.
+
+
+
+
+
+
+
+
+
+
+Other things to add:
+
+-  [] player upgrades like speed, strength, etc. Cost scales with each day (probably going to need an upgrade vendor)
+-  [x] Refresh the Horse Stats, DerbyNews, Fixer and DerbyPay phone icons with clearer vector artwork. Keep the Messages icon.
+-  [u] Loading screen before the game starts: boot progress and an eight-player lobby loading barrier are implemented. Local eight-client/WebSocket and Cloudflare tests pass; live eight-browser/device synchronization and visual checks remain.
+-  [x] Remove commentator sound and in-match music while keeping lobby music. Commentary worker, voice controls and race music asset removed; UI contract and full automated suite pass.

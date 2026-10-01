@@ -54,7 +54,7 @@ function makeHorseProfile(profile) {
       number % 3 === 0 ? "Uncommon" : "Common"
     ),
     appearance: profile.appearance || "Classic race coat",
-    discovered: profile.discovered !== false,
+    discovered: profile.discovered === true,
     history: {
       starts: Math.max(0, Math.floor(profile.history?.starts || 0)),
       wins: Math.max(0, Math.floor(profile.history?.wins || 0)),
@@ -600,7 +600,8 @@ HD.CONFIG = {
       description: "Startles a horse into rearing and briefly stops its stride.",
     },
     goldenHotdog: {
-      category: 'Rare', name: 'Golden Hotdog', icon: 'G', price: 55,
+      category: 'Rare', name: 'Golden Hotdog', icon: 'G', price: 1000,
+      legendary: true,
       speed: 39, lift: 9, gravity: 18, weight: 2, throwingEase: 4,
       ragdollDuration: 2.8, slowDuration: 2.4, vendorOnly: true,
       description: 'A premium hotdog that causes a longer startle and slowdown.',
@@ -647,7 +648,8 @@ HD.CONFIG = {
       description: "Boosts a horse and grants temporary interference resistance.",
     },
     goldenCarrot: {
-      category: 'Rare', name: 'Golden Carrot', icon: 'G', price: 60,
+      category: 'Rare', name: 'Golden Carrot', icon: 'G', price: 1200,
+      legendary: true,
       speed: 40, lift: 9, gravity: 17, weight: 2, throwingEase: 5,
       boostDuration: 8, resistanceDuration: 12, maxSpeedBonus: 0.01,
       maxSpeedBonusCap: 0.05, vendorOnly: true,
@@ -771,6 +773,7 @@ HD.CONFIG = {
     },
   },
   sabotageFailureChance: 0.33,
+  sabotageDetectionChance: 0.5,
   sabotageEnabled: true,
   roundBonuses: [100, 150, 250],
   racesPerRound: 2,
@@ -1136,6 +1139,11 @@ HD.state = {
   horseSpeedBonuses: {},
   projectiles: [],
   finishOrder: [],
+  dayResults: [],
+  newsEvents: [],
+  newsEventSequence: 0,
+  dayStats: { tickets: 0, wagered: 0, fees: 0, returned: 0 },
+  legendaryPurchasedRound: 0,
   elapsed: 0,
   lastOdds: 0,
   paused: true,
@@ -1151,6 +1159,7 @@ HD.state = {
   vendorOpen: false,
   counterOpen: false,
   sabotagePlans: [],
+  sabotageHistory: [],
   raceAnnouncement: "",
   matchStarted: false,
 };

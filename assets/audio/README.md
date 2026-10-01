@@ -18,11 +18,3 @@ The game loads these recordings locally. They are not generated at runtime.
 - `music-menu.mp3` is **Funky Menu Loop** by iamoneabe, dedicated to the public
   domain under CC0.
   Source: https://opengameart.org/content/funky-menu-loop
-- `music-race.ogg` is **Banana Track** by skrjablin, dedicated to the public
-  domain under CC0.
-  Source: https://opengameart.org/content/banana-track
-
-The Kokoro browser runtime in `vendor/kokoro.web.js` is provided by
-`kokoro-js` under Apache-2.0. The energetic American male `am_fenrir` voice is
-generated in a background worker, then processed through the game's PA chain.
-Its model is downloaded on first use and cached by the browser.

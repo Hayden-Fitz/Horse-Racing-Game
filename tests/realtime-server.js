@@ -78,6 +78,8 @@ async function run() {
   const guest = new TestClient(socketUrl, "guest");
   const rival = new TestClient(socketUrl, "rival");
   let reconnected = null;
+  let ninth = null;
+  const extraClients = [];
 
   try {
     await Promise.all([host.ready, guest.ready, rival.ready]);
@@ -190,6 +192,64 @@ async function run() {
       (error) => error.status === 403,
     );
 
+    // Fill every seat with a distinct WebSocket client and enforce the loading barrier.
+    for (let seat = 3; seat < 8; seat++) {
+      const id = "extra" + seat;
+      const client = new TestClient(socketUrl, id);
+      extraClients.push(client);
+      await client.ready;
+      assert.equal((await client.rpc("lobbies/ABC234/seats/" + seat, "RESERVE", id)).reserved, true);
+      await client.rpc("lobbies/ABC234/players/" + id, "PUT", {
+        ...player(id, seat, now),
+        ready: true,
+      });
+    }
+    await host.rpc("lobbies/ABC234/players/host/ready", "PUT", true);
+    await winner.rpc("lobbies/ABC234/players/" + winnerId + "/ready", "PUT", true);
+    await loser.rpc("lobbies/ABC234/players/" + loserId + "/ready", "PUT", true);
+    const fullLobby = await host.rpc("lobbies/ABC234");
+    assert.equal(Object.keys(fullLobby.players).length, 8);
+    assert.equal(new Set(Object.values(fullLobby.players).map((entry) => entry.seatIndex)).size, 8);
+
+    ninth = new TestClient(socketUrl, "ninth");
+    await ninth.ready;
+    await assert.rejects(
+      ninth.rpc("lobbies/ABC234/seats/7", "RESERVE", "ninth"),
+      (error) => error.status === 409,
+    );
+    await assert.rejects(
+      ninth.rpc("lobbies/ABC234/players/ninth", "PUT", player("ninth", 7, now)),
+      (error) => error.status === 409,
+    );
+
+    const loadingId = Date.now();
+    await host.rpc("lobbies/ABC234/meta", "PATCH", { loadingId, started: false });
+    await assert.rejects(
+      host.rpc("lobbies/ABC234/meta", "PATCH", { started: true, matchId: loadingId }),
+      (error) => error.status === 409,
+    );
+    await assert.rejects(
+      ninth.rpc("lobbies/ABC234/seats/6", "RESERVE", "ninth"),
+      (error) => error.status === 409,
+    );
+    const roster = [
+      ["host", host], [winnerId, winner], [loserId, loser],
+      ...extraClients.map((client, index) => ["extra" + (index + 3), client]),
+    ];
+    for (const [id, client] of roster.slice(0, -1)) {
+      await client.rpc("lobbies/ABC234/players/" + id + "/loadReadyFor", "PUT", loadingId);
+    }
+    await assert.rejects(
+      host.rpc("lobbies/ABC234/meta", "PATCH", { started: true, matchId: loadingId }),
+      (error) => error.status === 409,
+    );
+    const [lastId, lastClient] = roster.at(-1);
+    await lastClient.rpc("lobbies/ABC234/players/" + lastId + "/loadReadyFor", "PUT", loadingId);
+    await host.rpc("lobbies/ABC234/meta", "PATCH", {
+      started: true, loadingId: null, matchId: loadingId,
+    });
+    assert.equal((await host.rpc("lobbies/ABC234/meta")).started, true);
+
     await winner.rpc(
       `lobbies/ABC234/players/${winnerId}`,
       "PATCH",
@@ -219,13 +279,15 @@ async function run() {
     assert.equal(reconnected.updates.at(-1).data.state.x, 18);
 
     console.log(
-      "Realtime health, lobby creation, atomic seats/transfers, authority, streams, privacy, and reconnect passed.",
+      "Realtime eight seats, loading barrier, authority, streams, privacy, transfers, and reconnect passed.",
     );
   } finally {
     host.close();
     guest.close();
     rival.close();
     reconnected?.close();
+    ninth?.close();
+    extraClients.forEach((client) => client.close());
     realtime.close();
     await new Promise((resolve) => httpServer.close(resolve));
   }

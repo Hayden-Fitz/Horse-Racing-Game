@@ -11,10 +11,25 @@ HD.Concessions = (() => {
     'beachBall',
   ]);
 
+  const PHONE_CATEGORIES = Object.freeze({
+    hotdog: "food", carrot: "food",
+    soda: "drinks", waterBottle: "drinks",
+    horseshoe: "gear", beachBall: "gear",
+  });
+
+  function phoneMenu(category = "all") {
+    if (category !== "all" && !["food", "drinks", "gear"].includes(category)) return [];
+    return [...PHONE_CATALOG].filter((id) =>
+      category === "all" || PHONE_CATEGORIES[id] === category);
+  }
+
   function quote(id, source = "phone") {
     const item = Object.hasOwn(HD.CONFIG.items, id) && HD.CONFIG.items[id];
     if (!item || !["phone", "vendor"].includes(source)) {
       return { error: "That item is unavailable." };
+    }
+    if (item.legendary) {
+      return { error: "Legendary items are sold only at the legendary counter." };
     }
     if (source === "phone" && item.vendorOnly) {
       return { error: "This item is only sold at the stands." };
@@ -85,5 +100,6 @@ HD.Concessions = (() => {
     purchase,
     update,
     phoneCatalog: () => [...PHONE_CATALOG],
+    phoneMenu,
   };
 })();

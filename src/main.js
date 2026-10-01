@@ -282,7 +282,10 @@ HD.Game = (() => {
 document.querySelector("#phone").classList.add("closed");
 try {
   HD.Game.init();
+  document.querySelector("#boot-loading").hidden = true;
 } catch (error) {
+  document.querySelector("#boot-loading-status").textContent =
+    "Startup failed: " + error.message;
   console.error(error);
   const banner = document.querySelector("#announcement");
   banner.textContent = `Game startup failed: ${error.message}`;

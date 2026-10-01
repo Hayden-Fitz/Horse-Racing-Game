@@ -58,12 +58,25 @@ async function run() {
     assert.equal(updates[0].path, "/");
     assert.equal(updates[0].data.meta.name, "Browser Adapter");
 
+    const loadingId = Date.now();
+    await client.request("lobbies/DEF567/players/browser-host/ready", {
+      method: "PUT", body: true,
+    });
+    await client.request("lobbies/DEF567/meta", {
+      method: "PATCH", body: { loadingId, started: false },
+    });
+    await assert.rejects(client.request("lobbies/DEF567/meta", {
+      method: "PATCH", body: { started: true, matchId: loadingId },
+    }), /finish loading/);
+    await client.request("lobbies/DEF567/players/browser-host/loadReadyFor", {
+      method: "PUT", body: loadingId,
+    });
     await client.request("lobbies/DEF567/meta", {
       method: "PATCH",
-      body: { started: true },
+      body: { started: true, loadingId: null, matchId: loadingId },
     });
-    await waitFor(() => updates.some((update) => update.path === "/meta"));
-    const metaUpdate = updates.find((update) => update.path === "/meta");
+    await waitFor(() => updates.some((update) => update.path === "/meta" && update.data.started === true));
+    const metaUpdate = updates.find((update) => update.path === "/meta" && update.data.started === true);
     assert.equal(metaUpdate.type, "patch");
     assert.equal(metaUpdate.data.started, true);
     assert.equal(updates.filter((update) => update.path === "/").length, 1);

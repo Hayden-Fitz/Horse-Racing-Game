@@ -37,6 +37,9 @@ HD.Network = (() => {
   let rosterSignature = "";
   let rulesSignature = "";
   let lobbyVisibility = "public";
+  let loadWritePendingFor = null;
+  let startCommitFor = null;
+  let loadingRequestPending = false;
 
   function init() {
     Object.assign(elements, {
@@ -61,6 +64,10 @@ HD.Network = (() => {
       ready: $("#lobby-ready"),
       leave: $("#lobby-leave"),
       message: $("#lobby-message"),
+      loading: $("#match-loading"),
+      loadingStatus: $("#match-loading-status"),
+      loadingCount: $("#match-loading-count"),
+      loadingBar: $("#match-loading-bar"),
       singlePlayer: $("#menu-play"),
     });
 
@@ -191,6 +198,9 @@ HD.Network = (() => {
 
       const data = await realtimeRequest(`lobbies/${safeCode}`);
       if (!data?.meta) throw new Error("That lobby does not exist.");
+      if (data.meta.started || data.meta.loadingId) {
+        throw new Error("That lobby has already started loading or racing.");
+      }
 
       const activePlayers = activePlayerEntries(data.players);
       if (activePlayers.length >= 8) throw new Error("That lobby is full.");
@@ -327,12 +337,51 @@ HD.Network = (() => {
 
     syncMatchRules();
     syncMembers(initial);
+    syncLoadingState();
     syncRaceState();
     syncEvents();
     syncTransfers();
     claimMissingHost();
 
     if (lobby.started && !playing) beginOnlinePlay();
+  }
+
+  function syncLoadingState() {
+    const loadingId = Number(lobbyCache.meta.loadingId);
+    if (lobby.started || !Number.isSafeInteger(loadingId) || loadingId <= 0) {
+      elements.loading.hidden = true;
+      return;
+    }
+    const players = [...members.values()];
+    const loaded = players.filter((player) => Number(player.loadReadyFor) === loadingId);
+    elements.loading.hidden = false;
+    elements.loadingCount.textContent = loaded.length + " / " + players.length + " players loaded";
+    elements.loadingStatus.textContent = loaded.length === players.length
+      ? "All players loaded. Waiting for the host to start."
+      : "Waiting for " + players.filter((player) =>
+        Number(player.loadReadyFor) !== loadingId).map((player) => player.name).join(", ") + ".";
+    elements.loadingBar.style.width = (players.length ? loaded.length / players.length * 100 : 0) + "%";
+
+    const self = members.get(selfId);
+    if (self && Number(self.loadReadyFor) !== loadingId && loadWritePendingFor !== loadingId) {
+      loadWritePendingFor = loadingId;
+      realtimeRequest("lobbies/" + lobby.id + "/players/" + selfId + "/loadReadyFor", {
+        method: "PUT",
+        body: loadingId,
+      }).catch((error) => showNetworkError(error, "Could not report loading status."))
+        .finally(() => { loadWritePendingFor = null; });
+    }
+    if (isHost() && players.length && loaded.length === players.length &&
+        players.every((player) => player.ready) && startCommitFor !== loadingId) {
+      startCommitFor = loadingId;
+      realtimeRequest("lobbies/" + lobby.id + "/meta", {
+        method: "PATCH",
+        body: { started: true, loadingId: null, matchId: loadingId, updatedAt: Date.now() },
+      }).catch((error) => {
+        startCommitFor = null;
+        showNetworkError(error, "The match could not start.");
+      });
+    }
   }
 
   function handleLobbyUnavailable() {
@@ -401,7 +450,7 @@ HD.Network = (() => {
     const nextSignature = [...members.values()]
       .sort((a, b) => a.seatIndex - b.seatIndex)
       .map((player) => `${player.id}:${player.seatIndex}:${player.ready}`)
-      .join("|") + `:${hostId}`;
+      .join("|") + `:${hostId}:${lobbyCache.meta.loadingId || ""}`;
 
     if (nextSignature !== rosterSignature) {
       rosterSignature = nextSignature;
@@ -757,9 +806,9 @@ HD.Network = (() => {
     return chatMessages.filter((message) => message.thread === thread);
   }
 
-  function sendSabotage(horse, optionId) {
+  function sendSabotage(horse, optionId, historyId) {
     if (!lobby) return;
-    postLobbyEvent("sabotage", { horse, optionId });
+    postLobbyEvent("sabotage", { horse, optionId, historyId });
   }
 
   function transferTargets() {
@@ -994,9 +1043,10 @@ HD.Network = (() => {
       [...members.values()].every((player) => player.ready);
     elements.ready.classList.toggle("ready", Boolean(self?.ready));
     elements.ready.textContent = self?.ready ? "READY \u2713" : "I'M READY";
-    elements.rules.disabled = !isHost() || playing;
+    elements.rules.disabled = !isHost() || playing || Boolean(lobbyCache?.meta?.loadingId);
     elements.rules.textContent = isHost() ? "EDIT RULES" : "HOST CONTROLS";
-    elements.start.disabled = !isHost() || !everyoneReady;
+    elements.start.disabled = !isHost() || !everyoneReady || Boolean(lobbyCache?.meta?.loadingId);
+    elements.ready.disabled = Boolean(lobbyCache?.meta?.loadingId);
     elements.start.textContent = isHost()
       ? everyoneReady
         ? "START ONLINE MATCH"
@@ -1052,7 +1102,7 @@ HD.Network = (() => {
 
   function toggleReady() {
     const player = members.get(selfId);
-    if (!player || playing || !lobby) return;
+    if (!player || playing || !lobby || lobbyCache?.meta?.loadingId) return;
 
     realtimeRequest(`lobbies/${lobby.id}/players/${selfId}/ready`, {
       method: "PUT",
@@ -1061,12 +1111,12 @@ HD.Network = (() => {
   }
 
   function openMatchRules() {
-    if (!lobby || !isHost() || playing) return;
+    if (!lobby || !isHost() || playing || lobbyCache?.meta?.loadingId) return;
     HD.MatchSetup.openOnline(lobbyCache?.meta?.rules);
   }
 
   function updateMatchRules(input) {
-    if (!lobby || !isHost() || playing) return false;
+    if (!lobby || !isHost() || playing || lobbyCache?.meta?.loadingId) return false;
     const rules = HD.MatchSetup.normalize(input);
     realtimeRequest(`lobbies/${lobby.id}/meta`, {
       method: "PATCH",
@@ -1088,17 +1138,23 @@ HD.Network = (() => {
   }
 
   function startOnlineMatch() {
-    const everyoneReady = [...members.values()].every((player) => player.ready);
-    if (!isHost() || !lobby || !everyoneReady) return;
+    const everyoneReady = members.size > 0 &&
+      [...members.values()].every((player) => player.ready);
+    if (!isHost() || !lobby || !everyoneReady || lobbyCache?.meta?.loadingId ||
+        loadingRequestPending) return;
 
-    const matchId = Date.now();
+    loadingRequestPending = true;
+    const loadingId = Date.now();
+    setMessage("Preparing the match for every connected player...");
     realtimeRequest(`lobbies/${lobby.id}/meta`, {
       method: "PATCH",
-      body: { started: true, matchId, updatedAt: matchId },
-    }).catch((error) => showNetworkError(error, "The match could not start."));
+      body: { loadingId, started: false, updatedAt: loadingId },
+    }).catch((error) => showNetworkError(error, "The loading screen could not start."))
+      .finally(() => { loadingRequestPending = false; });
   }
 
   function beginOnlinePlay() {
+    elements.loading.hidden = true;
     playing = true;
     setMessage("Online match in progress. The host controls race timing.");
     HD.UI.updateLeaderboardAvailability?.();
@@ -1159,6 +1215,9 @@ HD.Network = (() => {
     lobbyCache = null;
     hostId = null;
     playing = false;
+    loadWritePendingFor = null;
+    startCommitFor = null;
+    elements.loading.hidden = true;
     rulesSignature = "";
     members.clear();
     processedEvents.clear();

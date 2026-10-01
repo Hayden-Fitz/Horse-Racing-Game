@@ -54,7 +54,33 @@ async function run() {
   const restored = await readResponse.json();
   assert.equal(restored.meta.hostId, "host");
   assert.equal(restored.players.host.id, "host");
-  console.log("Cloudflare Durable Object persistence passed.");
+  const write = (actor, path, method, body) => reconstructed.fetch(new Request(
+    "https://example.test/api/data/" + path,
+    {
+      method,
+      headers: { "Content-Type": "application/json", "X-Hotdog-Client": actor },
+      body: JSON.stringify(body),
+    },
+  ));
+  assert.equal((await write("guest", "lobbies/ABC234/seats/1", "RESERVE", "guest")).status, 200);
+  assert.equal((await write("guest", "lobbies/ABC234/players/guest", "PUT", {
+    id: "guest", name: "Guest", seatIndex: 1, ready: true, lastSeen: Date.now(),
+  })).status, 200);
+  assert.equal((await write("host", "lobbies/ABC234/players/host/ready", "PUT", true)).status, 200);
+  const loadingId = Date.now();
+  assert.equal((await write("host", "lobbies/ABC234/meta", "PATCH", {
+    loadingId, started: false,
+  })).status, 200);
+  assert.equal((await write("host", "lobbies/ABC234/meta", "PATCH", {
+    started: true, matchId: loadingId,
+  })).status, 409);
+  assert.equal((await write("guest", "lobbies/ABC234/players/guest/loadReadyFor", "PUT", loadingId)).status, 200);
+  assert.equal((await write("host", "lobbies/ABC234/players/host/loadReadyFor", "PUT", loadingId)).status, 200);
+  assert.equal((await write("host", "lobbies/ABC234/meta", "PATCH", {
+    started: true, loadingId: null, matchId: loadingId,
+  })).status, 200);
+  assert.equal((await write("third", "lobbies/ABC234/seats/2", "RESERVE", "third")).status, 409);
+  console.log("Cloudflare persistence and all-player loading barrier passed.");
 }
 
 run().catch((error) => {

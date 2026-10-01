@@ -3,7 +3,12 @@
 const assert = require("node:assert/strict");
 global.HD = {
   CONFIG: {
-    items: { hotdog: { price: 20 }, chair: { price: 100, vendorOnly: true } },
+    items: {
+      hotdog: { price: 20 },
+      chair: { price: 100, vendorOnly: true },
+      goldenHotdog: { price: 55, legendary: true },
+      goldenCarrot: { price: 60, legendary: true },
+    },
     phoneDeliveryDuration: 12,
     vendorDiscount: 0.33,
   },
@@ -21,6 +26,11 @@ assert.deepEqual(shop.phoneCatalog(), [
   "waterBottle",
   "beachBall",
 ]);
+assert.deepEqual(shop.phoneMenu("food"), ["hotdog", "carrot"]);
+assert.deepEqual(shop.phoneMenu("drinks"), ["soda", "waterBottle"]);
+assert.deepEqual(shop.phoneMenu("gear"), ["horseshoe", "beachBall"]);
+assert.deepEqual(shop.phoneMenu("all"), shop.phoneCatalog());
+assert.deepEqual(shop.phoneMenu("unknown"), []);
 for (const item of ["goldenHotdog", "goldenCarrot", "hurdle", "chair"]) {
   assert.ok(shop.quote(item).error, item + " must not appear in phone concessions");
 }
@@ -43,6 +53,8 @@ assert.equal(state.inventory.hotdog, 1, "Completed orders cannot grant items twi
 shop.update(3);
 assert.equal(state.deliveries.length, 0, "Delivered receipts expire");
 state.vendorOpen = true;
+assert.ok(shop.purchase("goldenHotdog", "vendor").error);
+assert.ok(shop.purchase("goldenCarrot", "vendor").error);
 assert.equal(shop.purchase("chair", "vendor").price, 67);
 assert.equal(state.inventory.chair, 1);
 assert.equal(state.money, 13);

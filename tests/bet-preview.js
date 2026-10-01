@@ -47,4 +47,26 @@ context.isBettingOpen = () => false;
 render();
 assert.equal(context.el.counterPlaceBet.disabled, true);
 assert.equal(outputs['counter-bet-quote'].textContent, 'Betting closed.');
+
+// Count only tickets that pass the same validation as a real purchase.
+const purchaseBegin = source.indexOf('  function placeOnlineBet(');
+const purchaseEnd = source.indexOf('  function buy(', purchaseBegin);
+assert.ok(purchaseBegin >= 0 && purchaseEnd > purchaseBegin);
+context.S.money = 100;
+context.S.bets = [];
+context.S.dayStats = { tickets: 0, wagered: 0, fees: 0, returned: 0 };
+context.HD.Audio = { cue() {} };
+context.addLedger = () => {};
+context.announce = () => {};
+context.render = () => {};
+context.isBettingOpen = () => true;
+vm.runInContext(source.slice(purchaseBegin, purchaseEnd), context);
+vm.runInContext('submitBet(10, 1, "online")', context);
+assert.equal(context.S.money, 89);
+assert.equal(context.S.dayStats.tickets, 1);
+assert.equal(context.S.dayStats.wagered, 10);
+assert.equal(context.S.dayStats.fees, 1);
+context.isBettingOpen = () => false;
+vm.runInContext('submitBet(10, 1, "online")', context);
+assert.equal(context.S.dayStats.tickets, 1, 'Closed-book attempt must not enter day totals');
 console.log('Bet previews: fees, returns, live quotes, affordability and book closure passed.');

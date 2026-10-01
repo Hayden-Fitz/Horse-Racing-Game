@@ -14,6 +14,12 @@ const html = read("index.html");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
 assert.equal(new Set(ids).size, ids.length, "index.html contains duplicate IDs");
+assert.ok(html.includes('data-horse-tab="field"') &&
+  html.includes('data-horse-tab="discovered"') &&
+  html.includes('data-horse-tab="personal"') &&
+  html.includes('data-horse-view="personal" hidden') &&
+  html.includes('PERSONAL STABLE COMING SOON</button>'),
+  "Horse Stats needs field, discovery, and clearly unavailable personal-horse views");
 assert.ok(ids.includes('news-live-canvas'),
   'DerbyNews must include the Stadium Vision livestream canvas');
 for (const icon of [
@@ -104,6 +110,9 @@ assert.equal(
   0.15,
   "The premium sabotage should permanently reduce performance",
 );
+assert.ok(["all", "food", "drinks", "gear"].every((category) =>
+  html.includes(`data-shop-category="${category}"`)),
+  "Concessions needs all four menu categories");
 assert.ok(ids.includes("lobby-public"), "The public lobby button is missing");
 assert.ok(ids.includes("lobby-private"), "The private lobby button is missing");
 assert.ok(ids.includes("winner-coins"), "The Winner Coins balance is missing");
@@ -115,7 +124,7 @@ assert.ok(
 );
 assert.ok(
   html.includes("Three.js") && html.includes("CC0 Community Creators") &&
-    html.includes("Kokoro JS"),
+    !html.includes("Kokoro JS"),
   "Credits must retain runtime and audio attribution",
 );
 assert.ok(
@@ -199,7 +208,6 @@ assert.ok(
   "music-volume",
   "crowd-volume",
   "effects-volume",
-  "commentator-volume",
   "mute-audio",
   "controller-deadzone",
 ].forEach((id) => {
@@ -226,28 +234,19 @@ assert.ok(
   "The event-driven audio system is not loaded by the game",
 );
 const audioSource = read("src/audio.js");
-const commentatorWorkerSource = read("src/commentator-worker.js");
 assert.ok(
   !audioSource.includes("createStadiumBed"),
   "The removed looping crowd-noise bed was reintroduced",
 );
 assert.ok(
-  audioSource.includes("COMMENTARY_LINES") &&
-    audioSource.includes("leaderChange") &&
-    audioSource.includes("finalStretch") &&
-    audioSource.includes("sabotage"),
-  "The contextual race commentary library is incomplete",
+  !audioSource.includes("commentator-worker") &&
+    !audioSource.includes("COMMENTARY_LINES") &&
+    !audioSource.includes("raceMusic") &&
+    audioSource.includes('const level = S.matchStarted ? 0 : 0.2'),
+  "Commentator playback and in-game music must stay removed",
 );
-assert.ok(
-  commentatorWorkerSource.includes('const VOICE = "am_fenrir"') &&
-    commentatorWorkerSource.includes("kokoro.web.js") &&
-    audioSource.includes("makeMegaphoneCurve"),
-  "The worker-based Kokoro PA announcer is not configured",
-);
-assert.ok(
-  !audioSource.includes("speech.cancel()"),
-  "Commentary must finish its current sentence instead of being interrupted",
-);
+assert.ok(!fs.existsSync(path.join(root, "src", "commentator-worker.js")),
+  "The retired commentator worker must not ship");
 [
   "throw-whoosh-1.wav",
   "throw-whoosh-2.wav",
@@ -263,7 +262,6 @@ assert.ok(
   "ui-confirm.ogg",
   "ui-error.ogg",
   "music-menu.mp3",
-  "music-race.ogg",
 ].forEach((fileName) => {
   const audioPath = path.join(root, "assets", "audio", fileName);
   assert.ok(fs.existsSync(audioPath), `Missing recorded audio asset ${fileName}`);

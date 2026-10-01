@@ -311,7 +311,11 @@ them or exposes a booth walk zone.
 - [x] Replace rejected gold/pillow materials with screenshot-based colors; render the gallery.
 - [ ] Finish player appearance/customization review against the reference.
 - [ ] Integrate new normal-item assets with the exact v13 effects and inventory.
-- [ ] Integrate gold assets with the legendary economy (not normal concessions).
+- [x] Remove Golden Hotdog and Golden Carrot from ordinary concession sales.
+  Add a separate rotating counter with a single intermission offer, high prices,
+  and one solo purchase per day. Concession and legendary-shop tests pass.
+- [ ] Complete online legendary availability and server-authoritative purchase
+  settlement; online purchases are gated until then.
 - [ ] Model remaining normal and legendary items.
 - [ ] Complete final horse/jockey geometry, rig and animation.
 - [x] Test recreated active-item ground contact and remote prop attachment.
@@ -811,6 +815,15 @@ on port 8080 and a debugging browser on the supplied port.
 
 ### Odds, progression and controller follow-up
 
+- [x] On hosted match restart, restore each guest to the configured starting
+  bankroll instead of a fixed $100. Race simulation regression passes.
+- [x] Record each race podium and winning time for the completed day, carry
+  results in host snapshots, and show them with bankroll and real online
+  standings. Show each player their own ticket count, wagers, returns and
+  betting net. Guests open and close the screen with the host phase; Practice
+  shows no fabricated player standings. Race simulation and UI contract checks
+  pass. Live two-client visual review remains open.
+
 - [x] Show WIN ticket previews in RaceBet and at betting counters, including
   selected horse, normalized stake, service fee, total cost and possible return
   including the stake. Refresh on stake typing/buttons, horse selection and odds
@@ -869,3 +882,37 @@ on port 8080 and a debugging browser on the supplied port.
 - Browser gallery and game boot: 18 models load, imported hotdog is active,
   no JavaScript exceptions or asset-load failures.
 - Network snapshot changes are code-level only; live-client verification pending.
+
+### Audio, loading and eight-player verification
+
+- [x] Remove commentary audio, its worker and volume control, and the race music asset. Keep lobby music, and mute it once a match begins. Automated UI contract and full test suite pass.
+- [x] Add boot progress and a pre-match loading overlay. Each player acknowledges the same loading ID, and the host starts only after every current player is ready and loaded. Reject new joins during loading.
+- [x] Exercise all eight seats with distinct WebSocket clients, reject a ninth, and verify the host cannot start before the final acknowledgment. Cloudflare persistence and loading-barrier tests pass.
+- [ ] Run a live eight-browser or eight-device visual playtest covering lobby joins, loading, racing, disconnects and reconnects.
+
+### Five completed phone and race-day improvements
+
+- [x] Replace four phone app icons with clear vector art for Horse Stats, DerbyNews, Fixer and DerbyPay; retain the Messages icon.
+- [x] Add a Current Field Horse Stats tab showing active entrants in lane order with live stats.
+- [x] Add a Discovered Horse Stats tab backed by saved discovery; a new save begins with undiscovered horses and entering a race reveals them.
+- [x] Keep a per-run Fixer purchase and outcome history, including host-synced results for guests after the gates open.
+- [x] Show DerbyNews headline cards for live leaders, notable odds changes, results, revealed Fixer activity and personal account activity.
+
+Verification: phone-data and race-simulation focused tests plus the full test suite. Personal-horse gameplay, Fixer balance review and the remaining DerbyNews event catalog remain open in the master spec.
+
+### Horse Stats and DerbyNews follow-up
+
+- [x] Complete Current Field, Discovered and clearly disabled Personal Horse views in Horse Stats. The separate personal-horse gameplay system remains open.
+- [x] Publish host-owned DerbyNews incidents for hits, knockdowns and lead changes; deduplicate and bound them, replicate them to guests, and show personal payout headlines.
+
+### Fixer detection follow-up
+
+- [x] Resolve official interception for half of failed attempts while retaining the 33% overall failure chance. Show risk, detected status and history in the Fixer app, and synchronize detected outcomes to guests.
+
+### Concessions menu follow-up
+
+- [x] Add Food, Drinks and Track Gear filters to the phone menu; keep the All view, 12-second delivery, receipts, and instant stand pickup.
+
+### Delivery tracker follow-up
+
+- [x] Show Ordered, On the Way, and Delivered states with a countdown and progress in the fixed-height Concessions delivery strip; unchanged states avoid a DOM rewrite.

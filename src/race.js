@@ -10,6 +10,7 @@ HD.Race = (() => {
   let ambientThrowWindow = 0;
   let nextRaceTimeout = null;
   let runGeneration = 0;
+  let lastLeadNewsId = null;
   const restingBounds = new THREE.Box3();
 
   // ---------------------------------------------------------------------------
@@ -175,8 +176,13 @@ HD.Race = (() => {
     }
 
     S.money -= price;
-    S.sabotagePlans.push({ horse: horseIndex, optionId });
-    HD.Network?.sendSabotage(horseIndex, optionId);
+    const historyId = S.round + ":" + S.race + ":" + Date.now().toString(36) +
+      ":" + Math.random().toString(36).slice(2, 8);
+    S.sabotageHistory ||= [];
+    S.sabotageHistory.unshift({ historyId, round: S.round, race: S.race,
+      horseName: S.horses[horseIndex].userData.data.name, optionId, price, resolved: false });
+    S.sabotagePlans.push({ horse: horseIndex, optionId, historyId });
+    HD.Network?.sendSabotage(horseIndex, optionId, historyId);
     HD.UI.addLedger(`Secret fixer: #${HD.horseNumber(horseIndex)}`, -price);
     HD.UI.announce("The fixer accepted the job. The outcome remains sealed until race start.");
     HD.Audio?.cue?.("sabotage");
@@ -194,10 +200,16 @@ HD.Race = (() => {
       const horse = S.horses[plan.horse];
       const option = C.sabotageOptions[plan.optionId];
       const failed = Math.random() < C.sabotageFailureChance;
+      const detected = failed && Math.random() < C.sabotageDetectionChance;
       plan.failed = failed;
+      plan.detected = detected;
       plan.resolved = true;
+      const history = S.sabotageHistory?.find((entry) => entry.historyId === plan.historyId);
+      if (history) { history.failed = failed; history.detected = detected; history.resolved = true; }
 
-      if (failed) return `attempt on #${HD.horseNumber(plan.horse)} failed`;
+      if (failed) return detected
+        ? `officials intercepted attempt on #${HD.horseNumber(plan.horse)}`
+        : `attempt on #${HD.horseNumber(plan.horse)} failed`;
       if (option.startDelay) {
         horse.userData.data.startDelay = option.startDelay;
         return `#${HD.horseNumber(plan.horse)} will leave ${option.startDelay}s late`;
@@ -225,6 +237,7 @@ HD.Race = (() => {
       horse: sabotage.horse,
       optionId: sabotage.optionId,
       remote: true,
+      historyId: typeof sabotage.historyId === "string" ? sabotage.historyId.slice(0, 80) : "",
     });
   }
 
@@ -358,6 +371,16 @@ HD.Race = (() => {
       updateOdds();
       HD.UI.renderCards();
       HD.UI.renderOddsWatch();
+    }
+    const leadHorse = [...S.horses].sort((a, b) =>
+      b.userData.data.progress - a.userData.data.progress)[0]?.userData.data;
+    if (leadHorse) {
+      if (lastLeadNewsId && leadHorse.id !== lastLeadNewsId && S.raceTime > 5) {
+        HD.PhoneData?.recordEvent?.(S, { label: "OVERTAKE",
+          title: leadHorse.name + " takes the lead",
+          detail: "Lead change in race " + S.race, key: "lead:" + leadHorse.id });
+      }
+      lastLeadNewsId = leadHorse.id;
     }
     if (S.finishOrder.length === S.horses.length) finish();
     const currentLeader = Math.max(...S.horses.map((h) => h.userData.data.progress));
@@ -602,7 +625,14 @@ HD.Race = (() => {
     recordHorseResults();
     HD.AI?.settleRace?.(winner);
     const payout = ticketPayout(winner);
+    S.dayResults.push({
+      race: S.race,
+      winner: winnerData.name,
+      podium: S.finishOrder.slice(0, 3).map((index) => S.horses[index].userData.data.name),
+      time: Number.isFinite(winnerData.finishTime) ? winnerData.finishTime : S.raceTime,
+    });
     if (payout) {
+      S.dayStats.returned += payout;
       S.money += payout;
       HD.UI.addLedger(`Race ${S.race} payout`, payout);
       HD.Audio?.cue?.("moneyGain");
@@ -651,6 +681,7 @@ HD.Race = (() => {
     HD.UI.announce("Forty-five seconds until the next race. Study the field!");
   }
   function prepareRace(options = {}) {
+    lastLeadNewsId = null;
     Object.assign(S, {
       selected: 0,
       bets: [],
@@ -693,6 +724,8 @@ HD.Race = (() => {
       if (generation !== runGeneration || S.phase !== "dayTransition") return;
       S.round = nextRound;
       S.race++;
+      S.dayResults = [];
+      S.dayStats = { tickets: 0, wagered: 0, fees: 0, returned: 0 };
       const bonus = C.roundBonuses[nextRound - 1] ?? 0;
       S.money += bonus;
       if (bonus) HD.UI.addLedger(`Day ${nextRound} bankroll`, bonus);
@@ -732,6 +765,7 @@ HD.Race = (() => {
     clearTimeout(nextRaceTimeout);
     nextRaceTimeout = null;
     runGeneration++;
+    lastLeadNewsId = null;
     networkSettlement = '';
     HD.UI.cancelDayTransition?.();
     Object.assign(S, {
@@ -748,12 +782,18 @@ HD.Race = (() => {
       raceTime: 0,
       lastOdds: 0,
       sabotagePlans: [],
+      sabotageHistory: [],
+      newsEvents: [],
+      newsEventSequence: 0,
       raceAnnouncement: "",
       matchStarted: true,
       activeHorseIds: [],
       horseFieldRacesRemaining: 0,
       horseBag: C.horses.map((horse) => horse.id),
       horseSpeedBonuses: {},
+      dayResults: [],
+      dayStats: { tickets: 0, wagered: 0, fees: 0, returned: 0 },
+      legendaryPurchasedRound: 0,
     });
     clearProjectiles();
     resetHorses({ forceStart: true });
@@ -1025,7 +1065,6 @@ HD.Race = (() => {
         p.mesh.position.y = 0.5;
         if (!p.visualOnly && !p.ambient && !p.landed && !p.impacted) {
           HD.UI.announce(`Miss! The ${p.config.name.toLowerCase()} lands in the dirt.`);
-          HD.Audio?.notifyMiss?.(p.type);
         }
         if (!p.landed) {
           HD.Audio?.trackImpact?.(p.type, p.ambient);
@@ -1207,6 +1246,10 @@ HD.Race = (() => {
       projectile.ambient,
       { wasLeader: leader === horse },
     );
+    HD.PhoneData?.recordEvent?.(S, { label: "HIT",
+      title: item.name + " hits " + data.name,
+      detail: leader === horse ? "Race leader struck" : "Trackside item impact",
+      key: "hit:" + data.id + ":" + projectile.type });
 
     if (item.maxSpeedBonus) {
       const previousBonus = data.maxSpeedBonus || 0;
@@ -1273,6 +1316,9 @@ HD.Race = (() => {
     if (item.ragdollDuration) {
       data.ragdoll = item.ragdollDuration * resistance;
       data.momentum *= 0.28 + (1 - resistance) * 0.35;
+      HD.PhoneData?.recordEvent?.(S, { label: "STUN",
+        title: data.name + " is knocked down",
+        detail: item.name + " disrupts the run", key: "stun:" + data.id });
     }
     if (item.knockbackStrength) {
       data.progress = Math.max(
@@ -1309,7 +1355,16 @@ HD.Race = (() => {
       raceTime: S.raceTime,
       timer: S.timer,
       finishOrder: [...S.finishOrder],
+      dayResults: S.dayResults.map((result) => ({
+        ...result,
+        podium: Array.isArray(result.podium) ? [...result.podium] : [],
+      })),
       announcement: S.raceAnnouncement,
+      newsEvents: (S.newsEvents || []).slice(0, 12).map((event) => ({ ...event })),
+      sabotageOutcomes: S.phase === "betting" ? [] : S.sabotagePlans
+        .filter((plan) => plan.resolved && plan.historyId)
+        .map((plan) => ({ historyId: plan.historyId, failed: plan.failed,
+          detected: Boolean(plan.detected) })),
       activeHorseIds: [...S.activeHorseIds],
       horseFieldRacesRemaining: S.horseFieldRacesRemaining,
       horses: S.horses.map((horse) => {
@@ -1370,7 +1425,7 @@ HD.Race = (() => {
       const bonus = C.roundBonuses[snapshot.round - 1] || 0;
       S.money += bonus;
       HD.UI.addLedger(`Day ${snapshot.round} bankroll`, bonus);
-      HD.UI.showDay(snapshot.round, () => {});
+      S.dayStats = { tickets: 0, wagered: 0, fees: 0, returned: 0 };
     }
     if (raceChanged) {
       S.selected = 0;
@@ -1383,9 +1438,14 @@ HD.Race = (() => {
       snapshot.phase === "betting" &&
       snapshot.race === 1
     ) {
-      S.money = 100;
+      S.money = C.startingMoney ?? 100;
       S.inventory = HD.createInventory();
       S.ledger = [];
+      S.sabotageHistory = [];
+      S.newsEvents = [];
+      S.newsEventSequence = 0;
+      S.dayStats = { tickets: 0, wagered: 0, fees: 0, returned: 0 };
+      S.legendaryPurchasedRound = 0;
     }
     S.phase = snapshot.phase;
     S.race = snapshot.race;
@@ -1393,7 +1453,35 @@ HD.Race = (() => {
     S.raceTime = snapshot.raceTime;
     S.timer = snapshot.timer;
     S.finishOrder = Array.isArray(snapshot.finishOrder) ? [...snapshot.finishOrder] : [];
+    S.dayResults = Array.isArray(snapshot.dayResults) ? snapshot.dayResults
+      .filter((result) => Number.isInteger(result.race) && typeof result.winner === "string")
+      .map((result) => ({
+        race: result.race,
+        winner: result.winner,
+        podium: Array.isArray(result.podium)
+          ? result.podium.filter((name) => typeof name === "string").slice(0, 3) : [],
+        time: Number(result.time),
+      })) : [];
     S.raceAnnouncement = snapshot.announcement || "";
+    if (Array.isArray(snapshot.newsEvents)) {
+      S.newsEvents = snapshot.newsEvents.slice(0, 12).filter((event) =>
+        event && ["HIT", "STUN", "OVERTAKE"].includes(event.label) &&
+        typeof event.title === "string" && typeof event.detail === "string")
+        .map((event) => ({ id: Number(event.id) || 0, label: event.label,
+          title: event.title.slice(0, 100), detail: event.detail.slice(0, 150),
+          race: Number(event.race) || 0, round: Number(event.round) || 0,
+          at: Number(event.at) || 0 }));
+    }
+    if (Array.isArray(snapshot.sabotageOutcomes)) {
+      snapshot.sabotageOutcomes.forEach((outcome) => {
+        const history = S.sabotageHistory?.find((entry) => entry.historyId === outcome.historyId);
+        if (history && typeof outcome.failed === "boolean") {
+          history.failed = outcome.failed;
+          history.detected = outcome.detected === true;
+          history.resolved = true;
+        }
+      });
+    }
     if (!fieldChanged && Number.isFinite(snapshot.horseFieldRacesRemaining)) {
       S.horseFieldRacesRemaining = snapshot.horseFieldRacesRemaining;
     }
@@ -1452,6 +1540,13 @@ HD.Race = (() => {
   }
 
   function handleNetworkPhase(previousPhase) {
+    if (S.phase === "dayTransition" && previousPhase !== "dayTransition") {
+      HD.UI.showRoundBreak(false);
+      HD.UI.showDay(S.round + 1, () => {});
+    }
+    if (S.phase === "betting" && previousPhase === "dayTransition") {
+      HD.UI.cancelDayTransition?.();
+    }
     const settlementKey = `${S.round}-${S.race}`;
     const winner = S.finishOrder[0];
     const validWinner = Number.isInteger(winner) && Boolean(S.horses[winner]);
@@ -1492,6 +1587,7 @@ HD.Race = (() => {
     if (!Number.isInteger(winner)) return;
     const payout = ticketPayout(winner);
     if (payout) {
+      S.dayStats.returned += payout;
       S.money += payout;
       HD.UI.addLedger(`Race ${S.race} payout`, payout);
     }

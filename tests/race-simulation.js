@@ -19,6 +19,7 @@ async function run() {
     },
   };
   require("../src/config.js");
+  require("../src/phone-data.js");
   require("../src/models.js");
 
   HD.world.scene = new THREE.Scene();
@@ -27,6 +28,7 @@ async function run() {
   HD.Network = {
     isConnected: () => false,
     isHost: () => true,
+    sendSabotage() {},
   };
   HD.AI = {
     prepareRace() {},
@@ -37,11 +39,13 @@ async function run() {
   assert.equal(HD.CONFIG.horses.length, 48, "The normal roster must contain 48 horses");
   for (const profile of HD.CONFIG.horses) {
     assert.ok(profile.personality && profile.rarity && profile.appearance);
-    assert.equal(profile.discovered, true);
+    assert.equal(profile.discovered, false);
     assert.deepEqual(Object.keys(profile.history), ["starts", "wins", "podiums", "bestTime"]);
   }
 
   HD.Race.resetHorses();
+  assert.equal(HD.CONFIG.horses.filter((horse) => horse.discovered).length,
+    HD.state.horses.length, "Only raced horses should be discovered initially");
   const boostedHorse = HD.state.horses[0];
   const boostTarget = boostedHorse.position.clone();
   boostTarget.y += 2.2;
@@ -52,6 +56,19 @@ async function run() {
     { consume: false },
   );
   HD.Race.updateProjectiles(0.01);
+  assert(HD.state.newsEvents.some((event) => event.label === "HIT" &&
+    event.title.includes(boostedHorse.userData.data.name)),
+    "A horse impact should create a DerbyNews headline");
+  const impactSnapshot = HD.Race.networkSnapshot();
+  HD.state.newsEvents = [];
+  HD.Race.applyNetworkSnapshot(impactSnapshot);
+  assert(HD.state.newsEvents.some((event) => event.label === "HIT"),
+    "Guests should receive host DerbyNews incidents");
+  HD.Race.launch("chair", boostTarget, new THREE.Vector3(), { consume: false });
+  HD.Race.updateProjectiles(0.01);
+  assert(HD.state.newsEvents.some((event) => event.label === "STUN" &&
+    event.title.includes(boostedHorse.userData.data.name)),
+    "A knockdown should create a distinct DerbyNews stun headline");
   assert.ok(boostedHorse.userData.data.maxSpeedBonus > 0);
   assert.ok(boostedHorse.userData.data.boost > 0);
   assert.ok(boostedHorse.userData.data.resistance > 0);
@@ -105,6 +122,43 @@ async function run() {
   HD.CONFIG.sabotageEnabled = true;
   HD.Race.purchaseSabotage(-1, "looseShoe");
   assert.equal(HD.state.sabotagePlans.length, 0, "Invalid horses must never accept fixer jobs");
+  const moneyBeforeFixer = HD.state.money;
+  const originalFailureChance = HD.CONFIG.sabotageFailureChance;
+  const originalDetectionChance = HD.CONFIG.sabotageDetectionChance;
+  HD.CONFIG.sabotageFailureChance = 1;
+  HD.CONFIG.sabotageDetectionChance = 1;
+  HD.Race.purchaseSabotage(0, "looseShoe");
+  assert.equal(HD.state.sabotageHistory.length, 1);
+  assert.equal(HD.state.sabotageHistory[0].horseName, HD.state.horses[0].userData.data.name);
+  assert.equal(HD.state.sabotageHistory[0].resolved, false);
+  HD.Race.begin();
+  HD.Race.update(0.01);
+  const leadBefore = [...HD.state.horses].sort((a, b) =>
+    b.userData.data.progress - a.userData.data.progress)[0];
+  const leadChallenger = HD.state.horses.find((horse) => horse !== leadBefore);
+  leadChallenger.userData.data.progress = leadBefore.userData.data.progress + 0.15;
+  HD.state.raceTime = 6;
+  HD.Race.update(0.01);
+  assert(HD.state.newsEvents.some((event) => event.label === "OVERTAKE" &&
+    event.title.includes(leadChallenger.userData.data.name)),
+    "A real lead change should create an overtake headline");
+  assert.equal(HD.state.sabotageHistory[0].resolved, true);
+  assert.equal(HD.state.sabotageHistory[0].failed, true);
+  assert.equal(HD.state.sabotageHistory[0].detected, true,
+    "A detected failure must be distinct from an ordinary failure");
+  const fixerSnapshot = HD.Race.networkSnapshot();
+  assert.equal(fixerSnapshot.sabotageOutcomes[0].historyId, HD.state.sabotageHistory[0].historyId);
+  assert.equal(fixerSnapshot.sabotageOutcomes[0].detected, true);
+  HD.state.sabotageHistory[0].resolved = false;
+  HD.Race.applyNetworkSnapshot(fixerSnapshot);
+  assert.equal(HD.state.sabotageHistory[0].resolved, true,
+    "A guest should receive the final Fixer outcome from the host snapshot");
+  assert.equal(HD.state.sabotageHistory[0].detected, true);
+  HD.CONFIG.sabotageFailureChance = originalFailureChance;
+  HD.CONFIG.sabotageDetectionChance = originalDetectionChance;
+  HD.state.money = moneyBeforeFixer;
+  HD.state.sabotagePlans = [];
+  HD.state.phase = "betting";
   for (let count = 4; count <= 8; count++) {
     HD.CONFIG.raceHorseCount = count;
     HD.Race.resetHorses({ forceStart: true });
@@ -398,6 +452,10 @@ async function run() {
   // the final horse to overlap a runner who has already crossed the line.
   for (let frame = 0; frame < 50; frame++) HD.Race.update(0.04);
   assert.equal(HD.state.finishOrder.length, 6, "A one-lap field must finish after lap one");
+  assert.equal(HD.state.dayResults.length, 1, "Completed race must enter day results");
+  assert.equal(HD.state.dayResults[0].winner,
+    HD.state.horses[HD.state.finishOrder[0]].userData.data.name);
+  assert.equal(HD.state.dayResults[0].podium.length, 3, "Day results must include a podium");
   HD.Race.restart(); // Also cancels the completed race's delayed next-race callback.
   assert.equal(HD.state.race, 1);
   assert.equal(HD.state.phase, "betting");
@@ -422,8 +480,10 @@ async function run() {
   result.finishOrder = [0, 1, 2, 3, 4, 5];
   HD.Race.applyNetworkSnapshot(result);
   assert.equal(HD.state.money, 300, 'Pay 40 + 160 using locked ticket quotes');
+  assert.equal(HD.state.dayStats.returned, 200, "Count the settled return once");
   HD.Race.applyNetworkSnapshot(result);
   assert.equal(HD.state.money, 300, 'Repeated results must not pay twice');
+  assert.equal(HD.state.dayStats.returned, 200, "Repeated results must not inflate day statistics");
   HD.Race.restart();
 
   // Exercise the delayed online reward without waiting on wall-clock timers.
@@ -493,6 +553,16 @@ async function run() {
     }
   }
   HD.Race.restart();
+  HD.state.dayResults = [{ race: 1, winner: "Comet", podium: ["Comet", "Dash"], time: 23.5 }];
+  const resultsSnapshot = HD.Race.networkSnapshot();
+  assert.deepEqual(resultsSnapshot.dayResults, HD.state.dayResults);
+  resultsSnapshot.dayResults[0].winner = "Changed";
+  resultsSnapshot.dayResults[0].podium[0] = "Changed";
+  assert.equal(HD.state.dayResults[0].winner, "Comet", "Snapshots must not share mutable result records");
+  assert.equal(HD.state.dayResults[0].podium[0], "Comet", "Snapshots must copy podium arrays");
+  HD.Race.restart();
+  assert.deepEqual(HD.state.dayResults, [], "Restart must clear previous-day results");
+  assert.equal(HD.state.dayStats.tickets, 0, "Restart must clear day totals");
   HD.state.race = HD.CONFIG.racesPerRound;
   HD.Race.next();
   HD.Race.updateIntermission(HD.CONFIG.roundBreakDuration + 1);
@@ -502,6 +572,39 @@ async function run() {
   assert.equal(HD.state.round, 1, "An old day callback must not change a restarted run");
   assert.equal(HD.state.race, 1);
   assert.equal(HD.state.money, HD.CONFIG.startingMoney);
+
+  // Guests open the results screen from the host phase, then leave it when betting resumes.
+  let shownDay = 0;
+  let hiddenDay = 0;
+  HD.UI.showDay = (day) => { shownDay = day; };
+  HD.UI.cancelDayTransition = () => { hiddenDay++; };
+  const daySnapshot = HD.Race.networkSnapshot();
+  daySnapshot.phase = "dayTransition";
+  daySnapshot.dayResults = [{ race: 1, winner: "Comet", podium: ["Comet"], time: 23.5 }];
+  HD.Race.applyNetworkSnapshot(daySnapshot);
+  assert.equal(shownDay, 2, "Guest must see day results when the host enters day transition");
+  assert.deepEqual(HD.state.dayResults, daySnapshot.dayResults);
+  HD.Race.applyNetworkSnapshot(daySnapshot);
+  assert.equal(shownDay, 2, "Repeated snapshots must not reopen the day screen");
+  daySnapshot.phase = "betting";
+  daySnapshot.round = 2;
+  daySnapshot.race = 2;
+  daySnapshot.dayResults = [];
+  HD.Race.applyNetworkSnapshot(daySnapshot);
+  assert.equal(hiddenDay, 1, "Guest day screen must close with the host transition");
+  assert.equal(HD.state.dayStats.returned, 0, "Guest totals reset for the new day");
+
+  // A hosted restart must honor the configured bankroll, not a fixed default.
+  HD.CONFIG.startingMoney = 750;
+  const matchOverSnapshot = HD.Race.networkSnapshot();
+  matchOverSnapshot.phase = "matchOver";
+  HD.Race.applyNetworkSnapshot(matchOverSnapshot);
+  const newMatchSnapshot = HD.Race.networkSnapshot();
+  newMatchSnapshot.phase = "betting";
+  newMatchSnapshot.round = 1;
+  newMatchSnapshot.race = 1;
+  HD.Race.applyNetworkSnapshot(newMatchSnapshot);
+  assert.equal(HD.state.money, 750, "Guest restart must use configured starting money");
 
   console.log("Odds, lanes, crowd, one-lap finish, 1–60 race progression, allowances, and stale day callbacks passed.");
 }

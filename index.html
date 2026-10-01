@@ -11,6 +11,18 @@
     <link rel="stylesheet" href="photo.css" />
   </head>
   <body>
+    <div id="boot-loading" class="loading-screen" role="status" aria-live="polite">
+      <small>HOTDOG DOWNS</small>
+      <strong>PREPARING THE TRACK</strong>
+      <p id="boot-loading-status">Loading horses and stadium...</p>
+    </div>
+    <div id="match-loading" class="loading-screen" role="status" aria-live="polite" hidden>
+      <small>HOTDOG DOWNS</small>
+      <strong>GETTING EVERYONE TO THE GATES</strong>
+      <p id="match-loading-status">Waiting for players to load...</p>
+      <div class="loading-progress"><i id="match-loading-bar"></i></div>
+      <span id="match-loading-count">0 / 8 players ready</span>
+    </div>
     <main id="app">
       <section id="viewport" aria-label="3D horse racing stadium">
         <div class="brand">
@@ -100,6 +112,12 @@
         <section class="app-panel" data-panel="shop">
           <div class="section-title"><span>CONCESSIONS</span><em>DELIVERED TO YOU</em></div>
           <div id="deliveries" class="deliveries">No active deliveries.</div>
+          <nav class="concession-filters" aria-label="Concessions menu categories">
+            <button class="active" type="button" data-shop-category="all">All</button>
+            <button type="button" data-shop-category="food">Food</button>
+            <button type="button" data-shop-category="drinks">Drinks</button>
+            <button type="button" data-shop-category="gear">Track Gear</button>
+          </nav>
           <div id="shop-items" class="shop-items"></div>
           <p class="tip">
             During a race, hold the mouse button to charge and release to throw. Aim ahead of a
@@ -109,10 +127,11 @@
         <section class="app-panel horses-app" data-panel="horses">
           <div class="section-title"><span>HORSES</span><em>FULL DIRECTORY</em></div>
           <nav class="horse-tabs" aria-label="Horse Stats sections">
-            <button class="active" data-horse-tab="directory">Race Directory</button>
+            <button class="active" data-horse-tab="field">Current Field</button>
+            <button data-horse-tab="discovered">Discovered</button>
             <button data-horse-tab="personal">My Horse</button>
           </nav>
-          <div data-horse-view="directory">
+          <div data-horse-view="field">
             <div id="odds-watch" class="odds-watch"></div>
           </div>
           <section class="personal-horse-preview" data-horse-view="personal" hidden>
@@ -156,12 +175,14 @@
         <section class="app-panel" data-panel="sabotage">
           <div class="section-title"><span>THE FIXER</span><em>PRE-RACE ONLY</em></div>
           <p class="tip">
-            Hire one anonymous sabotage attempt per race. Every option has a 33% chance to fail.
-            The result stays secret until the gates open.
+            Hire one anonymous sabotage attempt per race. Every option has a 33% chance to fail;
+            officials intercept about half of failed attempts. The result stays secret until the gates open.
           </p>
           <div id="sabotage-targets" class="horse-list"></div>
           <div id="sabotage-options" class="sabotage-options"></div>
           <div id="sabotage-status" class="deliveries">No fixer hired for this race.</div>
+          <div class="ticket-title">YOUR FIXER HISTORY</div>
+          <div id="sabotage-history" class="fixer-history"></div>
         </section>
         <section class="app-panel" data-panel="transfer">
           <div class="section-title"><span>DERBYPAY</span><em>PAYMENTS & REQUESTS</em></div>
@@ -427,11 +448,6 @@
                   <input id="effects-volume" type="range" min="0" max="100" value="82" />
                   <output id="effects-volume-value">82%</output>
                 </label>
-                <label>
-                  Commentator
-                  <input id="commentator-volume" type="range" min="0" max="100" value="84" />
-                  <output id="commentator-volume-value">84%</output>
-                </label>
                 <label class="toggle-setting">
                   <input id="mute-audio" type="checkbox" /> Mute all audio
                 </label>
@@ -562,14 +578,9 @@
               <h3>CC0 Community Creators</h3>
               <p>
                 Interface sounds by Kenney; swishes by artisticdude; impacts by
-                Jordan Irwin; horse gallop by congusbongus; music by iamoneabe
-                and skrjablin. Full source links are included with the project.
+                Jordan Irwin; horse gallop by congusbongus; music by iamoneabe.
+                Full source links are included with the project.
               </p>
-            </article>
-            <article>
-              <small>VOICE TECHNOLOGY</small>
-              <h3>Kokoro JS</h3>
-              <p>Apache-2.0 browser speech runtime used for optional race announcements.</p>
             </article>
             <footer>THANKS FOR VISITING THE DOWNS</footer>
           </div>
@@ -584,6 +595,8 @@
         <small>HOTDOG DOWNS</small>
         <strong id="day-title">DAY 2</strong>
         <span id="day-subtitle">CURRENT BANKROLL STANDINGS</span>
+        <div id="day-stats" class="day-stats" aria-label="Your betting statistics"></div>
+        <div id="day-results" class="day-results" aria-label="Completed race results"></div>
         <div id="day-rankings" class="animated-rankings"></div>
       </div>
       <div id="rankings-overlay" class="rankings-overlay" hidden>
@@ -600,6 +613,12 @@
           <h2>INSTANT PICKUP</h2>
           <p>33% cheaper during the one-minute break. No delivery wait.</p>
           <div id="vendor-items" class="shop-items"></div>
+          <section class="legendary-counter" aria-label="Legendary counter">
+            <small>LEGENDARY COUNTER</small>
+            <h3>One rotating offer</h3>
+            <p>Available during the day break. One purchase per player per day.</p>
+            <div id="legendary-offer"></div>
+          </section>
           <button id="vendor-close">CLOSE [E]</button>
         </div>
       </div>

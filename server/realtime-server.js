@@ -144,6 +144,7 @@ function createRealtimeServer(server) {
         return { status: 409, data: { reserved: false } };
       }
       setAt(path, body);
+      setAt("lobbies/" + path.split("/")[1] + "/seatClaims/" + path.split("/")[3], Date.now());
       broadcast(path, "put", body);
       return { status: 200, data: { reserved: true } };
     }
@@ -207,7 +208,24 @@ function createRealtimeServer(server) {
       throw httpError(403, "Only the host can remove a lobby.");
     }
     if (parts[2] === "players") {
-      if (parts[3] === actor || isHost) return;
+      if (parts[3] === actor) {
+        if (!isMember) {
+          if (parts.length !== 4 || method !== "PUT" || body?.id !== actor) {
+            throw httpError(403, "Reserve a seat before joining.");
+          }
+          const seat = Number(body?.seatIndex);
+          const full = Object.keys(lobby.players || {}).length >= 8;
+          if (!Number.isInteger(seat) || seat < 0 || seat > 7 || full ||
+              lobby.seats?.[seat] !== actor || lobby.meta?.started || lobby.meta?.loadingId) {
+            throw httpError(409, "That lobby is unavailable.");
+          }
+        } else if (parts.length === 4 && method === "PUT" &&
+                   (body?.id !== actor || Number(body?.seatIndex) !== Number(lobby.players[actor].seatIndex))) {
+          throw httpError(403, "Players cannot change their reserved seat.");
+        }
+        return;
+      }
+      if (isHost) return;
       throw httpError(403, "Players may only update their own presence.");
     }
     if (parts[2] === "seats") {
@@ -215,8 +233,8 @@ function createRealtimeServer(server) {
         const seat = Number(parts[3]);
         const seated = Object.values(lobby.seats || {}).includes(actor);
         const full = Object.keys(lobby.players || {}).length >= 8;
-        if (!Number.isInteger(seat) || seat < 0 || seat > 7 ||
-            seated || full || lobby.meta?.started) {
+        if (body !== actor || !Number.isInteger(seat) || seat < 0 || seat > 7 ||
+            seated || full || lobby.meta?.started || lobby.meta?.loadingId) {
           throw httpError(409, "That seat is unavailable.");
         }
         return;
@@ -248,8 +266,18 @@ function createRealtimeServer(server) {
     }
     if (parts[2] === "meta" && parts[3] === "updatedAt" && isMember) return;
     if (parts[2] === "race" || parts[2] === "meta") {
-      if (isHost) return;
-      throw httpError(403, "Only the host can change authoritative match state.");
+      if (!isHost) throw httpError(403, "Only the host can change authoritative match state.");
+      if (parts[2] === "meta" &&
+          (body?.started === true || (parts[3] === "started" && body === true))) {
+        const loadingId = Number(lobby.meta?.loadingId);
+        const players = Object.values(lobby.players || {});
+        if (!Number.isSafeInteger(loadingId) || loadingId <= 0 ||
+            Number(body.matchId) !== loadingId || !players.length ||
+            players.some((player) => !player.ready || Number(player.loadReadyFor) !== loadingId)) {
+          throw httpError(409, "Wait for every player to finish loading.");
+        }
+      }
+      return;
     }
     throw httpError(403, "Unsupported lobby mutation.");
   }
@@ -296,7 +324,12 @@ function createRealtimeServer(server) {
         }
       }
       for (const [seatIndex, playerId] of Object.entries(lobby.seats || {})) {
-        if (!lobby.players?.[playerId]) delete lobby.seats[seatIndex];
+        if (lobby.players?.[playerId]) {
+          delete lobby.seatClaims?.[seatIndex];
+        } else if (now - Number(lobby.seatClaims?.[seatIndex] || 0) > STALE_PLAYER_MS) {
+          delete lobby.seats[seatIndex];
+          delete lobby.seatClaims?.[seatIndex];
+        }
       }
       const players = Object.values(lobby.players || {}).sort((a, b) =>
         Number(a.seatIndex) - Number(b.seatIndex));
