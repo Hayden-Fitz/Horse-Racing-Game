@@ -13,6 +13,7 @@ const testFiles = [
   "legendary-shop.js",
   "item-traits.js",
   "ui-contract.js",
+  "lobby-music.js",
   "phone-data.js",
   "bet-preview.js",
   "player-animation.js",

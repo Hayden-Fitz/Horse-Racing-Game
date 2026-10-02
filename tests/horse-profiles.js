@@ -15,8 +15,13 @@ async function run() {
     },
   };
 
+  let idleWrite;
+  let pagehide;
   global.window = global;
   global.localStorage = storage;
+  global.requestIdleCallback = (write) => { idleWrite = write; return 1; };
+  global.cancelIdleCallback = () => {};
+  global.addEventListener = (type, handler) => { if (type === "pagehide") pagehide = handler; };
   global.THREE = await import(
     pathToFileURL(path.resolve(__dirname, "../vendor/three.module.js")).href
   );
@@ -62,6 +67,18 @@ async function run() {
       bestTime: 49.75,
     },
   });
+
+  first.history.starts = 14;
+  HD.HorseProfiles.scheduleSave();
+  assert.equal(JSON.parse(values.get(HD.HorseProfiles.STORAGE_KEY)).horses[first.id].history.starts, 13,
+    "Scheduled race-start save must not write synchronously");
+  idleWrite();
+  assert.equal(JSON.parse(values.get(HD.HorseProfiles.STORAGE_KEY)).horses[first.id].history.starts, 14);
+  first.history.starts = 15;
+  HD.HorseProfiles.scheduleSave();
+  pagehide();
+  assert.equal(JSON.parse(values.get(HD.HorseProfiles.STORAGE_KEY)).horses[first.id].history.starts, 15,
+    "Page close must flush pending horse history");
 
   values.set(HD.HorseProfiles.STORAGE_KEY, "{damaged");
   assert.doesNotThrow(() => HD.HorseProfiles.load());

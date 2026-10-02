@@ -40,6 +40,7 @@ async function run() {
     matches: () => false,
     sensitivity: () => 1,
     reducedMotion: () => true,
+    controllerDeadzone: () => 0.16,
   };
   HD.Race = {
     predictTrajectory: () => 0,
@@ -223,7 +224,91 @@ async function run() {
       }
     }
   }
-  console.log('All four stair routes, row crossings, input lifecycle, falling and jumping passed.');
+  // Phone controls: left stick moves the focus box; right stick scrolls the app.
+  const makeButton = () => {
+    const classes = new Set();
+    return { offsetParent: {}, clicked: 0,
+      classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name), contains: (name) => classes.has(name) },
+      focus() { document.activeElement = this; }, scrollIntoView() {}, click() { this.clicked++; } };
+  };
+  const phoneButtons = [makeButton(), makeButton(), makeButton()];
+  const appPanel = { scrollTop: 0 };
+  const phone = { querySelectorAll: () => phoneButtons, querySelector: () => appPanel };
+  document.querySelector = (selector) => selector === '#phone' ? phone : null;
+  let pad = { index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })) };
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { getGamepads: () => [pad] } });
+  state.mode = 'phone'; state.matchStarted = true; state.paused = false; state.transitionActive = false;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(phoneButtons[0].classList.contains('controller-focus'), true);
+  pad.axes[1] = 0.9;
+  HD.Controls.updateGamepad(0.25);
+  assert.equal(phoneButtons[1].classList.contains('controller-focus'), true);
+  pad.axes[1] = 0; pad.axes[3] = 0.9;
+  HD.Controls.updateGamepad(0.25);
+  assert.ok(appPanel.scrollTop > 0, 'Right stick scrolls the active app');
+  pad.buttons[0].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(phoneButtons[1].clicked, 1, 'A activates the focused phone action');
+  const select = makeButton();
+  let changes = 0;
+  Object.assign(select, { tagName: 'SELECT', options: [{ disabled: false }, { disabled: true }, { disabled: false }],
+    selectedIndex: 0, dispatchEvent() { changes++; } });
+  phoneButtons.push(select);
+  pad.buttons[0].pressed = false; pad.axes[3] = 0; pad.axes[1] = 0.9;
+  HD.Controls.updateGamepad(0.25);
+  HD.Controls.updateGamepad(0.25);
+  pad.axes[1] = 0; pad.buttons[5].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(select.selectedIndex, 2, 'Right bumper selects the next enabled option');
+  assert.equal(changes, 1);
+  pad.buttons[5].pressed = false; pad.buttons[4].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(select.selectedIndex, 0, 'Left bumper selects the previous enabled option');
+  const amount = makeButton();
+  let amountEvents = 0;
+  Object.assign(amount, { tagName: 'INPUT', type: 'number', value: 10,
+    stepUp() { this.value += 5; }, stepDown() { this.value -= 5; },
+    dispatchEvent() { amountEvents++; } });
+  phoneButtons.push(amount);
+  pad.buttons[4].pressed = false; pad.axes[1] = 0.9;
+  HD.Controls.updateGamepad(0.25);
+  pad.axes[1] = 0; pad.buttons[5].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(amount.value, 15, 'Right bumper raises a focused phone amount');
+  assert.equal(amountEvents, 2, 'Amount changes notify the app');
+  const menuButtons = [makeButton(), makeButton()];
+  const menu = { classList: { contains: () => false }, querySelectorAll: () => menuButtons };
+  document.querySelector = (selector) => selector === '#game-menu' ? menu : selector === '#phone' ? phone : null;
+  state.paused = true;
+  pad.buttons[0].pressed = false;
+  HD.Controls.updateGamepad(0.016);
+  pad.buttons[13].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(document.activeElement, menuButtons[0], 'Menu navigation stays inside the visible menu');
+  pad.buttons[13].pressed = false; pad.buttons[0].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(menuButtons[0].clicked, 1, 'A activates a menu control, not a hidden phone action');
+  assert.equal(phoneButtons[1].clicked, 1);
+  const vendorButtons = [makeButton(), makeButton()];
+  const vendor = { querySelectorAll: () => vendorButtons };
+  document.querySelector = (selector) => selector === '#vendor-shop' ? vendor : selector === '#game-menu' ? menu : null;
+  state.paused = false; state.vendorOpen = true; state.mode = 'look';
+  pad.buttons[0].pressed = false; pad.buttons[4].pressed = false;
+  HD.Controls.updateGamepad(0.016);
+  pad.buttons[13].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(document.activeElement, vendorButtons[0], 'Vendor navigation stays inside the vendor overlay');
+  pad.buttons[13].pressed = false; pad.buttons[0].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(vendorButtons[0].clicked, 1);
+  pad.buttons[0].pressed = false; pad.buttons[1].pressed = true;
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(state.vendorOpen, false, 'B closes the vendor overlay');
+  navigator.getGamepads = () => [];
+  HD.Controls.updateGamepad(0.016);
+  assert.equal(amount.classList.contains('controller-focus'), false,
+    'Disconnect clears the phone focus box');
+  console.log('All four stair routes, row crossings, input lifecycle, falling, jumping and phone controller navigation passed.');
 }
 
 run().catch((error) => {

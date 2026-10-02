@@ -70,7 +70,7 @@ try {
   for (const app of ['shop', 'transfer', 'news']) {
     await evaluate("document.querySelector('[data-app=" + app + "]').click()");
     if (app === 'news') {
-      await evaluate(`HD.Race.begin(); for(let i=0;i<5;i++) {
+      await evaluate(`HD.Race.begin(); for(let i=0;i<20;i++) {
         HD.state.elapsed += 1/60; HD.Race.update(1/60); HD.Broadcast.update(1/60);
       }`);
     }

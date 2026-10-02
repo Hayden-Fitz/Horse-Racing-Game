@@ -6,6 +6,10 @@ const vm = require("vm");
 const context = { HD: {} };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/phone-data.js"), "utf8"), context);
+assert.equal(context.HD.PhoneData.fixerRisk(0.33, 0.5),
+  "67% success; 33% failure, including 17% interception");
+assert.equal(context.HD.PhoneData.fixerRisk(0.1, 0.25),
+  "90% success; 10% failure, including 3% interception");
 const profiles = [
   { id: "one", discovered: true },
   { id: "two", discovered: false },
@@ -34,4 +38,20 @@ for (let i = 0; i < 15; i++) {
 }
 assert.equal(state.newsEvents.length, 12);
 assert.equal(state.newsEvents[0].title, "Lead change 14");
+const finishState = { round: 2, race: 4, raceTime: 93, newsEvents: [] };
+context.HD.PhoneData.recordFinishNews(finishState,
+  { name: "Longshot", finishTime: 92.31, openingChance: 0.09 },
+  { name: "Favorite", finishTime: 92.64 });
+assert.deepEqual([...finishState.newsEvents].map((event) => event.label),
+  ["UPSET", "PHOTO FINISH"]);
+assert.equal(finishState.newsEvents[1].detail.includes("0.33 seconds"), true);
+context.HD.PhoneData.recordFinishNews(finishState,
+  { name: "Longshot", finishTime: 92.31, openingChance: 0.09 },
+  { name: "Favorite", finishTime: 92.64 });
+assert.equal(finishState.newsEvents.length, 2, "Finish stories must deduplicate");
+const ordinaryFinish = { round: 2, race: 5, raceTime: 94, newsEvents: [] };
+context.HD.PhoneData.recordFinishNews(ordinaryFinish,
+  { name: "Favorite", finishTime: 92, openingChance: 0.35 },
+  { name: "Longshot", finishTime: 93 });
+assert.equal(ordinaryFinish.newsEvents.length, 0, "Ordinary finishes need no rare-event card");
 console.log("Phone Horse Stats filters and live DerbyNews headlines passed.");

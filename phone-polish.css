@@ -257,3 +257,29 @@
     font-size: 38px;
   }
 }
+
+/* Keep the wallpaper inside the display, above the physical home-button bezel. */
+.phone-open .phone:not(.app-open) {
+  position: absolute;
+  background: #050709;
+}
+.phone-open .phone:not(.app-open)::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 64px;
+  border-radius: 28px 28px 14px 14px;
+  background: #122c36 url("assets/phone-apps/quiet-hills.svg") center / cover;
+  pointer-events: none;
+}
+.phone-open .phone:not(.app-open) .phone-widget,
+.phone-open .phone:not(.app-open) .apps {
+  position: relative;
+  z-index: 1;
+}
+
+/* Controller focus box for every reachable phone action. */
+.phone .controller-focus {
+  outline: 3px solid #ffe07a !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #142d35cc, 0 0 16px #ffe07a88 !important;
+}

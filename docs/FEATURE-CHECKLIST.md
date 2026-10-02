@@ -916,3 +916,25 @@ Verification: phone-data and race-simulation focused tests plus the full test su
 ### Delivery tracker follow-up
 
 - [x] Show Ordered, On the Way, and Delivered states with a countdown and progress in the fixed-height Concessions delivery strip; unchanged states avoid a DOM rewrite.
+
+### October round flow and phone follow-up
+
+- [x] Preserve the complete opening betting countdown while the loading/day card covers the track. Ignore keyboard, pointer, gamepad and walking controls until it closes; guests keep the day card until the host advances.
+- [x] Add distinct host-owned DerbyNews PHOTO FINISH and UPSET stories. Tests cover threshold, ordinary finish, duplicate settlement and bounded event history.
+- [x] Display Fixer success, failure and interception odds from configured probabilities rather than a hard-coded 33% line. Focused tests cover both default and changed risks.
+- [x] Browser-review the round loading/card sequence and black phone home-button bezel.
+- [ ] Eliminate remaining race frame spikes across target devices. Repeated GPU-enabled runs kept rendering without WebGL loss or a sustained freeze, but p95 varied from 83 to 250 ms and one peak reached 400 ms. Pausing the broadcast reduced typical spikes, so secondary rendering remains a priority.
+
+### Hotdog, lobby audio, and phone controller follow-up
+
+- [x] Join only the standard hotdog bun underside seam with a narrow matching bridge. Browser gallery and imported-model geometry checks pass; the original surface, sausage, and toppings stay intact.
+- [x] Restore lobby-only music by initializing the mixer buses and loading the menu track immediately after audio unlock. A focused test verifies lobby playback and match silence.
+- [x] Add a visible phone controller focus box, left-stick navigation, A activation, and right-stick app scrolling. Update the controls hint and cover navigation in the controls-input test.
+- [ ] Review phone focus order and button feel with a physical controller.
+
+### Replay capture and controller follow-up
+
+- [x] Adapt replay pose capture to 30, 24 or 15 Hz under frame pressure while preserving interpolated playback and the full 30 Hz path on healthy hardware. Stadium tests cover both rates.
+- [x] Scale the Stadium Vision target to 480x253 on the performance preset, 640 pixels wide on balanced, and 768 pixels wide on high. Browser review confirms the small live board remains visible.
+- [x] Keep gamepad focus inside the active menu, vendor or betting-counter overlay; B closes vendor/counter. Add LB/RB selection changes for editable phone fields. Controls tests cover phone, menu and vendor navigation.
+- [ ] Finish physical-controller and integrated-GPU frame-time reviews before clearing the release gate.

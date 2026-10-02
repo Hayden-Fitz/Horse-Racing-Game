@@ -80,7 +80,7 @@ HD.Game = (() => {
     const simulationActive = !S.paused || onlineSimulation;
     if (simulationActive) {
       S.elapsed += dt;
-      if (S.phase === "betting" && HD.Network.isHost()) {
+      if (S.phase === "betting" && HD.Network.isHost() && !S.transitionActive) {
         S.timer -= dt;
         HD.UI.countdown(Math.max(1, Math.ceil(S.timer)));
         if (S.timer <= 0) HD.Race.begin();
@@ -90,7 +90,7 @@ HD.Game = (() => {
       HD.Race.updateIntermission(dt);
       HD.Race.updateProjectiles(dt);
       HD.UI.updateDeliveries(dt);
-      if (!S.paused) HD.Controls.update(dt);
+      if (!S.paused && !S.transitionActive) HD.Controls.update(dt);
       HD.Stadium.update(S.elapsed);
     }
     HD.Network.update(dt);
@@ -99,7 +99,7 @@ HD.Game = (() => {
     if (menuOpen && !onlineSimulation) return;
     updateRenderScale(realDt);
     HD.Stadium.showAllViewCulled();
-    HD.Broadcast.update(simulationActive ? dt : 0);
+    HD.Broadcast.update(simulationActive ? dt : 0, realDt);
     HD.Stadium.updateViewCulling(HD.world.camera);
     HD.world.renderer.render(HD.world.scene, HD.world.camera);
   }

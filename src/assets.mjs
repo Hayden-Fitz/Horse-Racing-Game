@@ -20,6 +20,7 @@ async function load(id) {
     const gltf = await loader.parseAsync(await response.arrayBuffer(), url.href);
     const pivot = new THREE.Group();
     const content = gltf.scene;
+    if (id === "hotdog") joinHotdogBuns(content);
     if (id === "hurdle" || id === "carrot" || id === "goldenCarrot") {
       content.rotation.y += Math.PI / 2;
     }
@@ -52,6 +53,27 @@ async function load(id) {
 
   pending.set(id, promise);
   return promise;
+}
+
+function joinHotdogBuns(content) {
+  // Fill the narrow underside seam while retaining the original model surface.
+  let original;
+  content.traverse((object) => { if (object.isMesh && !original) original = object; });
+  if (!original) return;
+  const geometry = new THREE.CapsuleGeometry(0.55, 98, 6, 18);
+  geometry.rotateZ(Math.PI / 2);
+  const count = geometry.attributes.position.count;
+  const colors = new Float32Array(count * 3);
+  for (let index = 0; index < count; index++) {
+    colors[index * 3] = 0.973;
+    colors[index * 3 + 1] = 0.479;
+    colors[index * 3 + 2] = 0.202;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const join = new THREE.Mesh(geometry, original.material);
+  join.name = "BunBottomJoin";
+  join.position.set(15, 44.2, 3.1);
+  content.add(join);
 }
 
 export const Assets = {

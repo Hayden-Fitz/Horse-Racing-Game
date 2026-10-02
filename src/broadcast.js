@@ -50,6 +50,9 @@ HD.Broadcast = (() => {
   let activeFeedFps = 30;
   let displayVisible = true;
   let displayVisibilityCheckedAt = -Infinity;
+  let prewarmIndex = 0;
+  let raceStartAt = -Infinity;
+  let renderPauseFrames = 0;
 
   function isOutputVisible() {
     if (typeof document === 'undefined') return true;
@@ -77,13 +80,21 @@ HD.Broadcast = (() => {
     // give the main first-person render breathing room as frame time rises.
     if (!isOutputVisible()) return 4;
     if (S.phase !== 'racing' && !replay && !pending) return 6;
-    if (smoothedFrameTime >= 1 / 30) return 10;
+    if (S.phase === 'racing' && time - raceStartAt < 2) return 6;
+    if (smoothedFrameTime >= 1 / 30) return 6;
     if (smoothedFrameTime >= 1 / 50) return 15;
     return 30;
   }
 
+  function replayCaptureRate() {
+    // Replay poses interpolate between samples. Cut traversal and allocation
+    // work when the main view is already struggling to finish a frame.
+    if (smoothedFrameTime >= 1 / 32) return 15;
+    if (smoothedFrameTime >= 1 / 50) return 24;
+    return 30;
+  }
   function newsPreviewFrameRate() {
-    if (smoothedFrameTime >= 1 / 30) return 4;
+    if (smoothedFrameTime >= 1 / 30) return 6;
     if (smoothedFrameTime >= 1 / 50) return 8;
     return 15;
   }
@@ -111,7 +122,11 @@ HD.Broadcast = (() => {
   function initialize() {
     const board = HD.world.replayBillboard;
     if (!board || !HD.world.renderer) return false;
-    target = new THREE.WebGLRenderTarget(768, 404, {
+    const preset = typeof document === 'undefined'
+      ? 'performance' : document.querySelector?.('#graphics-quality')?.value || 'performance';
+    const feedWidth = preset === 'high' ? 768 : preset === 'balanced' ? 640 : 480;
+    const feedHeight = Math.round(feedWidth * 404 / 768);
+    target = new THREE.WebGLRenderTarget(feedWidth, feedHeight, {
       type: THREE.UnsignedByteType,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -145,6 +160,9 @@ HD.Broadcast = (() => {
     for (const entry of doubles.values()) HD.world.scene.remove(entry.mesh);
     // Geometry/materials belong to the game; do not dispose shared resources.
     doubles.clear();
+    prewarmIndex = 0;
+    raceStartAt = -Infinity;
+    renderPauseFrames = 0;
     lastEffects.clear();
     subjectId = null;
     projectileChase = false;
@@ -501,11 +519,12 @@ HD.Broadcast = (() => {
     newsCopyAt = time;
   }
 
-  function update(dt) {
+  function update(dt, frameDt = dt) {
     if (!Number.isFinite(dt) || dt <= 0) return;
+    if (Number.isFinite(frameDt) && frameDt > 0.12) renderPauseFrames = 12;
     smoothedFrameTime = THREE.MathUtils.lerp(
       smoothedFrameTime,
-      Math.min(dt, 0.1),
+      Math.min(Number.isFinite(frameDt) ? frameDt : dt, 0.2),
       0.05,
     );
     if (!active && !initialize()) return;
@@ -516,10 +535,25 @@ HD.Broadcast = (() => {
       reset();
       roster = signature;
     }
+    if (S.phase === "racing" && previousPhase !== "racing") raceStartAt = time;
     previousPhase = S.phase;
+    // Build one replay mesh per betting frame so race start does not clone the
+    // entire field and every player on its first rendered frame.
+    if (S.phase === 'betting') {
+      const actors = playerActors();
+      const target = prewarmIndex < S.horses.length
+        ? S.horses[prewarmIndex] : actors[prewarmIndex - S.horses.length];
+      if (target) {
+        const record = prewarmIndex < S.horses.length
+          ? remember(target) : rememberActor(target);
+        recyclePoseBuffer(record.pose);
+        prewarmIndex++;
+      }
+    }
     sampleClock += dt;
-    if (sampleClock >= 1 / 30) {
-      sampleClock %= 1 / 30;
+    const sampleInterval = 1 / replayCaptureRate();
+    if (sampleClock >= sampleInterval) {
+      sampleClock %= sampleInterval;
       if (S.phase === "racing" || pending) capture();
     }
     if (pending && time >= pending.at + 1) {
@@ -542,6 +576,10 @@ HD.Broadcast = (() => {
     renderClock += dt;
     const feedFps = feedFrameRate();
     activeFeedFps = feedFps;
+    if (renderPauseFrames > 0) {
+      renderPauseFrames--;
+      return;
+    }
     if (renderClock + 1e-6 < 1 / feedFps) return;
     const renderDt = renderClock;
     renderClock %= 1 / feedFps;
@@ -616,6 +654,9 @@ HD.Broadcast = (() => {
         reusedPoseBuffers,
         cameraObstructed: blockedSince !== null,
         feedFps: activeFeedFps,
+        feedSize: target ? [target.width, target.height] : null,
+        captureFps: replayCaptureRate(),
+        renderPauseFrames,
         newsPreviewFps: newsPreviewFrameRate(),
         recordedPlayers: history.at(-1)?.players.length || 0,
         newsReadbackFailures,

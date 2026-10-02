@@ -31,8 +31,10 @@ for (const [id, entry] of Object.entries(Assets.catalog)) {
   const first = Assets.create(id);
   const second = Assets.create(id);
   assert.ok(first && second && first !== second, "Each instance needs independent transforms");
-  assert.equal(geometryFingerprint(first), report.find((model) => model.id === id).originalGeometry,
+  const original = id === "hotdog" ? first.getObjectByProperty("isMesh", true) : first;
+  assert.equal(geometryFingerprint(original), report.find((model) => model.id === id).originalGeometry,
     `${id}: original triangles or normals changed`);
+  if (id === "hotdog") assert.ok(first.getObjectByName("BunBottomJoin"), "Hotdog bun underside must be joined");
   if (!entry.requiresRig) assert.equal(HD.Models.throwable(id).userData.importedModel, id);
   const bounds = new THREE.Box3().setFromObject(first);
   const size = bounds.getSize(new THREE.Vector3());

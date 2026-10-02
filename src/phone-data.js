@@ -11,7 +11,7 @@ HD.PhoneData = (() => {
   }
 
   function recordEvent(state, event) {
-    if (!event || !["HIT", "STUN", "OVERTAKE"].includes(event.label) ||
+    if (!event || !["HIT", "STUN", "OVERTAKE", "PHOTO FINISH", "UPSET"].includes(event.label) ||
         typeof event.title !== "string" || typeof event.detail !== "string") return false;
     state.newsEvents ||= [];
     const at = Number(state.raceTime) || 0;
@@ -24,6 +24,35 @@ HD.PhoneData = (() => {
       key: key.slice(0, 80), round: state.round, race: state.race, at });
     state.newsEvents.length = Math.min(state.newsEvents.length, 12);
     return true;
+  }
+
+  function fixerRisk(failureChance, detectionChance) {
+    const failure = Math.min(1, Math.max(0, Number(failureChance) || 0));
+    const detection = Math.min(1, Math.max(0, Number(detectionChance) || 0));
+    return Math.round((1 - failure) * 100) + "% success; " +
+      Math.round(failure * 100) + "% failure, including " +
+      Math.round(failure * detection * 100) + "% interception";
+  }
+
+  function recordFinishNews(state, winner, runnerUp) {
+    if (!winner || !Number.isFinite(winner.finishTime)) return;
+    if (runnerUp && Number.isFinite(runnerUp.finishTime)) {
+      const margin = runnerUp.finishTime - winner.finishTime;
+      if (margin >= 0 && margin < 0.5) recordEvent(state, {
+        label: "PHOTO FINISH",
+        title: winner.name + " edges " + runnerUp.name,
+        detail: "Only " + margin.toFixed(2) + " seconds separated first and second.",
+        key: "photo:" + state.race,
+      });
+    }
+    if (Number.isFinite(winner.openingChance) && winner.openingChance <= 0.12) {
+      recordEvent(state, {
+        label: "UPSET",
+        title: winner.name + " shocks the field",
+        detail: "Won with a " + Math.round(winner.openingChance * 100) + "% opening chance.",
+        key: "upset:" + state.race,
+      });
+    }
   }
 
   function headlines(state) {
@@ -65,5 +94,5 @@ HD.PhoneData = (() => {
     });
     return items.slice(0, 8);
   }
-  return { horses, headlines, recordEvent };
+  return { horses, headlines, recordEvent, recordFinishNews, fixerRisk };
 })();

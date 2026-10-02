@@ -21,6 +21,7 @@ HD.Audio = (() => {
     menuMusic: "assets/audio/music-menu.mp3",
   };
   const samples = new Map();
+  const buses = {};
 
   let context = null;
   let compressor = null;
@@ -82,6 +83,7 @@ HD.Audio = (() => {
       unlocked = context.state === "running";
       if (unlocked) {
         cue("stadiumOpen");
+        loadMusic();
         loadSamples();
       }
     } catch {
@@ -120,13 +122,7 @@ HD.Audio = (() => {
 
     sampleLoadPromise = Promise.all(
       Object.entries(SAMPLE_URLS).map(([name, url]) => loadBuffer(name, url)),
-    ).then(() => {
-      startGallopLoop();
-      const schedule = window.requestIdleCallback || ((callback) => {
-        return window.setTimeout(callback, 250);
-      });
-      schedule(loadMusic);
-    });
+    ).then(startGallopLoop);
 
     return sampleLoadPromise;
   }

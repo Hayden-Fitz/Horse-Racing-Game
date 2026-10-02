@@ -65,6 +65,8 @@ Current design decisions that must remain
 - [u] Complete the configurable multi-day run: preparation, buying, betting,
   racing, payouts, day results, reward choice, negative effect choice, shopping,
   auctions, legendary opportunities, trading, then next race/day.
+- [x] Preserve the full opening betting countdown behind the day card and block
+  movement, throwing and controller actions while loading/day screens cover play.
 - [u] At each eligible day change, show standings, money, race results and major
   statistics. It must be a polished event screen, not a fabricated solo
   leaderboard. The transition now shows each race podium and winning time,
@@ -141,6 +143,8 @@ Current design decisions that must remain
   explicit confirmation by both parties. Verify this with real clients.
 - [u] Complete dynamic DerbyNews: leaders, odds, hits, stuns, overtakes, payouts,
   sabotage, rare events, auctions and player-race news.
+- [x] Publish host-synchronized PHOTO FINISH and UPSET stories at race settlement;
+  keep ordinary finishes quiet and deduplicate repeated results.
 - [x] Current Field in Horse Stats shows only this race's entrants in lane order, with live chance, odds and profile data.
 - [x] Discovered in Horse Stats shows only encountered horses and their saved records. A new save starts undiscovered; race entry reveals horses.
 - [x] The Fixer app keeps each purchased job for the run, showing target, option, cost and resolved outcome. Guests receive the host's outcome after race start.
@@ -149,6 +153,8 @@ Current design decisions that must remain
 - [x] Resolve official interception as a visible subset of the existing one-in-three Fixer failures, and send detected outcomes from the host to guests. The app shows per-option risk and per-run result feedback.
 - [u] Complete the Sabotage app with costs, targets, risk, detection, active history
   and result feedback. Supported options must remain legible and balanced.
+- [x] Show the configured Fixer success, failure and interception chances next
+  to each priced option; focused tests cover changes to the risk settings.
 - [x] Keep Messages input safe: typing must never trigger gameplay shortcuts.
 
 
@@ -269,3 +275,31 @@ Other things to add:
 -  [x] Refresh the Horse Stats, DerbyNews, Fixer and DerbyPay phone icons with clearer vector artwork. Keep the Messages icon.
 -  [u] Loading screen before the game starts: boot progress and an eight-player lobby loading barrier are implemented. Local eight-client/WebSocket and Cloudflare tests pass; live eight-browser/device synchronization and visual checks remain.
 -  [x] Remove commentator sound and in-match music while keeping lobby music. Commentary worker, voice controls and race music asset removed; UI contract and full automated suite pass.
+-  [u] Loading screen now precedes each day card, next-race setup completes behind
+   the opaque card, and guests wait for the host before it closes. Browser visual
+   review is complete in a local browser; eight-device synchronization remains open.
+-  [u] Replay horse/player meshes now prewarm one per betting frame, and gate opening
+   refreshes only visible phone panels. Automated regressions pass; a real browser
+   browser frame-time checks show no lasting freeze or WebGL loss, but
+   intermittent 150-400 ms spikes remain on integrated graphics.
+-  [u] Phone home wallpaper now stops above the black home-button bezel, and
+   Horse Stats has a new vector icon. Browser visual review passed.
+-  [u] make controls better and easier to understand. make things more smooth button wise. fix controller support with the phone specifically so that you move a little box that cycles between all the options with the left joystick and the right joystick is used to scroll on a app
+   Phone left-stick focus, A activation, right-stick scrolling and LB/RB field
+   changes are tested. Menu/vendor focus stays inside its active overlay; a
+   physical-controller review and broader polish remain.
+-  [x] Connect the standard hotdog bun halves along the bottom seam with a small
+   matching join. The original model surface, sausage and toppings are preserved;
+   imported-model tests and a browser gallery render pass.
+-  [x] Restore lobby-only music. The audio mixer now initializes correctly and
+   loads the lobby track immediately on unlock; a regression test confirms it
+   fades to silence when the match begins.
+-  [u] Race-start freeze review: GPU-enabled browser runs kept rendering 3D
+   without WebGL loss or a sustained freeze. Median frame interval stayed near
+   33 ms, but p95 ranged from 83 to 250 ms and peaks reached 400 ms.
+   Secondary TV rendering adds load; brief spikes and broader device testing remain.
+
+-  [u] Replay capture now adapts between 30, 24 and 15 poses per second with
+   interpolated playback. The performance preset renders Stadium Vision at
+   480x253 instead of 768x404; the browser image remains legible, but measured
+   frame spikes mean the performance gate is still open.

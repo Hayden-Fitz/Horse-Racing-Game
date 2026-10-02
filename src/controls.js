@@ -25,6 +25,8 @@ HD.Controls = (() => {
   let gamepadButtons = [];
   let gamepadTrigger = false;
   let activeGamepad = null;
+  let phoneStickCooldown = 0;
+  let phoneFocus = null;
   let jumpVelocity = 0;
   let jumpOffset = 0;
 
@@ -60,13 +62,13 @@ HD.Controls = (() => {
     });
   }
   function click() {
-    if (S.paused || !S.matchStarted) return;
+    if (S.paused || S.transitionActive || !S.matchStarted) return;
     if (S.mode === "phone") return;
     if (S.mode === "throw") return;
     if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
   }
   function look(event) {
-    if (S.paused || !S.matchStarted) return;
+    if (S.paused || S.transitionActive || !S.matchStarted) return;
     if (document.pointerLockElement !== canvas || S.mode === "phone") return;
     const sensitivity = HD.Settings.sensitivity();
     S.yaw -= event.movementX * 0.0021 * sensitivity;
@@ -81,7 +83,7 @@ HD.Controls = (() => {
     // Typing in Messages, lobby names or settings must never trigger movement,
     // item selection, throwing or the remappable phone shortcut.
     if (isTextEntry(event.target)) return;
-    if (S.paused || !S.matchStarted) return;
+    if (S.paused || S.transitionActive || !S.matchStarted) return;
     if (setMovementKey(event.code, true)) return;
     if (event.repeat) return;
     if (/^Digit[0-9]$/.test(event.code)) {
@@ -139,6 +141,11 @@ HD.Controls = (() => {
       }
     }
     S.mode = mode;
+    if (mode !== "phone" && phoneFocus) {
+      phoneFocus.classList.remove("controller-focus");
+      phoneFocus = null;
+      phoneStickCooldown = 0;
+    }
     const throwing = mode === "throw",
       phoning = mode === "phone";
     HD.world.heldItem.visible = throwing;
@@ -178,7 +185,7 @@ HD.Controls = (() => {
       HD.UI.announce("Hold the throw control, watch the power meter, then release.");
       return;
     }
-    if (S.paused || S.phase !== "racing") {
+    if (S.paused || S.transitionActive || S.phase !== "racing") {
       cancelCharge();
       return;
     }
@@ -207,7 +214,7 @@ HD.Controls = (() => {
     startCharge("pointer");
   }
   function startCharge(source) {
-    if (S.paused || !S.matchStarted || !ownsItem(S.selectedItem)) return;
+    if (S.paused || S.transitionActive || !S.matchStarted || !ownsItem(S.selectedItem)) return;
     if (S.mode !== "throw" || S.charging) return;
     if (S.phase !== "racing") {
       HD.UI.announce("Wait for the race to start.");
@@ -867,6 +874,9 @@ HD.Controls = (() => {
       gamepadMove.x = gamepadMove.y = 0;
       gamepadButtons = [];
       gamepadTrigger = false;
+      phoneFocus?.classList.remove('controller-focus');
+      phoneFocus = null;
+      phoneStickCooldown = 0;
       return;
     }
     if (activeGamepad !== pad.index) HD.UI.announce('Controller connected.');
@@ -874,6 +884,12 @@ HD.Controls = (() => {
     const deadzone = HD.Settings.controllerDeadzone();
     gamepadMove.x = gamepadAxis(pad.axes[0], deadzone);
     gamepadMove.y = gamepadAxis(pad.axes[1], deadzone);
+    const pressed = pad.buttons.map((button) => button.pressed);
+    if (S.transitionActive) {
+      gamepadButtons = pressed;
+      gamepadTrigger = false;
+      return;
+    }
     if (!S.paused && S.matchStarted && S.mode !== 'phone') {
       S.yaw -= gamepadAxis(pad.axes[2], deadzone) * dt * 2.5;
       S.pitch = THREE.MathUtils.clamp(
@@ -882,21 +898,28 @@ HD.Controls = (() => {
         Math.PI / 2 - 0.02,
       );
     }
-    const pressed = pad.buttons.map((button) => button.pressed);
     const edge = (index) => pressed[index] && !gamepadButtons[index];
     if (edge(9)) {
       if (S.paused && S.matchStarted) closeMenu();
       else if (!S.paused && S.matchStarted) openMenu();
     }
     if (S.paused || !S.matchStarted) {
-      navigateInterface(pad, edge);
+      navigateInterface(edge);
+      gamepadButtons = pressed;
+      return;
+    }
+    if (S.vendorOpen || S.counterOpen) {
+      if (edge(1)) {
+        if (S.vendorOpen) closeVendor();
+        else closeBetCounter();
+      } else navigateInterface(edge);
       gamepadButtons = pressed;
       return;
     }
     if (edge(3)) setMode(S.mode === 'phone' ? 'look' : 'phone');
     if (edge(1) && S.mode === 'phone') setMode('look');
     if (S.mode === 'phone') {
-      navigateInterface(pad, edge);
+      navigatePhone(pad, edge, dt);
       gamepadButtons = pressed;
       return;
     }
@@ -917,19 +940,74 @@ HD.Controls = (() => {
     return Math.sign(value) * (magnitude - deadzone) / (1 - deadzone);
   }
 
-  function navigateInterface(pad, edge) {
-    const direction = edge(12) || edge(14) ? -1 : edge(13) || edge(15) ? 1 : 0;
-    const controls = [...document.querySelectorAll(
+  function navigatePhone(pad, edge, dt) {
+    const phone = document.querySelector('#phone');
+    if (!phone) return;
+    const controls = [...phone.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled)')]
+      .filter((element) => element.offsetParent !== null);
+    if (!controls.length) return;
+    if (!controls.includes(phoneFocus)) {
+      phoneFocus?.classList.remove('controller-focus');
+      phoneFocus = controls[0];
+      phoneFocus.classList.add('controller-focus');
+      phoneFocus.focus({ preventScroll: true });
+    }
+    const stick = Math.abs(gamepadMove.y) >= Math.abs(gamepadMove.x) ? gamepadMove.y : gamepadMove.x;
+    const dpad = edge(12) || edge(14) ? -1 : edge(13) || edge(15) ? 1 : 0;
+    phoneStickCooldown = Math.max(0, phoneStickCooldown - dt);
+    const direction = dpad || (Math.abs(stick) > 0.55 && phoneStickCooldown === 0 ? Math.sign(stick) : 0);
+    if (direction) {
+      phoneFocus.classList.remove('controller-focus');
+      const index = controls.indexOf(phoneFocus);
+      phoneFocus = controls[(index + direction + controls.length) % controls.length];
+      phoneFocus.classList.add('controller-focus');
+      phoneFocus.focus({ preventScroll: true });
+      phoneFocus.scrollIntoView?.({ block: 'nearest', behavior: 'instant' });
+      HD.Audio?.cue?.('uiHover');
+      phoneStickCooldown = 0.23;
+    }
+    const scroll = gamepadAxis(pad.axes[3], HD.Settings.controllerDeadzone());
+    const panel = phone.querySelector('.app-panel.active');
+    if (panel && scroll) panel.scrollTop += scroll * dt * 460;
+    if (edge(4) || edge(5)) adjustPhoneField(phoneFocus, edge(5) ? 1 : -1);
+    if (edge(0)) phoneFocus.click();
+  }
+  function adjustPhoneField(element, direction) {
+    if (element.tagName === 'SELECT') {
+      let index = element.selectedIndex + direction;
+      while (index >= 0 && index < element.options.length && element.options[index].disabled) {
+        index += direction;
+      }
+      if (index < 0 || index >= element.options.length) return;
+      element.selectedIndex = index;
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    } else if (element.tagName === 'INPUT' && ['number', 'range'].includes(element.type)) {
+      element[direction > 0 ? 'stepUp' : 'stepDown']();
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    } else return;
+    HD.Audio?.cue?.('uiHover');
+  }
+  function navigateInterface(edge) {
+    const menu = document.querySelector('#game-menu');
+    const root = S.vendorOpen ? document.querySelector('#vendor-shop')
+      : S.counterOpen ? document.querySelector('#bet-counter')
+      : menu && !menu.classList.contains('closed') ? menu : null;
+    if (!root) return;
+    const controls = [...root.querySelectorAll(
       'button:not([hidden]):not(:disabled), select:not([hidden]):not(:disabled), input:not([hidden]):not(:disabled)',
     )].filter((element) => element.offsetParent !== null);
-    if (direction && controls.length) {
-      const current = Math.max(0, controls.indexOf(document.activeElement));
-      controls[(current + direction + controls.length) % controls.length].focus();
+    if (!controls.length) return;
+    const direction = edge(12) || edge(14) ? -1 : edge(13) || edge(15) ? 1 : 0;
+    const current = controls.indexOf(document.activeElement);
+    if (direction) {
+      const next = current < 0 ? (direction > 0 ? 0 : controls.length - 1)
+        : (current + direction + controls.length) % controls.length;
+      controls[next].focus();
       HD.Audio?.cue?.('uiHover');
     }
-    if (edge(0) && document.activeElement?.click) document.activeElement.click();
+    if (edge(0)) (controls.includes(document.activeElement) ? document.activeElement : controls[0]).click();
   }
-
   return {
     init,
     update,

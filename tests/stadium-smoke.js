@@ -471,12 +471,27 @@ async function run() {
       if (failRender) throw new Error("Test render failure");
     },
   };
+  HD.state.phase = "betting";
+  for (let i = 0; i < HD.state.horses.length + 1; i++) HD.Broadcast.update(0.1);
+  assert.deepEqual(HD.Broadcast.diagnostics.feedSize, [480, 253],
+    'Performance mode should use a smaller secondary render target');
+  const prewarmedDoubles = HD.Broadcast.diagnostics.doubles;
+  assert.ok(prewarmedDoubles >= HD.state.horses.length + 1,
+    'Betting should prewarm every horse and the local player for replay');
   HD.state.phase = "racing";
   HD.state.horses.forEach((horse, i) => {
     horse.userData.data.progress = 0.5 - i * 0.005;
     horse.position.set(i * 4, 0, 0);
   });
-  for (let i = 0; i < 20; i++) HD.Broadcast.update(0.1);
+  const rendersBeforeGate = renderCount;
+  HD.Broadcast.update(0.1);
+  assert.ok(HD.Broadcast.diagnostics.feedFps <= 8,
+    'Race start must ramp the secondary TV feed below its full cadence');
+  assert.equal(HD.Broadcast.diagnostics.doubles, prewarmedDoubles,
+    'Race start should not clone the whole replay roster');
+  for (let i = 0; i < 19; i++) HD.Broadcast.update(0.1);
+  assert.ok(renderCount - rendersBeforeGate <= 16,
+    'The first two racing seconds must avoid a 30 fps secondary render burst');
   assert.ok(renderCount > 0, "TV must render a real camera feed");
   const beforeInvalidTime = HD.Broadcast.diagnostics;
   const rendersBeforeInvalidTime = renderCount;
@@ -495,13 +510,14 @@ async function run() {
   HD.Broadcast.impact(nearby, projectile);
   assert.equal(HD.Broadcast.diagnostics.pending, false, 'Lapped horses do not count as nearby challengers');
   nearby.userData.data.progress = 0.51;
-  HD.Broadcast.update(0.1);
+  for (let i = 0; i < 3; i++) HD.Broadcast.update(0.1);
   assert.equal(HD.Broadcast.diagnostics.subjectId, nearby.uuid, 'Live coverage must follow a new leader');
   assert.equal(HD.Broadcast.diagnostics.pending, false, 'Leader changes alone must not trigger replay');
   nearby.userData.data.progress = 0.495;
   const airborne = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
   airborne.position.set(10, 12, 0);
   HD.state.projectiles.push({mesh: airborne, position: airborne.position, velocity: new THREE.Vector3(1, 2, 0)});
+  for (let i = 0; i < 3; i++) HD.Broadcast.update(0.1);
   for (let i = 0; i < 110; i++) {
     nearby.scale.setScalar(1 + i * 0.001);
     HD.Broadcast.update(0.1);
@@ -544,6 +560,8 @@ async function run() {
   HD.Broadcast.update(0.1);
   assert.equal(HD.Broadcast.diagnostics.samples, 0, "New race clears old footage");
   HD.state.phase = 'racing';
+  for (let i = 0; i < 100; i++) HD.Broadcast.update(1 / 60);
+  const beforeSmoothSamples = HD.Broadcast.diagnostics.samples;
   const beforeSmoothPlayback = renderCount;
   for (let i = 0; i < 180; i++) HD.Broadcast.update(1 / 60);
   const smoothRenderCount = renderCount - beforeSmoothPlayback;
@@ -551,8 +569,23 @@ async function run() {
   'TV should skip secondary frames while recovering from pressure: ' + smoothRenderCount);
   assert.equal(HD.Broadcast.diagnostics.feedFps, 30,
     'Healthy gameplay should expose the 30 fps Stadium Vision budget');
-  assert.ok(HD.Broadcast.diagnostics.samples >= 89 &&
-    HD.Broadcast.diagnostics.samples <= 91, 'Capture poses at 30 Hz for smooth interpolation');
+  assert.ok(HD.Broadcast.diagnostics.samples - beforeSmoothSamples >= 89 &&
+    HD.Broadcast.diagnostics.samples - beforeSmoothSamples <= 91, 'Capture poses at 30 Hz for smooth interpolation');
+  const beforeSlowSamples = HD.Broadcast.diagnostics.samples;
+  for (let i = 0; i < 20; i++) HD.Broadcast.update(1 / 60, 0.1);
+  assert.ok(HD.Broadcast.diagnostics.samples - beforeSlowSamples <= 8,
+    'Slow frames should perform fewer replay pose captures');
+  assert.ok(HD.Broadcast.diagnostics.feedFps <= 10,
+    'Real slow frames must reduce the secondary budget even when simulation dt is capped');
+  assert.equal(HD.Broadcast.diagnostics.captureFps, 15,
+    'Slow frames should capture fewer replay poses while interpolation remains available');
+  const rendersBeforeStall = renderCount;
+  HD.Broadcast.update(1 / 60, 0.2);
+  assert.ok(HD.Broadcast.diagnostics.renderPauseFrames > 0,
+    'A long main frame must pause secondary rendering temporarily');
+  for (let i = 0; i < 10; i++) HD.Broadcast.update(1 / 60);
+  assert.equal(renderCount, rendersBeforeStall,
+    'The TV must not compound a long main frame with more scene renders');
 
   const originalStation = HD.Broadcast.diagnostics.cameraStation;
   const focusPoint = HD.state.horses[0].position.clone().add(new THREE.Vector3(0, 3.2, 0));

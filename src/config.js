@@ -915,6 +915,28 @@ HD.HorseProfiles = (() => {
     }
   }
 
+  let pendingSave = null;
+  let pendingSaveIsIdle = false;
+  function scheduleSave() {
+    if (pendingSave !== null) return;
+    const write = () => {
+      pendingSave = null;
+      save();
+    };
+    pendingSaveIsIdle = typeof window.requestIdleCallback === "function";
+    pendingSave = pendingSaveIsIdle
+      ? window.requestIdleCallback(write, { timeout: 1500 })
+      : setTimeout(write, 250);
+  }
+
+  function flushScheduledSave() {
+    if (pendingSave === null) return;
+    if (pendingSaveIsIdle) window.cancelIdleCallback?.(pendingSave);
+    else clearTimeout(pendingSave);
+    pendingSave = null;
+    save();
+  }
+
   function save() {
     const target = storage();
     if (!target) return false;
@@ -936,11 +958,13 @@ HD.HorseProfiles = (() => {
   }
 
   load();
+  window.addEventListener?.("pagehide", flushScheduledSave);
 
   return {
     STORAGE_KEY,
     load,
     save,
+    scheduleSave,
   };
 })();
 

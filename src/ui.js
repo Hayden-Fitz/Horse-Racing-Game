@@ -126,6 +126,13 @@ HD.UI = (() => {
     renderChat();
   }
 
+  function renderRaceStart() {
+    // Betting remains open through lap one. Only these two visible panels change
+    // at the gate; rebuilding every app here stalls the first racing frame.
+    if (phonePanelActive('sabotage')) renderSabotage();
+    if (phonePanelActive('news')) renderNews();
+  }
+
   function renderOddsWatch(force = false) {
     // Thirty horse cards are expensive to rebuild. Keep their data live while
     // visible and refresh once on app entry instead of mutating hidden DOM.
@@ -370,7 +377,7 @@ HD.UI = (() => {
           <button data-sabotage-option="${id}" ${disabled}>
             <strong>${option.name} · $${price}</strong>
             <small>${option.description}</small>
-            <small>33% failure risk; failed jobs may be intercepted</small>
+            <small>${HD.PhoneData.fixerRisk(C.sabotageFailureChance, C.sabotageDetectionChance)}</small>
           </button>
         `;
       })
@@ -1021,6 +1028,8 @@ HD.UI = (() => {
   }
   function showDay(day, onComplete) {
     cancelDayTransition();
+    S.transitionActive = true;
+    Object.keys(S.movement).forEach((direction) => { S.movement[direction] = false; });
     const generation = dayGeneration;
     const online = hasOnlineLeaderboard();
     el.dayTitle.textContent = `DAY ${day}`;
@@ -1064,22 +1073,32 @@ HD.UI = (() => {
     el.dayResults.hidden = day === 1 || !(S.dayResults || []).length;
     el.dayStats.hidden = day === 1;
     if (online) renderAnimatedRankings(el.dayRankings, rankingEntries());
-    el.dayTransition.hidden = false;
-    requestAnimationFrame(() => {
-      if (generation === dayGeneration) el.dayTransition.classList.add("visible");
-    });
+    const loading = document.querySelector("#round-loading");
+    loading.querySelector("#round-loading-title").textContent =
+      day === 1 ? "PREPARING THE OPENING RACE" : "PREPARING DAY " + day;
+    loading.querySelector("#round-loading-status").textContent =
+      day === 1 ? "Getting the opening race ready..." : "Setting the field for day " + day + "...";
+    loading.hidden = false;
     dayTimeout = setTimeout(() => {
-      el.dayTransition.classList.remove("visible");
+      if (generation !== dayGeneration) return;
+      el.dayTransition.hidden = false;
+      el.dayTransition.classList.add("visible");
+      loading.hidden = true;
       dayTimeout = setTimeout(() => {
+        if (generation !== dayGeneration) return;
+        if (onComplete() === false) return;
         el.dayTransition.hidden = true;
-        onComplete();
-      }, 500);
-    }, day === 1 ? 4200 : 6200);
+        el.dayTransition.classList.remove("visible");
+        S.transitionActive = false;
+      }, day === 1 ? 4200 : 6200);
+    }, 550);
   }
 
   function cancelDayTransition() {
     dayGeneration++;
+    S.transitionActive = false;
     clearTimeout(dayTimeout);
+    document.querySelector("#round-loading").hidden = true;
     el.dayTransition.hidden = true;
     el.dayTransition.classList.remove("visible");
   }
@@ -1278,6 +1297,7 @@ HD.UI = (() => {
   return {
     render,
     renderCards,
+    renderRaceStart,
     renderOddsWatch,
     renderLeaderboard,
     updateLeaderboardAvailability,

@@ -131,7 +131,15 @@ async function run() {
   assert.equal(HD.state.sabotageHistory.length, 1);
   assert.equal(HD.state.sabotageHistory[0].horseName, HD.state.horses[0].userData.data.name);
   assert.equal(HD.state.sabotageHistory[0].resolved, false);
+  let fullRaceStartRenders = 0;
+  let visibleRaceStartUpdates = 0;
+  HD.UI.render = () => { fullRaceStartRenders++; };
+  HD.UI.renderRaceStart = () => { visibleRaceStartUpdates++; };
   HD.Race.begin();
+  assert.equal(fullRaceStartRenders, 0, "Gate opening must not redraw every phone app");
+  assert.equal(visibleRaceStartUpdates, 1, "Visible race news/fixer panels must refresh");
+  delete HD.UI.render;
+  delete HD.UI.renderRaceStart;
   HD.Race.update(0.01);
   const leadBefore = [...HD.state.horses].sort((a, b) =>
     b.userData.data.progress - a.userData.data.progress)[0];
@@ -154,6 +162,13 @@ async function run() {
   assert.equal(HD.state.sabotageHistory[0].resolved, true,
     "A guest should receive the final Fixer outcome from the host snapshot");
   assert.equal(HD.state.sabotageHistory[0].detected, true);
+  fixerSnapshot.newsEvents.push({ id: 500, label: "PHOTO FINISH",
+    title: "Comet edges Bolt", detail: "0.12 seconds", race: 1, round: 1, at: 93 });
+  fixerSnapshot.newsEvents.push({ id: 501, label: "UPSET",
+    title: "Longshot shocks the field", detail: "9% opening chance", race: 1, round: 1, at: 93 });
+  HD.Race.applyNetworkSnapshot(fixerSnapshot);
+  assert(HD.state.newsEvents.some((event) => event.label === "PHOTO FINISH"));
+  assert(HD.state.newsEvents.some((event) => event.label === "UPSET"));
   HD.CONFIG.sabotageFailureChance = originalFailureChance;
   HD.CONFIG.sabotageDetectionChance = originalDetectionChance;
   HD.state.money = moneyBeforeFixer;

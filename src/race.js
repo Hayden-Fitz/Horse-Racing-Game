@@ -136,7 +136,7 @@ HD.Race = (() => {
       const profile = C.horses.find((entry) => entry.id === data.id);
       if (profile?.history) profile.history.starts++;
     });
-    HD.HorseProfiles?.save();
+    HD.HorseProfiles?.scheduleSave?.();
     const sabotageReport = resolveSabotage();
     const bettingNotice =
       "Live betting remains open until the leader completes lap one.";
@@ -151,7 +151,7 @@ HD.Race = (() => {
     setTimeout(() => {
       if (generation === runGeneration && S.phase === "racing") HD.UI.countdown("");
     }, 700);
-    HD.UI.render();
+    HD.UI.renderRaceStart?.();
   }
   function purchaseSabotage(horseIndex, optionId) {
     if (C.sabotageEnabled === false) {
@@ -643,6 +643,7 @@ HD.Race = (() => {
     const closeFinish = runnerUp
       ? Math.abs((runnerUp.finishTime || S.raceTime) - winnerData.finishTime) < 0.5
       : false;
+    HD.PhoneData?.recordFinishNews?.(S, winnerData, runnerUp);
     HD.Audio?.raceFinish?.(winnerData, closeFinish);
     HD.UI.render();
     clearTimeout(nextRaceTimeout);
@@ -1465,7 +1466,7 @@ HD.Race = (() => {
     S.raceAnnouncement = snapshot.announcement || "";
     if (Array.isArray(snapshot.newsEvents)) {
       S.newsEvents = snapshot.newsEvents.slice(0, 12).filter((event) =>
-        event && ["HIT", "STUN", "OVERTAKE"].includes(event.label) &&
+        event && ["HIT", "STUN", "OVERTAKE", "PHOTO FINISH", "UPSET"].includes(event.label) &&
         typeof event.title === "string" && typeof event.detail === "string")
         .map((event) => ({ id: Number(event.id) || 0, label: event.label,
           title: event.title.slice(0, 100), detail: event.detail.slice(0, 150),
@@ -1542,7 +1543,7 @@ HD.Race = (() => {
   function handleNetworkPhase(previousPhase) {
     if (S.phase === "dayTransition" && previousPhase !== "dayTransition") {
       HD.UI.showRoundBreak(false);
-      HD.UI.showDay(S.round + 1, () => {});
+      HD.UI.showDay(S.round + 1, () => false);
     }
     if (S.phase === "betting" && previousPhase === "dayTransition") {
       HD.UI.cancelDayTransition?.();
